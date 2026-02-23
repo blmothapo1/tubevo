@@ -44,9 +44,9 @@ export default function Settings() {
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               activeTab === key
-                ? 'bg-surface-200 text-white'
+                ? 'gradient-brand text-white shadow-md shadow-brand-500/15'
                 : 'text-surface-600 hover:text-surface-800 hover:bg-surface-200/50'
             }`}
           >
@@ -127,7 +127,7 @@ function AccountTab({ fullName, setFullName, email }) {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+        className="px-5 py-2.5 rounded-lg text-sm font-medium gradient-brand text-white hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 glow-brand"
       >
         {saving ? <Spinner className="w-4 h-4" /> : 'Save Changes'}
       </button>
@@ -213,9 +213,9 @@ function YouTubeTab() {
 
       {connection?.connected ? (
         /* ── Connected state ── */
-        <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-3">
+        <div className="bg-surface-200 border border-emerald-500/20 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center ring-1 ring-red-500/20">
               <Youtube size={20} className="text-red-400" />
             </div>
             <div className="flex-1 min-w-0">
@@ -227,7 +227,7 @@ function YouTubeTab() {
               </p>
             </div>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Connected
             </span>
           </div>
@@ -252,7 +252,9 @@ function YouTubeTab() {
       ) : (
         /* ── Disconnected state ── */
         <div className="flex items-center gap-4 bg-surface-200 border border-surface-300 rounded-xl p-4">
-          <Youtube size={24} className="text-red-400" />
+          <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+            <Youtube size={20} className="text-red-400" />
+          </div>
           <div className="flex-1">
             <p className="text-sm font-medium text-surface-900">No channel connected</p>
             <p className="text-xs text-surface-600">Authorize via Google OAuth</p>
@@ -260,7 +262,7 @@ function YouTubeTab() {
           <button
             onClick={handleConnect}
             disabled={actionLoading}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25 transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500 text-white hover:bg-red-400 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-red-500/20"
           >
             {actionLoading ? <Spinner className="w-3 h-3" /> : 'Connect'}
           </button>
@@ -295,8 +297,8 @@ function Toggle({ label, description, checked, onChange }) {
       </div>
       <button
         onClick={() => onChange(!checked)}
-        className={`relative w-11 h-6 rounded-full transition-colors ${
-          checked ? 'bg-brand-600' : 'bg-surface-400'
+        className={`relative w-11 h-6 rounded-full transition-all ${
+          checked ? 'gradient-brand shadow-md shadow-brand-500/25' : 'bg-surface-400'
         }`}
       >
         <span
@@ -373,9 +375,9 @@ function PlanTab({ plan }) {
         {plans.map((p) => (
           <div
             key={p.key}
-            className={`rounded-xl border p-5 transition-colors ${
+            className={`rounded-xl border p-5 transition-all ${
               plan === p.key
-                ? 'border-brand-500 bg-brand-600/10'
+                ? 'border-brand-500 bg-brand-600/10 glow-brand'
                 : 'border-surface-300 bg-surface-200/50 hover:border-surface-400'
             }`}
           >
@@ -390,14 +392,18 @@ function PlanTab({ plan }) {
               ))}
             </ul>
             {plan === p.key ? (
-              <span className="inline-block mt-4 text-xs font-medium text-brand-400">
+              <span className="inline-block mt-4 text-xs font-medium text-gradient">
                 Current Plan
               </span>
             ) : (
               <button
                 onClick={() => handlePlanAction(p.key)}
                 disabled={loading !== null}
-                className="mt-4 w-full px-3 py-2 rounded-lg text-xs font-medium bg-surface-300 text-surface-800 hover:bg-surface-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className={`mt-4 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  p.key === 'free'
+                    ? 'bg-surface-300 text-surface-800 hover:bg-surface-400'
+                    : 'gradient-brand text-white hover:opacity-90 glow-brand'
+                }`}
               >
                 {loading === p.key ? (
                   <Spinner className="w-3 h-3" />
@@ -437,7 +443,7 @@ function UsageTab() {
         </div>
         <div className="w-full h-2.5 bg-surface-300 rounded-full overflow-hidden">
           <div
-            className="h-full bg-brand-500 rounded-full transition-all duration-500"
+            className="h-full gradient-brand rounded-full transition-all duration-500"
             style={{ width: `${pct}%` }}
           />
         </div>

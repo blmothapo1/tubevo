@@ -85,9 +85,9 @@ export default function Dashboard() {
   }
 
   const statCards = [
-    { label: 'Total Generated', value: stats?.total_generated ?? 0, icon: Film, color: 'text-brand-400' },
-    { label: 'Posted', value: stats?.total_posted ?? 0, icon: Upload, color: 'text-emerald-400' },
-    { label: 'In Progress', value: stats?.total_pending ?? 0, icon: CalendarClock, color: 'text-amber-400' },
+    { label: 'Total Generated', value: stats?.total_generated ?? 0, icon: Film, color: 'text-brand-400', border: 'border-l-brand-500' },
+    { label: 'Posted', value: stats?.total_posted ?? 0, icon: Upload, color: 'text-emerald-400', border: 'border-l-emerald-500' },
+    { label: 'In Progress', value: stats?.total_pending ?? 0, icon: CalendarClock, color: 'text-amber-400', border: 'border-l-amber-500' },
   ];
 
   return (
@@ -109,9 +109,9 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => setAutomationOn(!automationOn)}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
               automationOn
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 shadow-[0_0_15px_rgba(52,211,153,0.15)]'
                 : 'bg-surface-200 text-surface-700 border border-surface-300 hover:bg-surface-300'
             }`}
           >
@@ -123,10 +123,10 @@ export default function Dashboard() {
 
       {/* Stats Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {statCards.map(({ label, value, icon: Icon, color }) => (
+        {statCards.map(({ label, value, icon: Icon, color, border }) => (
           <div
             key={label}
-            className="bg-surface-100 border border-surface-300 rounded-xl p-5 flex items-center gap-4"
+            className={`bg-surface-100 border border-surface-300 border-l-2 ${border} rounded-xl p-5 flex items-center gap-4`}
           >
             <div className="w-10 h-10 rounded-lg bg-surface-200 flex items-center justify-center">
               <Icon size={20} className={color} />

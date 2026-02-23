@@ -14,9 +14,12 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-60 bg-surface-100 border-r border-surface-300 flex flex-col z-30">
+      {/* Accent gradient line at top */}
+      <div className="h-0.5 gradient-brand-accent" />
+
       <div className="px-5 py-6">
         <span className="text-xl font-bold tracking-tight text-white">
-          <span className="text-brand-400">Tube</span>vo
+          <span className="text-gradient">Tube</span>vo
         </span>
       </div>
 

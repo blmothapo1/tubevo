@@ -44,7 +44,7 @@ export default function Schedule() {
       <div className="bg-surface-100 border border-surface-300 rounded-xl overflow-hidden">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-surface-300">
+            <tr className="border-b border-surface-300 bg-surface-200/50">
               <th className="px-5 py-3 text-xs font-medium text-surface-600 uppercase tracking-wider">
                 Title
               </th>
@@ -60,7 +60,9 @@ export default function Schedule() {
             {history.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-5 py-12 text-center">
-                  <Sparkles size={32} className="text-surface-500 mx-auto mb-3" />
+                  <div className="w-12 h-12 rounded-2xl gradient-brand flex items-center justify-center mx-auto mb-3 glow-brand">
+                    <Sparkles size={24} className="text-white" />
+                  </div>
                   <p className="text-sm text-surface-600">
                     No videos posted yet. Generate and post your first video!
                   </p>
@@ -76,7 +78,7 @@ export default function Schedule() {
                   </td>
                   <td className="px-5 py-4">
                     <span className="flex items-center gap-1.5 text-sm text-surface-700">
-                      <CalendarDays size={14} className="text-surface-600" />
+                      <CalendarDays size={14} className="text-brand-400" />
                       {item.created_at
                         ? new Date(item.created_at).toLocaleDateString('en-US', {
                             month: 'short',

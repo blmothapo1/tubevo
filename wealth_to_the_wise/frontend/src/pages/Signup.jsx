@@ -28,16 +28,20 @@ export default function Signup() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen bg-surface-50 flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Decorative glow blobs */}
+      <div className="absolute top-1/3 -right-32 w-96 h-96 bg-brand-600/8 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/3 -left-32 w-80 h-80 bg-accent-500/6 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8">
           <Link to="/" className="text-2xl font-bold tracking-tight text-white">
-            <span className="text-brand-400">Tube</span>vo
+            <span className="text-gradient">Tube</span>vo
           </Link>
           <p className="mt-2 text-sm text-surface-700">Create your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-surface-100 border border-surface-300 rounded-xl p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-surface-100 border border-surface-300 rounded-xl p-6 space-y-4 glow-brand">
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-2.5 rounded-lg">
               {error}
@@ -83,7 +87,7 @@ export default function Signup() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-medium text-sm py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
+            className="w-full gradient-brand hover:opacity-90 disabled:opacity-50 text-white font-medium text-sm py-2.5 rounded-lg transition-all flex items-center justify-center gap-2 glow-brand"
           >
             {loading ? <Spinner className="w-4 h-4" /> : 'Create account'}
           </button>

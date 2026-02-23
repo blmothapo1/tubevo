@@ -32,14 +32,14 @@ export default function Onboarding() {
   const steps = [
     // Step 0: Connect YouTube
     <div key="yt" className="text-center">
-      <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+      <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-6 ring-1 ring-red-500/20">
         <Youtube size={32} className="text-red-400" />
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">Connect YouTube</h2>
       <p className="text-surface-700 text-sm mb-8 max-w-sm mx-auto">
         Link your YouTube channel so Tubevo can upload videos on your behalf.
       </p>
-      <button className="bg-red-500 hover:bg-red-400 text-white font-medium text-sm px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2">
+      <button className="bg-red-500 hover:bg-red-400 text-white font-medium text-sm px-6 py-3 rounded-lg transition-all inline-flex items-center gap-2 shadow-lg shadow-red-500/20">
         <Youtube size={18} /> Connect with Google
       </button>
       <p className="text-xs text-surface-600 mt-4">You can also do this later in Settings.</p>
@@ -58,8 +58,8 @@ export default function Onboarding() {
               onClick={() => toggleNiche(n)}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-all border ${
                 active
-                  ? 'bg-brand-600/20 border-brand-500 text-brand-300'
-                  : 'bg-surface-200 border-surface-400 text-surface-700 hover:border-surface-500'
+                  ? 'gradient-brand border-brand-500 text-white shadow-md shadow-brand-500/20'
+                  : 'bg-surface-200 border-surface-400 text-surface-700 hover:border-surface-500 hover:text-surface-800'
               }`}
             >
               {active && <Check size={14} className="inline mr-1.5 -mt-0.5" />}
@@ -81,11 +81,14 @@ export default function Onboarding() {
             onClick={() => setFrequency(f.value)}
             className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
               frequency === f.value
-                ? 'bg-brand-600/15 border-brand-500 text-white'
+                ? 'bg-brand-600/15 border-brand-500 text-white shadow-md shadow-brand-500/10'
                 : 'bg-surface-200 border-surface-400 text-surface-700 hover:border-surface-500'
             }`}
           >
             <span className="text-sm font-medium">{f.label}</span>
+            {frequency === f.value && (
+              <Check size={14} className="inline ml-2 text-brand-400 -mt-0.5" />
+            )}
             <span className="block text-xs text-surface-600 mt-0.5">{f.desc}</span>
           </button>
         ))}
@@ -94,14 +97,14 @@ export default function Onboarding() {
 
     // Step 3: Confirmation
     <div key="confirm" className="text-center">
-      <div className="w-16 h-16 rounded-2xl bg-brand-600/10 flex items-center justify-center mx-auto mb-6">
-        <Rocket size={32} className="text-brand-400" />
+      <div className="w-16 h-16 rounded-2xl gradient-brand flex items-center justify-center mx-auto mb-6 glow-brand">
+        <Rocket size={32} className="text-white" />
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">You're all set!</h2>
       <p className="text-surface-700 text-sm mb-4 max-w-sm mx-auto">
         Tubevo will start generating and posting content based on your preferences.
       </p>
-      <div className="bg-surface-200 rounded-xl p-4 max-w-xs mx-auto text-left space-y-2 mb-8">
+      <div className="bg-surface-200 rounded-xl p-4 max-w-xs mx-auto text-left space-y-2 mb-8 border border-surface-300">
         <div className="flex justify-between text-sm">
           <span className="text-surface-600">Niches</span>
           <span className="text-white font-medium">{selectedNiches.join(', ') || 'None'}</span>
@@ -113,7 +116,7 @@ export default function Onboarding() {
       </div>
       <button
         onClick={launch}
-        className="bg-brand-600 hover:bg-brand-500 text-white font-medium text-sm px-8 py-3 rounded-lg transition-colors inline-flex items-center gap-2"
+        className="gradient-brand hover:opacity-90 text-white font-medium text-sm px-8 py-3 rounded-lg transition-all inline-flex items-center gap-2 glow-brand"
       >
         <Rocket size={16} /> Launch Tubevo
       </button>
@@ -121,15 +124,18 @@ export default function Onboarding() {
   ];
 
   return (
-    <div className="min-h-screen bg-surface-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-lg">
+    <div className="min-h-screen bg-surface-50 flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Decorative glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-brand-600/5 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-lg relative z-10">
         {/* Progress */}
         <div className="flex items-center justify-center gap-2 mb-10">
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
               className={`h-1.5 rounded-full transition-all ${
-                i <= step ? 'w-10 bg-brand-500' : 'w-6 bg-surface-400'
+                i <= step ? 'w-10 gradient-brand' : 'w-6 bg-surface-400'
               }`}
             />
           ))}

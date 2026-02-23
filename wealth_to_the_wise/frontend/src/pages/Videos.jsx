@@ -109,7 +109,7 @@ export default function Videos() {
           <button
             type="submit"
             disabled={generating}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium gradient-brand text-white hover:opacity-90 transition-all disabled:opacity-50 glow-brand"
           >
             {generating ? (
               <Spinner className="w-4 h-4" />
@@ -151,8 +151,8 @@ export default function Videos() {
             return (
               <div key={video.id} className="flex items-center gap-4 px-5 py-4">
                 {/* Thumbnail placeholder */}
-                <div className="w-28 h-16 rounded-lg bg-surface-200 flex items-center justify-center shrink-0 overflow-hidden">
-                  <Film size={20} className="text-surface-500" />
+                <div className="w-28 h-16 rounded-lg bg-surface-200 flex items-center justify-center shrink-0 overflow-hidden border border-surface-300">
+                  <Film size={20} className="text-brand-400/60" />
                 </div>
 
                 {/* Info */}

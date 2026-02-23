@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  /* Brand — vibrant indigo-violet */
   --color-brand-50: #eef2ff;
   --color-brand-100: #e0e7ff;
   --color-brand-200: #c7d2fe;
@@ -11,6 +12,14 @@
   --color-brand-700: #4338ca;
   --color-brand-800: #3730a3;
   --color-brand-900: #312e81;
+
+  /* Accent — warm gold for highlights */
+  --color-accent-300: #fcd34d;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+
+  /* Surface — deep cool neutrals */
   --color-surface-50: #0a0a0f;
   --color-surface-100: #111118;
   --color-surface-200: #1a1a24;
@@ -35,6 +44,26 @@ body {
 
 input, select, textarea {
   font-family: inherit;
+}
+
+/* ── Subtle gradient utilities ────────────────────── */
+.glow-brand {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15), 0 0 60px rgba(99, 102, 241, 0.05);
+}
+.glow-accent {
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.12), 0 0 60px rgba(251, 191, 36, 0.04);
+}
+.gradient-brand {
+  background: linear-gradient(135deg, var(--color-brand-600), var(--color-brand-400));
+}
+.gradient-brand-accent {
+  background: linear-gradient(135deg, var(--color-brand-500), #8b5cf6, var(--color-accent-500));
+}
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-brand-400), #a78bfa, var(--color-accent-400));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 ::-webkit-scrollbar { width: 6px; }

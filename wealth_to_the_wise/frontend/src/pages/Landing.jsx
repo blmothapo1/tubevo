@@ -4,12 +4,12 @@ import {
 } from 'lucide-react';
 
 const features = [
-  { icon: Sparkles, title: 'AI Script Generation', desc: 'GPT-4o writes engaging, niche-specific scripts in seconds.' },
-  { icon: Mic, title: 'Voice Cloning', desc: 'ElevenLabs TTS creates natural voiceovers that sound like you.' },
-  { icon: Upload, title: 'Auto-Upload', desc: 'Videos are rendered, optimized, and uploaded to YouTube automatically.' },
-  { icon: Target, title: 'Niche Targeting', desc: 'Choose your niche and let the AI generate content that resonates.' },
-  { icon: CalendarClock, title: 'Posting Schedule', desc: 'Set your cadence — daily, every 2 days, or weekly.' },
-  { icon: Zap, title: 'Zero Effort', desc: 'From idea to published video with absolutely no manual steps.' },
+  { icon: Sparkles, title: 'AI Script Generation', desc: 'GPT-4o writes engaging, niche-specific scripts in seconds.', iconColor: 'text-brand-400', iconBg: 'bg-brand-600/10' },
+  { icon: Mic, title: 'Voice Cloning', desc: 'ElevenLabs TTS creates natural voiceovers that sound like you.', iconColor: 'text-violet-400', iconBg: 'bg-violet-500/10' },
+  { icon: Upload, title: 'Auto-Upload', desc: 'Videos are rendered, optimized, and uploaded to YouTube automatically.', iconColor: 'text-emerald-400', iconBg: 'bg-emerald-500/10' },
+  { icon: Target, title: 'Niche Targeting', desc: 'Choose your niche and let the AI generate content that resonates.', iconColor: 'text-amber-400', iconBg: 'bg-amber-500/10' },
+  { icon: CalendarClock, title: 'Posting Schedule', desc: 'Set your cadence — daily, every 2 days, or weekly.', iconColor: 'text-cyan-400', iconBg: 'bg-cyan-500/10' },
+  { icon: Zap, title: 'Zero Effort', desc: 'From idea to published video with absolutely no manual steps.', iconColor: 'text-rose-400', iconBg: 'bg-rose-500/10' },
 ];
 
 const tiers = [
@@ -63,31 +63,37 @@ export default function Landing() {
       </nav>
 
       {/* Hero */}
-      <section className="max-w-4xl mx-auto px-6 pt-28 pb-20 text-center">
-        <div className="inline-flex items-center gap-2 bg-brand-600/10 border border-brand-600/20 text-brand-300 text-xs font-medium px-3 py-1 rounded-full mb-6">
-          <Zap size={12} /> Now in public beta
-        </div>
-        <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-white leading-tight">
-          Your YouTube Channel.
-          <br />
-          <span className="text-brand-400">On Autopilot.</span>
-        </h1>
-        <p className="mt-6 text-lg text-surface-700 max-w-2xl mx-auto leading-relaxed">
-          Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
-        </p>
-        <div className="mt-10 flex items-center justify-center gap-4">
-          <Link
-            to="/signup"
-            className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-500 text-white font-medium px-6 py-3 rounded-lg transition-colors text-sm"
-          >
-            Get Started Free <ArrowRight size={16} />
-          </Link>
-          <a
-            href="#features"
-            className="text-sm text-surface-700 hover:text-surface-900 transition-colors"
-          >
-            See how it works →
-          </a>
+      <section className="max-w-4xl mx-auto px-6 pt-28 pb-20 text-center relative">
+        {/* Subtle background glow */}
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-brand-600/8 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-32 left-1/3 w-[300px] h-[300px] bg-accent-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 bg-brand-600/10 border border-brand-600/20 text-brand-300 text-xs font-medium px-3 py-1 rounded-full mb-6">
+            <Zap size={12} className="text-accent-400" /> Now in public beta
+          </div>
+          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-white leading-tight">
+            Your YouTube Channel.
+            <br />
+            <span className="text-gradient">On Autopilot.</span>
+          </h1>
+          <p className="mt-6 text-lg text-surface-700 max-w-2xl mx-auto leading-relaxed">
+            Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
+          </p>
+          <div className="mt-10 flex items-center justify-center gap-4">
+            <Link
+              to="/signup"
+              className="inline-flex items-center gap-2 gradient-brand hover:opacity-90 text-white font-medium px-6 py-3 rounded-lg transition-all text-sm glow-brand"
+            >
+              Get Started Free <ArrowRight size={16} />
+            </Link>
+            <a
+              href="#features"
+              className="text-sm text-surface-700 hover:text-surface-900 transition-colors"
+            >
+              See how it works →
+            </a>
+          </div>
         </div>
       </section>
 
@@ -98,13 +104,13 @@ export default function Landing() {
           From script to published video — every step is automated.
         </p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {features.map(({ icon: Icon, title, desc }) => (
+          {features.map(({ icon: Icon, title, desc, iconColor, iconBg }) => (
             <div
               key={title}
-              className="bg-surface-100 border border-surface-300 rounded-xl p-6 hover:border-brand-600/30 transition-colors"
+              className="bg-surface-100 border border-surface-300 rounded-xl p-6 hover:border-brand-600/30 hover:bg-surface-100/80 transition-all group"
             >
-              <div className="w-10 h-10 rounded-lg bg-brand-600/10 flex items-center justify-center mb-4">
-                <Icon size={20} className="text-brand-400" />
+              <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                <Icon size={20} className={iconColor} />
               </div>
               <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>
               <p className="text-sm text-surface-700 leading-relaxed">{desc}</p>
@@ -126,7 +132,7 @@ export default function Landing() {
               }`}
             >
               {tier.popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-600 text-white text-xs font-medium px-3 py-0.5 rounded-full">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 gradient-brand text-white text-xs font-medium px-3 py-0.5 rounded-full">
                   Most popular
                 </span>
               )}
@@ -145,9 +151,9 @@ export default function Landing() {
               </ul>
               <Link
                 to="/signup"
-                className={`mt-8 text-center text-sm font-medium py-2.5 rounded-lg transition-colors ${
+                className={`mt-8 text-center text-sm font-medium py-2.5 rounded-lg transition-all ${
                   tier.popular
-                    ? 'bg-brand-600 hover:bg-brand-500 text-white'
+                    ? 'gradient-brand hover:opacity-90 text-white glow-brand'
                     : 'bg-surface-200 hover:bg-surface-300 text-surface-900'
                 }`}
               >
