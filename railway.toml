@@ -9,8 +9,7 @@ dockerfilePath = "wealth_to_the_wise/Dockerfile"
 watchPatterns = ["wealth_to_the_wise/**"]
 
 [deploy]
-startCommand = "uvicorn backend.app:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
