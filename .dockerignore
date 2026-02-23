@@ -1,0 +1,21 @@
+# Don't copy these into the Docker image
+.git
+.github
+.gitignore
+.DS_Store
+.history
+
+# Frontend (deployed separately on Vercel)
+wealth_to_the_wise/frontend
+wealth_to_the_wise/output
+wealth_to_the_wise/__pycache__
+wealth_to_the_wise/backend/__pycache__
+wealth_to_the_wise/backend/**/__pycache__
+wealth_to_the_wise/*.db
+wealth_to_the_wise/.env
+wealth_to_the_wise/node_modules
+wealth_to_the_wise/venv
+
+# OS files
+*.DS_Store
+Thumbs.db
