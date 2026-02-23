@@ -15,7 +15,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from backend.config import get_settings
 
-logger = logging.getLogger("wealth_to_the_wise.backend.database")
+logger = logging.getLogger("tubevo.backend.database")
 
 
 # ── Engine + session factory ─────────────────────────────────────────

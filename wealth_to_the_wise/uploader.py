@@ -33,7 +33,7 @@ from google.oauth2.credentials import Credentials
 
 import config
 
-logger = logging.getLogger("wealth_to_the_wise.uploader")
+logger = logging.getLogger("tubevo.uploader")
 
 # ── Constants ────────────────────────────────────────────────────────
 RETRIABLE_STATUS_CODES = [500, 502, 503, 504]

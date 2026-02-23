@@ -47,7 +47,7 @@ from backend.schemas import (
     UserProfile,
 )
 
-logger = logging.getLogger("wealth_to_the_wise.backend.auth_router")
+logger = logging.getLogger("tubevo.backend.auth_router")
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 

@@ -39,7 +39,7 @@ from moviepy import (
     concatenate_videoclips,
 )
 
-logger = logging.getLogger("wealth_to_the_wise.video_builder")
+logger = logging.getLogger("tubevo.video_builder")
 
 OUTPUT_DIR = Path("output")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -252,7 +252,7 @@ def _create_branding_clip(duration: float):
     """Persistent channel watermark in the top-left with accent underline."""
     try:
         brand = TextClip(
-            text="WEALTH TO THE WISE",
+            text="TUBEVO",
             font_size=BRAND_FONT_SIZE,
             color=ACCENT_COLOR,
             font=FONT,
@@ -299,7 +299,7 @@ def _create_title_card(title: str, duration: float = TITLE_CARD_DURATION):
 
     # Channel name (small, above the line)
     channel = TextClip(
-        text="WEALTH TO THE WISE",
+        text="TUBEVO",
         font_size=28,
         color=ACCENT_COLOR,
         font=FONT,
@@ -374,7 +374,7 @@ def _create_outro_card(duration: float = OUTRO_CARD_DURATION):
 
     # Channel name
     channel = TextClip(
-        text="WEALTH TO THE WISE",
+        text="TUBEVO",
         font_size=24,
         color="#888888",
         font=FONT,
@@ -622,7 +622,7 @@ if __name__ == "__main__":
         clip_paths = sorted(str(p) for p in clip_dir.glob("clip_*.mp4")) if clip_dir.exists() else None
         build_video(
             audio_path=test_audio,
-            title=meta.get("title", "Wealth to the Wise"),
+            title=meta.get("title", "Tubevo"),
             script=script_text,
             stock_clip_paths=clip_paths if clip_paths else None,
         )

@@ -33,7 +33,7 @@ from backend.schemas import (
     YouTubeConnectionResponse,
 )
 
-logger = logging.getLogger("wealth_to_the_wise.backend.youtube_router")
+logger = logging.getLogger("tubevo.backend.youtube_router")
 
 router = APIRouter(prefix="/oauth/youtube", tags=["YouTube OAuth"])
 

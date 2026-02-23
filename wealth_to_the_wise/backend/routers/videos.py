@@ -27,7 +27,7 @@ from backend.database import get_db
 from backend.models import User, VideoRecord
 from backend.rate_limit import limiter
 
-logger = logging.getLogger("wealth_to_the_wise.backend.videos")
+logger = logging.getLogger("tubevo.backend.videos")
 
 router = APIRouter(prefix="/api/videos", tags=["Videos"])
 

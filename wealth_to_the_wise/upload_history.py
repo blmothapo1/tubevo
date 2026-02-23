@@ -24,7 +24,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-logger = logging.getLogger("wealth_to_the_wise.upload_history")
+logger = logging.getLogger("tubevo.upload_history")
 
 HISTORY_FILE = Path("output") / "upload_history.json"
 

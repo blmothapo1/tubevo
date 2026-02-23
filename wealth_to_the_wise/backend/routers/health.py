@@ -16,7 +16,7 @@ from fastapi import APIRouter, Request
 from backend.rate_limit import limiter
 from backend.schemas import HealthResponse
 
-logger = logging.getLogger("wealth_to_the_wise.backend.health")
+logger = logging.getLogger("tubevo.backend.health")
 
 router = APIRouter(tags=["Health"])
 

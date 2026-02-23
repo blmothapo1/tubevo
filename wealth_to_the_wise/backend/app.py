@@ -1,6 +1,6 @@
 # filepath: backend/app.py
 """
-FastAPI application factory for Wealth to the Wise SaaS backend.
+FastAPI application factory for Tubevo SaaS backend.
 
 Item 1: Backend Service
 -----------------------
@@ -38,7 +38,7 @@ from backend.middleware import RequestLoggingMiddleware
 from backend.rate_limit import limiter
 from backend.routers import auth, billing, health, videos, youtube
 
-logger = logging.getLogger("wealth_to_the_wise.backend.app")
+logger = logging.getLogger("tubevo.backend.app")
 
 
 def create_app() -> FastAPI:

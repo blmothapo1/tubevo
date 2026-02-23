@@ -1,5 +1,5 @@
 """
-topics.py — Rotating topic bank for Wealth to the Wise.
+topics.py — Rotating topic bank for Tubevo.
 
 The pipeline picks the next unused topic automatically.
 Add as many topics as you want — they're used in order,

@@ -29,7 +29,7 @@ from pathlib import Path
 
 import config
 
-logger = logging.getLogger("wealth_to_the_wise.stock_footage")
+logger = logging.getLogger("tubevo.stock_footage")
 
 # ── Config ───────────────────────────────────────────────────────────
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")

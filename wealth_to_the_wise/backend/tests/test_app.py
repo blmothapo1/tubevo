@@ -79,4 +79,4 @@ async def test_openapi_json_available(client: AsyncClient):
     resp = await client.get("/openapi.json")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["info"]["title"] == "Wealth to the Wise"
+    assert data["info"]["title"] == "Tubevo"

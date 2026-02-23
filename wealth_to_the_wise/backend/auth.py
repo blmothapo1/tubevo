@@ -25,7 +25,7 @@ from backend.config import get_settings
 from backend.database import get_db
 from backend.models import User
 
-logger = logging.getLogger("wealth_to_the_wise.backend.auth")
+logger = logging.getLogger("tubevo.backend.auth")
 
 # ── Password hashing ────────────────────────────────────────────────
 

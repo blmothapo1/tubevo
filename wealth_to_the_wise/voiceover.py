@@ -22,7 +22,7 @@ from pathlib import Path
 
 import config
 
-logger = logging.getLogger("wealth_to_the_wise.voiceover")
+logger = logging.getLogger("tubevo.voiceover")
 
 # ── Defaults ─────────────────────────────────────────────────────────
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"

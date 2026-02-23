@@ -32,7 +32,7 @@ logging.basicConfig(
     ],
 )
 
-logger = logging.getLogger("wealth_to_the_wise.backend")
+logger = logging.getLogger("tubevo.backend")
 
 
 # ── Settings ─────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     """
 
     # ── App ──────────────────────────────────────────────────────────
-    app_name: str = "Wealth to the Wise"
+    app_name: str = "Tubevo"
     debug: bool = False
 
     # ── Server ───────────────────────────────────────────────────────

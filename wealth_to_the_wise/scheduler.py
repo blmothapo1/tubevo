@@ -24,7 +24,7 @@ import schedule
 import config  # noqa: F401  (ensures logging is configured)
 from topics import get_next_topic
 
-logger = logging.getLogger("wealth_to_the_wise.scheduler")
+logger = logging.getLogger("tubevo.scheduler")
 
 
 def _run_full_pipeline() -> None:
@@ -69,7 +69,7 @@ def start_scheduler(run_time: str = "09:00", day: str | None = None) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Wealth to the Wise — Scheduler")
+    parser = argparse.ArgumentParser(description="Tubevo — Scheduler")
     parser.add_argument("--now", action="store_true", help="Run one pipeline immediately and exit")
     parser.add_argument("--time", default="09:00", help="Time to run daily (HH:MM, default 09:00)")
     parser.add_argument("--every", default=None, help="Day of week (e.g. monday). Omit for daily.")

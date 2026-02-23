@@ -16,7 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import Response
 
-logger = logging.getLogger("wealth_to_the_wise.backend.middleware")
+logger = logging.getLogger("tubevo.backend.middleware")
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):

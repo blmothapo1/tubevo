@@ -19,7 +19,7 @@ from pathlib import Path
 import boto3
 from botocore.config import Config as BotoConfig
 
-logger = logging.getLogger("wealth_to_the_wise.storage")
+logger = logging.getLogger("tubevo.storage")
 
 
 def _get_env(name: str) -> str:

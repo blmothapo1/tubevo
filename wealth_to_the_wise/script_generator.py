@@ -17,7 +17,7 @@ from openai import OpenAI
 
 import config
 
-logger = logging.getLogger("wealth_to_the_wise.script_generator")
+logger = logging.getLogger("tubevo.script_generator")
 
 # ── OpenAI client (initialised once) ────────────────────────────────
 _client: OpenAI | None = None
@@ -41,7 +41,7 @@ def _get_client() -> OpenAI:
 def generate_script(topic: str, *, max_tokens: int = 1200) -> str:
     """Return a ~3-minute video script for the given *topic*.
 
-    The script follows the Wealth to the Wise style:
+    The script follows the Tubevo style:
     • Hook (5-10 s)
     • 3–5 key points with actionable advice
     • Strong CTA close

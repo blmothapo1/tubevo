@@ -4,7 +4,7 @@ thumbnail.py — Generate a branded YouTube thumbnail image.
 Creates a 1280×720 thumbnail with:
   • A dark gradient background
   • The video title in large bold white text
-  • Channel branding ("WEALTH TO THE WISE") with accent colour
+  • Channel branding ("TUBEVO") with accent colour
   • A subtle accent-coloured border strip
 
 Usage:
@@ -23,7 +23,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-logger = logging.getLogger("wealth_to_the_wise.thumbnail")
+logger = logging.getLogger("tubevo.thumbnail")
 
 OUTPUT_DIR = Path("output")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -99,7 +99,7 @@ def generate_thumbnail(
 
     # ── Channel branding (above the line) ────────────────────────────
     brand_font = _load_font(_FONT_BOLD, 30)
-    brand_text = "WEALTH TO THE WISE"
+    brand_text = "TUBEVO"
     brand_bbox = draw.textbbox((0, 0), brand_text, font=brand_font)
     brand_w = brand_bbox[2] - brand_bbox[0]
     brand_x = (WIDTH - brand_w) // 2

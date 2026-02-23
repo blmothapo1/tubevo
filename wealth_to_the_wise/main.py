@@ -1,5 +1,5 @@
 """
-main.py — Wealth to the Wise: automated YouTube upload pipeline.
+main.py — Tubevo: automated YouTube upload pipeline.
 
 Workflow (manual mode — default)
 ---------------------------------
@@ -37,7 +37,7 @@ from upload_history import is_duplicate, record_upload
 # upload and deleted immediately after (regardless of success/failure).
 _R2_ENABLED = bool(os.getenv("R2_ACCOUNT_ID") and os.getenv("R2_BUCKET_NAME"))
 
-logger = logging.getLogger("wealth_to_the_wise.main")
+logger = logging.getLogger("tubevo.main")
 
 # ── Paths ────────────────────────────────────────────────────────────
 OUTPUT_DIR = Path("output")
@@ -321,7 +321,7 @@ def _print_upload_deferred(video_path: str, metadata: dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Wealth to the Wise — automated YouTube upload pipeline",
+        description="Tubevo — automated YouTube upload pipeline",
     )
     parser.add_argument(
         "topic",

@@ -1,4 +1,4 @@
-# Wealth to the Wise — YouTube Automation Pipeline
+# Tubevo — YouTube Automation Pipeline
 # Environment variables consumed by this project.
 # Copy .env.example → .env and fill in your real values.
 
@@ -32,7 +32,7 @@ logging.basicConfig(
         logging.StreamHandler(),
     ],
 )
-logger = logging.getLogger("wealth_to_the_wise")
+logger = logging.getLogger("tubevo")
 
 # ── YouTube / OAuth ──────────────────────────
 CLIENT_SECRETS_FILE: str = os.getenv("YOUTUBE_CLIENT_SECRETS", "client_secrets.json")
@@ -76,7 +76,7 @@ MAX_VIDEO_SIZE_MB: int = int(os.getenv("MAX_VIDEO_SIZE_MB", "200"))
 CHANNEL_TONE: str = os.getenv(
     "CHANNEL_TONE",
     (
-        "You are 'Wealth to the Wise', a confident and direct financial educator. "
+        "You are 'Tubevo', a confident and direct financial educator. "
         "No fluff, no filler. You tell the viewer exactly what to do. "
         "Your topics revolve around wealth-building, frugality, success habits, "
         "and financial literacy. Every sentence earns its place."
