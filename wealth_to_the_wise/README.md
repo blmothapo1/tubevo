@@ -1,19 +1,36 @@
-# Wealth to the Wise — Automated YouTube Upload Pipeline
+# Tubevo — YouTube on Autopilot
 
-A fully modular Python pipeline that generates video scripts with OpenAI, produces YouTube metadata (title, description, tags), and uploads finished videos via the YouTube Data API v3.
+> **[tubevo.us](https://tubevo.us)**
 
-## Project Structure
+AI-powered video generation, scheduling, and upload automation for YouTube creators.
+Built with a Python CLI pipeline (Phase 1) and a full SaaS platform (Phase 2).
+
+## Architecture
 
 ```
 wealth_to_the_wise/
-├── main.py                 # Pipeline orchestrator (CLI entry point)
-├── script_generator.py     # OpenAI-powered script & metadata generation
-├── uploader.py             # YouTube Data API v3 resumable upload
-├── config.py               # .env-based configuration
-├── requirements.txt        # Python dependencies
-├── .env.example            # Template — copy to .env
-├── client_secrets.json     # ⬅ YOU provide this (Google OAuth2 credentials)
-└── output/                 # Auto-created; holds scripts & metadata
+├── main.py                 # CLI pipeline orchestrator
+├── script_generator.py     # OpenAI-powered script & metadata
+├── voiceover.py            # ElevenLabs TTS
+├── stock_footage.py        # Pexels stock footage
+├── video_builder.py        # MoviePy video assembly
+├── thumbnail.py            # Auto-generated thumbnails
+├── uploader.py             # YouTube Data API v3 upload
+├── config.py               # .env configuration (Phase 1)
+├── backend/                # FastAPI SaaS backend
+│   ├── app.py              #   App factory + middleware
+│   ├── auth.py             #   JWT authentication
+│   ├── models.py           #   SQLAlchemy models (User, VideoRecord)
+│   ├── routers/
+│   │   ├── auth.py         #   Signup / login / refresh / profile
+│   │   ├── billing.py      #   Stripe checkout / webhook / portal
+│   │   ├── videos.py       #   Generate + history + stats
+│   │   └── health.py       #   Health check
+│   └── tests/              #   pytest suite (32 tests)
+├── frontend/               # Vite + React 19 + Tailwind v4
+│   ├── src/pages/          #   Dashboard, Videos, Schedule, Settings
+│   └── vercel.json         #   Vercel deployment config
+└── .github/workflows/ci.yml  # GitHub Actions CI
 ```
 
 ## Quick Start
@@ -21,52 +38,44 @@ wealth_to_the_wise/
 ### 1. Install dependencies
 ```bash
 cd wealth_to_the_wise
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-backend.txt
+cd frontend && npm install && cd ..
 ```
 
-### 2. Set up credentials
-1. **Google OAuth2** — Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth 2.0 Client ID (Desktop app), and download the JSON. Save it as `client_secrets.json` in this folder.
-2. **OpenAI API Key** — Get one from [platform.openai.com](https://platform.openai.com/api-keys).
-3. Copy `.env.example` → `.env` and fill in your keys.
-
-### 3. Run the pipeline
+### 2. Configure
 ```bash
-# Interactive — prompts for topic and video file
-python main.py
-
-# With arguments
-python main.py "5 Frugal Habits That Build Wealth Fast" --video /path/to/video.mp4
+cp .env.example .env
+# Fill in your API keys (OpenAI, ElevenLabs, Pexels, Stripe, JWT secret)
 ```
 
-## How It Works
+### 3. Run (development)
+```bash
+# Backend (FastAPI)
+uvicorn backend.app:app --reload --port 8000
 
-| Step | What happens |
-|------|-------------|
-| **1** | You provide a topic (CLI arg or prompt) |
-| **2** | OpenAI generates a tight, punchy 3-minute script |
-| **3** | OpenAI generates an SEO-optimised title, description & tags |
-| **4** | Pipeline pauses for you to record voiceover & edit video |
-| **5** | You provide the finished `.mp4` path |
-| **6** | Video is uploaded to YouTube via resumable upload with progress |
+# Frontend (Vite dev server — proxies /api, /auth, /billing to :8000)
+cd frontend && npm run dev
+```
 
-## Extending the Pipeline
+### 4. Run tests
+```bash
+python -m pytest backend/tests/ -v
+```
 
-The code has clearly marked **PLUG-IN** points for:
+## Deployment
 
-- **ElevenLabs voiceover** → `step_generate_voiceover()` in `main.py`
-- **Auto-scheduling** → `step_schedule_upload()` in `main.py` (uses the `schedule` library)
-- **Thumbnail generation** → add a new step function and call it before upload
+| Service | Deploys to | Domain |
+|---------|-----------|--------|
+| **Frontend** | Vercel | [tubevo.us](https://tubevo.us) |
+| **Backend** | Railway | api.tubevo.us |
 
-Each step is a standalone function — add, remove, or reorder without touching the rest.
+Set `VITE_API_URL=https://api.tubevo.us` in the frontend's Vercel env vars.
+Set `CORS_ORIGINS=https://tubevo.us,https://www.tubevo.us` in Railway env vars.
 
-## Configuration Reference
+## Environment Variables
 
-| Env Variable | Default | Description |
-|---|---|---|
-| `YOUTUBE_CLIENT_SECRETS` | `client_secrets.json` | Path to Google OAuth2 client secrets |
-| `YOUTUBE_OAUTH_TOKEN` | `token.json` | Cached OAuth2 token (auto-created) |
-| `OPENAI_API_KEY` | — | Your OpenAI API key |
-| `DEFAULT_VIDEO_CATEGORY` | `22` | YouTube category ID |
-| `DEFAULT_TAGS` | wealth,money,… | Comma-separated default tags |
-| `DEFAULT_PRIVACY` | `private` | Upload privacy status |
-| `CHANNEL_TONE` | (see .env.example) | Prompt persona for script generation |
+See [`.env.example`](.env.example) for the full reference with descriptions.
+
+## License
+
+Private — all rights reserved.

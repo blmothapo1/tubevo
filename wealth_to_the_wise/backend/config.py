@@ -53,8 +53,9 @@ class Settings(BaseSettings):
     port: int = 8000
 
     # ── CORS ─────────────────────────────────────────────────────────
-    # Comma-separated origins for the frontend.  In dev: http://localhost:3000
-    cors_origins: str = "http://localhost:3000"
+    # Comma-separated origins for the frontend.
+    # Dev: http://localhost:3000  |  Prod: https://tubevo.us
+    cors_origins: str = "http://localhost:3000,https://tubevo.us,https://www.tubevo.us"
 
     # ── Rate Limiting ────────────────────────────────────────────────
     rate_limit_default: str = "60/minute"
