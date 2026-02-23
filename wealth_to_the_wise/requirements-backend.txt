@@ -25,6 +25,9 @@ aiosqlite>=0.20.0
 # ── Cloud storage (Cloudflare R2 via S3 API)
 boto3>=1.34.0
 
+# ── Payments (Stripe)
+stripe>=8.0.0
+
 # ── Testing ──────────────────────────────────
 httpx>=0.27.0
 pytest>=8.0.0

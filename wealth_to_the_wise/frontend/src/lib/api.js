@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-let accessToken = null;
-let refreshToken = null;
+// Hydrate from localStorage so sessions survive page refreshes.
+let accessToken = localStorage.getItem('access_token');
+let refreshToken = localStorage.getItem('refresh_token');
 
 // In dev Vite proxies /auth and /health to localhost:8000 (see vite.config.js).
 // In production set VITE_API_URL to the deployed backend URL.
@@ -16,11 +17,15 @@ const api = axios.create({
 export function setTokens(access, refresh) {
   accessToken = access;
   refreshToken = refresh;
+  localStorage.setItem('access_token', access);
+  localStorage.setItem('refresh_token', refresh);
 }
 
 export function clearTokens() {
   accessToken = null;
   refreshToken = null;
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
 }
 
 export function getAccessToken() {

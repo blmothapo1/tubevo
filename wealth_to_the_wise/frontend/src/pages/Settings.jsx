@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../lib/api';
+import Spinner from '../components/Spinner';
 import { Save, Youtube, Bell, CreditCard, BarChart3 } from 'lucide-react';
 
 const tabs = [
@@ -57,9 +59,40 @@ export default function Settings() {
 
 /* ── Account ─────────────────────────────────────────────────── */
 function AccountTab({ fullName, setFullName, email }) {
+  const { fetchUser } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave() {
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      await api.patch('/auth/me', { full_name: fullName });
+      await fetchUser();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to save.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-5 max-w-md">
       <h3 className="text-lg font-medium text-white">Account Details</h3>
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-2.5 rounded-lg">
+          {error}
+        </div>
+      )}
+      {saved && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-2.5 rounded-lg">
+          Changes saved.
+        </div>
+      )}
       <div>
         <label className="block text-xs font-medium text-surface-700 mb-1.5">Full Name</label>
         <input
@@ -78,8 +111,12 @@ function AccountTab({ fullName, setFullName, email }) {
           className="w-full px-3 py-2.5 rounded-lg bg-surface-200/50 border border-surface-300 text-surface-600 text-sm cursor-not-allowed"
         />
       </div>
-      <button className="px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors">
-        Save Changes
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+      >
+        {saving ? <Spinner className="w-4 h-4" /> : 'Save Changes'}
       </button>
     </div>
   );

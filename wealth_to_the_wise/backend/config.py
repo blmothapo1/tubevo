@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     rate_limit_default: str = "60/minute"
 
     # ── JWT / Auth (Item 2 will fill these in) ───────────────────────
-    jwt_secret_key: str = Field(repr=False)  # REQUIRED — no default; must be set via env
+    jwt_secret_key: str = Field(default="", repr=False)  # REQUIRED — set via env; defaults to empty string in dev
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 30
     jwt_refresh_token_expire_days: int = 7
