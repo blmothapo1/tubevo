@@ -12,7 +12,7 @@ WORKDIR /app
 
 # ── System deps (needed by some Python packages) ─────────────────────
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libffi-dev && \
+    apt-get install -y --no-install-recommends gcc libffi-dev libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # ── Python deps (cached layer — only re-runs when requirements change) ─
