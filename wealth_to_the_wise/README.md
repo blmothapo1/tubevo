@@ -20,17 +20,22 @@ wealth_to_the_wise/
 ├── backend/                # FastAPI SaaS backend
 │   ├── app.py              #   App factory + middleware
 │   ├── auth.py             #   JWT authentication
-│   ├── models.py           #   SQLAlchemy models (User, VideoRecord)
+│   ├── config.py           #   Pydantic Settings (env vars)
+│   ├── database.py         #   Async SQLAlchemy (SQLite dev / PostgreSQL prod)
+│   ├── models.py           #   User, VideoRecord, OAuthToken
 │   ├── routers/
 │   │   ├── auth.py         #   Signup / login / refresh / profile
 │   │   ├── billing.py      #   Stripe checkout / webhook / portal
 │   │   ├── videos.py       #   Generate + history + stats
+│   │   ├── youtube.py      #   Google OAuth: authorize / callback / status / disconnect
 │   │   └── health.py       #   Health check
-│   └── tests/              #   pytest suite (32 tests)
+│   └── tests/              #   pytest suite (40 tests)
 ├── frontend/               # Vite + React 19 + Tailwind v4
-│   ├── src/pages/          #   Dashboard, Videos, Schedule, Settings
+│   ├── src/pages/          #   Landing, Dashboard, Videos, Schedule, Settings, Onboarding
+│   ├── src/components/     #   Sidebar, Topbar, DashboardLayout (mobile responsive)
 │   └── vercel.json         #   Vercel deployment config
-└── .github/workflows/ci.yml  # GitHub Actions CI
+├── Dockerfile              # Production Docker image (Railway)
+└── .github/workflows/ci.yml  # GitHub Actions CI (backend tests + frontend build)
 ```
 
 ## Quick Start
@@ -60,19 +65,30 @@ cd frontend && npm run dev
 ### 4. Run tests
 ```bash
 python -m pytest backend/tests/ -v
+# 40 tests: auth (16), billing (4), videos (6), youtube (8), app (6)
 ```
 
 ## Deployment
 
-| Service | Deploys to | Domain |
-|---------|-----------|--------|
-| **Frontend** | Vercel | [tubevo.us](https://tubevo.us) |
-| **Backend** | Railway | api.tubevo.us |
+| Service | Platform | Domain | Database |
+|---------|----------|--------|----------|
+| **Frontend** | Vercel | [tubevo.us](https://tubevo.us) | — |
+| **Backend** | Railway | api.tubevo.us | PostgreSQL (Railway) |
 
-Set `VITE_API_URL=https://api.tubevo.us` in the frontend's Vercel env vars.
-Set `CORS_ORIGINS=https://tubevo.us,https://www.tubevo.us` in Railway env vars.
+### Key Environment Variables (Railway)
 
-## Environment Variables
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (auto-linked) |
+| `JWT_SECRET_KEY` | Token signing key |
+| `CORS_ORIGINS` | `https://tubevo.us,https://www.tubevo.us` |
+| `GOOGLE_CLIENT_ID` | Google OAuth for YouTube |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth secret |
+| `GOOGLE_REDIRECT_URI` | `https://tubevo.us/auth/google/callback` |
+| `STRIPE_SECRET_KEY` | Stripe billing |
+| `OPENAI_API_KEY` | Script generation |
+| `PEXELS_API_KEY` | Stock footage |
+| `ELEVENLABS_API_KEY` | TTS voiceovers |
 
 See [`.env.example`](.env.example) for the full reference with descriptions.
 
