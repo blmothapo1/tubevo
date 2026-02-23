@@ -27,8 +27,8 @@ logger = logging.getLogger("wealth_to_the_wise.voiceover")
 # ── Defaults ─────────────────────────────────────────────────────────
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
 
-# "Adam" — a confident, clear male voice. Change via .env or pass voice_id.
-DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB")
+# Voice ID for ElevenLabs TTS. Set via .env: ELEVENLABS_VOICE_ID=your-voice-id
+DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
 OUTPUT_DIR = Path("output")

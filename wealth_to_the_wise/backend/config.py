@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     rate_limit_default: str = "60/minute"
 
     # ── JWT / Auth (Item 2 will fill these in) ───────────────────────
-    jwt_secret_key: str = Field(default="CHANGE-ME-BEFORE-PRODUCTION", repr=False)
+    jwt_secret_key: str = Field(repr=False)  # REQUIRED — no default; must be set via env
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 30
     jwt_refresh_token_expire_days: int = 7
@@ -72,7 +72,11 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default="", repr=False)
     pexels_api_key: str = Field(default="", repr=False)
     elevenlabs_api_key: str = Field(default="", repr=False)
-    elevenlabs_voice_id: str = "pNInz6obpgDQGcFmaJgB"
+    elevenlabs_voice_id: str = Field(default="", repr=False)
+
+    # ── Stripe ───────────────────────────────────────────────────────
+    stripe_publishable_key: str = Field(default="", repr=False)
+    stripe_secret_key: str = Field(default="", repr=False)
 
     # ── YouTube / Google OAuth (Phase 2 per-user) ────────────────────
     google_client_id: str = Field(default="", repr=False)

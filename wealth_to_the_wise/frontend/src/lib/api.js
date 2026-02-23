@@ -3,8 +3,12 @@ import axios from 'axios';
 let accessToken = null;
 let refreshToken = null;
 
+// In dev Vite proxies /auth and /health to localhost:8000 (see vite.config.js).
+// In production set VITE_API_URL to the deployed backend URL.
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -62,7 +66,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post('http://localhost:8000/auth/refresh', {
+        const { data } = await axios.post(`${API_BASE}/auth/refresh`, {
           refresh_token: refreshToken,
         });
         setTokens(data.access_token, data.refresh_token);
