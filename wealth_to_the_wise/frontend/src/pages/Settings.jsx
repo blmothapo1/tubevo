@@ -34,30 +34,30 @@ export default function Settings() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Settings</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-white">Settings</h1>
         <p className="text-sm text-surface-700 mt-1">Manage your account and preferences</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-surface-100 border border-surface-300 rounded-xl p-1">
+      <div className="flex gap-1 bg-surface-100 border border-surface-300 rounded-xl p-1 overflow-x-auto scrollbar-none">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === key
                 ? 'gradient-brand text-white shadow-md shadow-brand-500/15'
                 : 'text-surface-600 hover:text-surface-800 hover:bg-surface-200/50'
             }`}
           >
             <Icon size={16} />
-            {label}
+            <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
       </div>
 
       {/* Tab Content */}
-      <div className="bg-surface-100 border border-surface-300 rounded-xl p-6">
+      <div className="bg-surface-100 border border-surface-300 rounded-xl p-4 sm:p-6">
         {activeTab === 'account' && (
           <AccountTab fullName={fullName} setFullName={setFullName} email={email} />
         )}

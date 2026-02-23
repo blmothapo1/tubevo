@@ -85,7 +85,7 @@ export default function Videos() {
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-white">Videos</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-white">Videos</h1>
         <p className="text-sm text-surface-700 mt-1">
           Generate new videos and track their status
         </p>
@@ -97,7 +97,7 @@ export default function Videos() {
         className="bg-surface-100 border border-surface-300 rounded-xl p-5"
       >
         <h3 className="text-sm font-medium text-surface-800 mb-3">Generate a New Video</h3>
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
             value={topic}
@@ -151,7 +151,7 @@ export default function Videos() {
             return (
               <div key={video.id} className="flex items-center gap-4 px-5 py-4">
                 {/* Thumbnail placeholder */}
-                <div className="w-28 h-16 rounded-lg bg-surface-200 flex items-center justify-center shrink-0 overflow-hidden border border-surface-300">
+                <div className="hidden sm:flex w-28 h-16 rounded-lg bg-surface-200 items-center justify-center shrink-0 overflow-hidden border border-surface-300">
                   <Film size={20} className="text-brand-400/60" />
                 </div>
 

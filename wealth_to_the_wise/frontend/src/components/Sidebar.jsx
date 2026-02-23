@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Film, CalendarClock, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Film, CalendarClock, Settings, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const links = [
@@ -9,48 +9,68 @@ const links = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open, onToggle }) {
   const { logout } = useAuth();
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-60 bg-surface-100 border-r border-surface-300 flex flex-col z-30">
-      {/* Accent gradient line at top */}
-      <div className="h-0.5 gradient-brand-accent" />
+    <>
+      {/* Mobile backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          onClick={onToggle}
+        />
+      )}
 
-      <div className="px-5 py-6">
-        <span className="text-xl font-bold tracking-tight text-white">
-          <span className="text-gradient">Tube</span>vo
-        </span>
-      </div>
+      {/* Sidebar */}
+      <aside
+        className={`fixed left-0 top-0 bottom-0 w-60 bg-surface-100 border-r border-surface-300 flex flex-col z-40 transition-transform duration-200 ease-in-out
+          ${open ? 'translate-x-0' : '-translate-x-full'}
+          lg:translate-x-0`}
+      >
+        {/* Accent gradient line at top */}
+        <div className="h-0.5 gradient-brand-accent" />
 
-      <nav className="flex-1 px-3 space-y-1">
-        {links.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-brand-600/15 text-brand-400'
-                  : 'text-surface-700 hover:text-surface-900 hover:bg-surface-200'
-              }`
-            }
+        <div className="px-5 py-6 flex items-center justify-between">
+          <span className="text-xl font-bold tracking-tight text-white">
+            <span className="text-gradient">Tube</span>vo
+          </span>
+          {/* Close button on mobile */}
+          <button onClick={onToggle} className="lg:hidden p-1 text-surface-600 hover:text-white transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <nav className="flex-1 px-3 space-y-1">
+          {links.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={onToggle}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-brand-600/15 text-brand-400'
+                    : 'text-surface-700 hover:text-surface-900 hover:bg-surface-200'
+                }`
+              }
+            >
+              <Icon size={18} />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="px-3 pb-5">
+          <button
+            onClick={logout}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-surface-600 hover:text-red-400 hover:bg-surface-200 transition-colors w-full"
           >
-            <Icon size={18} />
-            {label}
-          </NavLink>
-        ))}
-      </nav>
-
-      <div className="px-3 pb-5">
-        <button
-          onClick={logout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-surface-600 hover:text-red-400 hover:bg-surface-200 transition-colors w-full"
-        >
-          <LogOut size={18} />
-          Log out
-        </button>
-      </div>
-    </aside>
+            <LogOut size={18} />
+            Log out
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

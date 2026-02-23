@@ -63,7 +63,7 @@ export default function Landing() {
       </nav>
 
       {/* Hero */}
-      <section className="max-w-4xl mx-auto px-6 pt-28 pb-20 text-center relative">
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-16 sm:pt-28 pb-14 sm:pb-20 text-center relative">
         {/* Subtle background glow */}
         <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-brand-600/8 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-32 left-1/3 w-[300px] h-[300px] bg-accent-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -72,15 +72,15 @@ export default function Landing() {
           <div className="inline-flex items-center gap-2 bg-brand-600/10 border border-brand-600/20 text-brand-300 text-xs font-medium px-3 py-1 rounded-full mb-6">
             <Zap size={12} className="text-accent-400" /> Now in public beta
           </div>
-          <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-white leading-tight">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white leading-tight">
             Your YouTube Channel.
             <br />
             <span className="text-gradient">On Autopilot.</span>
           </h1>
-          <p className="mt-6 text-lg text-surface-700 max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-4 sm:mt-6 text-base sm:text-lg text-surface-700 max-w-2xl mx-auto leading-relaxed">
             Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
           </p>
-          <div className="mt-10 flex items-center justify-center gap-4">
+          <div className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               to="/signup"
               className="inline-flex items-center gap-2 gradient-brand hover:opacity-90 text-white font-medium px-6 py-3 rounded-lg transition-all text-sm glow-brand"
@@ -98,8 +98,8 @@ export default function Landing() {
       </section>
 
       {/* Features */}
-      <section id="features" className="max-w-6xl mx-auto px-6 py-20">
-        <h2 className="text-3xl font-bold text-white text-center mb-4">Everything you need</h2>
+      <section id="features" className="max-w-6xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+        <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-4">Everything you need</h2>
         <p className="text-surface-700 text-center mb-14 max-w-lg mx-auto">
           From script to published video — every step is automated.
         </p>
@@ -120,10 +120,10 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="max-w-5xl mx-auto px-6 py-20">
-        <h2 className="text-3xl font-bold text-white text-center mb-4">Simple pricing</h2>
-        <p className="text-surface-700 text-center mb-14">Start free. Scale when you're ready.</p>
-        <div className="grid md:grid-cols-3 gap-5">
+      <section id="pricing" className="max-w-5xl mx-auto px-4 sm:px-6 py-14 sm:py-20">
+        <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-4">Simple pricing</h2>
+        <p className="text-surface-700 text-center mb-10 sm:mb-14">Start free. Scale when you're ready.</p>
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-5">
           {tiers.map((tier) => (
             <div
               key={tier.name}

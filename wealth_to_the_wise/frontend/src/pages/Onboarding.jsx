@@ -35,7 +35,7 @@ export default function Onboarding() {
       <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-6 ring-1 ring-red-500/20">
         <Youtube size={32} className="text-red-400" />
       </div>
-      <h2 className="text-2xl font-bold text-white mb-2">Connect YouTube</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Connect YouTube</h2>
       <p className="text-surface-700 text-sm mb-8 max-w-sm mx-auto">
         Link your YouTube channel so Tubevo can upload videos on your behalf.
       </p>
@@ -47,7 +47,7 @@ export default function Onboarding() {
 
     // Step 1: Select niches
     <div key="niche" className="text-center">
-      <h2 className="text-2xl font-bold text-white mb-2">Pick your niches</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Pick your niches</h2>
       <p className="text-surface-700 text-sm mb-8">Select one or more topics for your channel.</p>
       <div className="flex flex-wrap justify-center gap-3 max-w-md mx-auto">
         {niches.map((n) => {
@@ -72,7 +72,7 @@ export default function Onboarding() {
 
     // Step 2: Posting frequency
     <div key="freq" className="text-center">
-      <h2 className="text-2xl font-bold text-white mb-2">Posting frequency</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Posting frequency</h2>
       <p className="text-surface-700 text-sm mb-8">How often should Tubevo publish videos?</p>
       <div className="space-y-3 max-w-xs mx-auto">
         {frequencies.map((f) => (
@@ -100,7 +100,7 @@ export default function Onboarding() {
       <div className="w-16 h-16 rounded-2xl gradient-brand flex items-center justify-center mx-auto mb-6 glow-brand">
         <Rocket size={32} className="text-white" />
       </div>
-      <h2 className="text-2xl font-bold text-white mb-2">You're all set!</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">You're all set!</h2>
       <p className="text-surface-700 text-sm mb-4 max-w-sm mx-auto">
         Tubevo will start generating and posting content based on your preferences.
       </p>
@@ -142,7 +142,7 @@ export default function Onboarding() {
         </div>
 
         {/* Content */}
-        <div className="bg-surface-100 border border-surface-300 rounded-2xl p-8 min-h-[360px] flex items-center justify-center">
+        <div className="bg-surface-100 border border-surface-300 rounded-2xl p-5 sm:p-8 min-h-[320px] sm:min-h-[360px] flex items-center justify-center">
           {steps[step]}
         </div>
 

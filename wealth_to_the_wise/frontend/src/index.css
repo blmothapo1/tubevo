@@ -69,3 +69,7 @@ input, select, textarea {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-surface-400); border-radius: 3px; }
+
+/* Hide scrollbar but keep scroll behaviour */
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
