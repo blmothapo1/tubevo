@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     # ── YouTube / Google OAuth (Phase 2 per-user) ────────────────────
     google_client_id: str = Field(default="", repr=False)
     google_client_secret: str = Field(default="", repr=False)
+    google_redirect_uri: str = Field(default="http://localhost:3000/auth/google/callback")
 
     model_config = {
         "env_file": ".env",

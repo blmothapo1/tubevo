@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import Spinner from '../components/Spinner';
@@ -14,9 +15,21 @@ const tabs = [
 
 export default function Settings() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('account');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = searchParams.get('tab');
+    return tabs.some((t) => t.key === tabParam) ? tabParam : 'account';
+  });
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [email] = useState(user?.email || '');
+
+  // Sync tab when navigating back with ?tab= param (e.g. from OAuth callback)
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && tabs.some((t) => t.key === tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -124,22 +137,135 @@ function AccountTab({ fullName, setFullName, email }) {
 
 /* ── YouTube ─────────────────────────────────────────────────── */
 function YouTubeTab() {
+  const [loading, setLoading] = useState(true);
+  const [connection, setConnection] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Fetch current connection status on mount
+  useEffect(() => {
+    async function fetchStatus() {
+      try {
+        const { data } = await api.get('/oauth/youtube/status');
+        setConnection(data);
+      } catch (err) {
+        if (err.response?.status === 503) {
+          setError('YouTube integration is not configured yet.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStatus();
+  }, []);
+
+  async function handleConnect() {
+    setActionLoading(true);
+    setError('');
+    try {
+      const { data } = await api.get('/oauth/youtube/authorize');
+      // Redirect user to Google consent screen
+      window.location.href = data.auth_url;
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (err.response?.status === 503) {
+        setError('YouTube integration is not configured yet.');
+      } else {
+        setError(detail || 'Failed to start YouTube connection.');
+      }
+      setActionLoading(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    setActionLoading(true);
+    setError('');
+    try {
+      await api.delete('/oauth/youtube/disconnect');
+      setConnection({ connected: false });
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to disconnect.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner className="w-6 h-6 text-brand-500" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5 max-w-md">
       <h3 className="text-lg font-medium text-white">YouTube Connection</h3>
       <p className="text-sm text-surface-700">
         Connect your YouTube channel to allow Tubevo to upload videos on your behalf.
       </p>
-      <div className="flex items-center gap-4 bg-surface-200 border border-surface-300 rounded-xl p-4">
-        <Youtube size={24} className="text-red-400" />
-        <div className="flex-1">
-          <p className="text-sm font-medium text-surface-900">No channel connected</p>
-          <p className="text-xs text-surface-600">Authorize via Google OAuth</p>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-2.5 rounded-lg">
+          {error}
         </div>
-        <button className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25 transition-colors">
-          Connect
-        </button>
-      </div>
+      )}
+
+      {connection?.connected ? (
+        /* ── Connected state ── */
+        <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center">
+              <Youtube size={20} className="text-red-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {connection.channel_title || 'YouTube Channel'}
+              </p>
+              <p className="text-xs text-surface-600 truncate">
+                {connection.provider_email || connection.channel_id}
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              Connected
+            </span>
+          </div>
+
+          {connection.channel_id && (
+            <div className="bg-surface-100 rounded-lg p-3 space-y-1.5">
+              <Row label="Channel ID" value={connection.channel_id} />
+              {connection.connected_at && (
+                <Row label="Connected" value={new Date(connection.connected_at).toLocaleDateString()} />
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={handleDisconnect}
+            disabled={actionLoading}
+            className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {actionLoading ? <Spinner className="w-4 h-4" /> : 'Disconnect YouTube'}
+          </button>
+        </div>
+      ) : (
+        /* ── Disconnected state ── */
+        <div className="flex items-center gap-4 bg-surface-200 border border-surface-300 rounded-xl p-4">
+          <Youtube size={24} className="text-red-400" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-surface-900">No channel connected</p>
+            <p className="text-xs text-surface-600">Authorize via Google OAuth</p>
+          </div>
+          <button
+            onClick={handleConnect}
+            disabled={actionLoading}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {actionLoading ? <Spinner className="w-3 h-3" /> : 'Connect'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

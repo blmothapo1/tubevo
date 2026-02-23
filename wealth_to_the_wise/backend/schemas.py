@@ -100,3 +100,26 @@ class ResetPasswordRequest(BaseModel):
     """POST /auth/reset-password body."""
     token: str
     new_password: str = Field(..., min_length=8, max_length=128)
+
+
+# ── YouTube / Google OAuth ───────────────────────────────────────────
+
+class YouTubeAuthURLResponse(BaseModel):
+    """Returned by GET /oauth/youtube/authorize."""
+    auth_url: str
+
+
+class YouTubeCallbackRequest(BaseModel):
+    """POST /oauth/youtube/callback body — sent by the frontend after Google redirects back."""
+    code: str
+    state: str | None = None
+
+
+class YouTubeConnectionResponse(BaseModel):
+    """Current YouTube connection status."""
+    connected: bool
+    provider_email: str | None = None
+    channel_title: str | None = None
+    channel_id: str | None = None
+    scopes: str | None = None
+    connected_at: datetime | None = None

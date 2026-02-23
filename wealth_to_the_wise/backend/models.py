@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -104,3 +104,53 @@ class VideoRecord(Base):
 
     def __repr__(self) -> str:
         return f"<VideoRecord {self.id} user={self.user_id} status={self.status}>"
+
+
+class OAuthToken(Base):
+    """Stored OAuth2 credentials for a user's connected provider (e.g. YouTube/Google).
+
+    Each user can have at most one connection per provider.
+    The refresh_token is encrypted at rest (handled at the application layer
+    before writing; for now stored as-is — encryption TODO).
+    """
+
+    __tablename__ = "oauth_tokens"
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider", name="uq_user_provider"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True,
+    )
+
+    # Provider identifier, e.g. "google" / "youtube"
+    provider: Mapped[str] = mapped_column(String(30), nullable=False, default="google")
+
+    # Google user info
+    provider_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    provider_account_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    channel_title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    channel_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Tokens
+    access_token: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_type: Mapped[str] = mapped_column(String(20), nullable=False, default="Bearer")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Scopes granted (space-separated)
+    scopes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<OAuthToken {self.provider} user={self.user_id} channel={self.channel_id}>"

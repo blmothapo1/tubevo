@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Videos from './pages/Videos';
 import Schedule from './pages/Schedule';
 import Settings from './pages/Settings';
+import GoogleCallback from './pages/GoogleCallback';
 
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -20,6 +21,14 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route
+          path="/auth/google/callback"
+          element={
+            <ProtectedRoute>
+              <GoogleCallback />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Protected routes */}
         <Route
