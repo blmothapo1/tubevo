@@ -1,0 +1,10 @@
+# ── Railway deployment config ────────────────────────────────────────
+# https://docs.railway.app/reference/config-as-code
+# NOTE: Primary config is at repo root /railway.toml
+# This file is kept for reference only. Railway reads the root one.
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
