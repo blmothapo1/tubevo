@@ -185,15 +185,64 @@ function Toggle({ label, description, checked, onChange }) {
 
 /* ── Plan ────────────────────────────────────────────────────── */
 function PlanTab({ plan }) {
+  const [loading, setLoading] = useState(null); // tracks which plan is loading
+  const [error, setError] = useState('');
+
   const plans = [
     { key: 'free', name: 'Free', price: '$0/mo', features: ['3 videos/month', 'Basic templates', 'Email support'] },
     { key: 'pro', name: 'Pro', price: '$29/mo', features: ['30 videos/month', 'Custom branding', 'Priority support', 'Analytics'] },
     { key: 'agency', name: 'Agency', price: '$99/mo', features: ['Unlimited videos', 'Multi-channel', 'API access', 'Dedicated manager'] },
   ];
 
+  async function handlePlanAction(planKey) {
+    setError('');
+
+    // For downgrades to free, open the billing portal to cancel
+    if (planKey === 'free') {
+      setLoading('free');
+      try {
+        const { data } = await api.get('/billing/portal');
+        window.location.href = data.portal_url;
+      } catch (err) {
+        const detail = err.response?.data?.detail;
+        if (err.response?.status === 503) {
+          setError('Billing is not configured yet.');
+        } else if (err.response?.status === 404) {
+          setError('No billing account found. Nothing to cancel.');
+        } else {
+          setError(detail || 'Could not open billing portal.');
+        }
+      } finally {
+        setLoading(null);
+      }
+      return;
+    }
+
+    // For upgrades, create a checkout session
+    setLoading(planKey);
+    try {
+      const { data } = await api.post('/billing/create-checkout-session', { plan: planKey });
+      window.location.href = data.checkout_url;
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (err.response?.status === 503) {
+        setError('Billing is not configured yet.');
+      } else {
+        setError(detail || 'Could not start checkout.');
+      }
+    } finally {
+      setLoading(null);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <h3 className="text-lg font-medium text-white">Your Plan</h3>
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-2.5 rounded-lg">
+          {error}
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {plans.map((p) => (
           <div
@@ -219,8 +268,18 @@ function PlanTab({ plan }) {
                 Current Plan
               </span>
             ) : (
-              <button className="mt-4 w-full px-3 py-2 rounded-lg text-xs font-medium bg-surface-300 text-surface-800 hover:bg-surface-400 transition-colors">
-                {p.key === 'free' ? 'Downgrade' : 'Upgrade'}
+              <button
+                onClick={() => handlePlanAction(p.key)}
+                disabled={loading !== null}
+                className="mt-4 w-full px-3 py-2 rounded-lg text-xs font-medium bg-surface-300 text-surface-800 hover:bg-surface-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading === p.key ? (
+                  <Spinner className="w-3 h-3" />
+                ) : p.key === 'free' ? (
+                  'Downgrade'
+                ) : (
+                  'Upgrade'
+                )}
               </button>
             )}
           </div>

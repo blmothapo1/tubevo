@@ -1,49 +1,35 @@
-import { ExternalLink, CalendarDays } from 'lucide-react';
-
-const history = [
-  {
-    id: 1,
-    title: '10 Habits That Keep You Broke',
-    postedAt: '2025-01-19 18:02',
-    youtubeUrl: 'https://youtube.com/watch?v=example1',
-    views: 1243,
-  },
-  {
-    id: 2,
-    title: 'Credit Score Myths Debunked',
-    postedAt: '2025-01-18 18:01',
-    youtubeUrl: 'https://youtube.com/watch?v=example2',
-    views: 876,
-  },
-  {
-    id: 3,
-    title: 'The Latte Factor Is a Lie',
-    postedAt: '2025-01-17 18:00',
-    youtubeUrl: 'https://youtube.com/watch?v=example3',
-    views: 2105,
-  },
-  {
-    id: 4,
-    title: 'How Compound Interest Really Works',
-    postedAt: '2025-01-16 18:00',
-    youtubeUrl: 'https://youtube.com/watch?v=example4',
-    views: 3412,
-  },
-  {
-    id: 5,
-    title: 'Emergency Fund: How Much Is Enough?',
-    postedAt: '2025-01-15 18:01',
-    youtubeUrl: 'https://youtube.com/watch?v=example5',
-    views: 1890,
-  },
-];
-
-function formatViews(n) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return String(n);
-}
+import { useState, useEffect } from 'react';
+import api from '../lib/api';
+import Spinner from '../components/Spinner';
+import { ExternalLink, CalendarDays, Sparkles } from 'lucide-react';
 
 export default function Schedule() {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetch() {
+      try {
+        const { data } = await api.get('/api/videos/history');
+        // Only show posted / completed videos in "Post History"
+        setHistory(data.filter((v) => v.status === 'posted' || v.youtube_url));
+      } catch {
+        // keep empty
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetch();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Spinner className="w-8 h-8" />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Header */}
@@ -65,9 +51,6 @@ export default function Schedule() {
               <th className="px-5 py-3 text-xs font-medium text-surface-600 uppercase tracking-wider">
                 Posted
               </th>
-              <th className="px-5 py-3 text-xs font-medium text-surface-600 uppercase tracking-wider">
-                Views
-              </th>
               <th className="px-5 py-3 text-xs font-medium text-surface-600 uppercase tracking-wider text-right">
                 Link
               </th>
@@ -76,8 +59,11 @@ export default function Schedule() {
           <tbody className="divide-y divide-surface-300">
             {history.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-12 text-center text-surface-600 text-sm">
-                  No videos posted yet.
+                <td colSpan={3} className="px-5 py-12 text-center">
+                  <Sparkles size={32} className="text-surface-500 mx-auto mb-3" />
+                  <p className="text-sm text-surface-600">
+                    No videos posted yet. Generate and post your first video!
+                  </p>
                 </td>
               </tr>
             ) : (
@@ -91,23 +77,30 @@ export default function Schedule() {
                   <td className="px-5 py-4">
                     <span className="flex items-center gap-1.5 text-sm text-surface-700">
                       <CalendarDays size={14} className="text-surface-600" />
-                      {item.postedAt}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className="text-sm text-surface-800 font-medium">
-                      {formatViews(item.views)}
+                      {item.created_at
+                        ? new Date(item.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—'}
                     </span>
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <a
-                      href={item.youtubeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-sm text-brand-400 hover:text-brand-300 transition-colors"
-                    >
-                      Watch <ExternalLink size={14} />
-                    </a>
+                    {item.youtube_url ? (
+                      <a
+                        href={item.youtube_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-brand-400 hover:text-brand-300 transition-colors"
+                      >
+                        Watch <ExternalLink size={14} />
+                      </a>
+                    ) : (
+                      <span className="text-xs text-surface-500">—</span>
+                    )}
                   </td>
                 </tr>
               ))

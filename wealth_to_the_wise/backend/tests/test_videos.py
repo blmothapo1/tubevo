@@ -86,3 +86,26 @@ async def test_history_returns_list(client: AsyncClient):
     )
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
+
+
+@pytest.mark.anyio
+async def test_stats_requires_auth(client: AsyncClient):
+    """Stats endpoint requires authentication."""
+    resp = await client.get("/api/videos/stats")
+    assert resp.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_stats_returns_zeros_for_new_user(client: AsyncClient):
+    """Stats returns all zeros for a user with no video history."""
+    tokens = await _signup_and_login(client)
+    resp = await client.get(
+        "/api/videos/stats",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_generated"] == 0
+    assert data["total_posted"] == 0
+    assert data["total_failed"] == 0
+    assert data["total_pending"] == 0

@@ -8,6 +8,7 @@ Endpoints
 ---------
 POST /api/videos/generate   — Trigger auto video generation for a topic
 GET  /api/videos/history     — Get the user's video upload history
+GET  /api/videos/stats       — Dashboard stats for the current user
 """
 
 from __future__ import annotations
@@ -18,9 +19,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
-from backend.models import User
+from backend.database import get_db
+from backend.models import User, VideoRecord
 from backend.rate_limit import limiter
 
 logger = logging.getLogger("wealth_to_the_wise.backend.videos")
@@ -45,10 +49,24 @@ class GenerateResponse(BaseModel):
 
 
 class VideoHistoryItem(BaseModel):
-    video_id: str
+    id: str
+    topic: str
     title: str
-    file_path: str
-    url: str
+    status: str
+    file_path: str | None = None
+    youtube_video_id: str | None = None
+    youtube_url: str | None = None
+    thumbnail_path: str | None = None
+    error_message: str | None = None
+    created_at: str
+    updated_at: str
+
+
+class VideoStats(BaseModel):
+    total_generated: int
+    total_posted: int
+    total_failed: int
+    total_pending: int
 
 
 # ── POST /api/videos/generate ────────────────────────────────────────
@@ -59,50 +77,68 @@ async def generate_video(
     request: Request,
     body: GenerateRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Trigger the full-auto pipeline for a given topic.
 
-    This runs the pipeline in a background thread so it doesn't block
-    the event loop.  In a real production system this should be a
-    Celery / ARQ task queue job.
+    Creates a VideoRecord in the database, runs the pipeline in a
+    background thread, then updates the record with the result.
     """
     logger.info("User %s requested video generation: '%s'", current_user.email, body.topic)
 
+    # Create a pending record
+    record = VideoRecord(
+        user_id=current_user.id,
+        topic=body.topic,
+        title=body.topic,  # will be updated by the pipeline
+        status="generating",
+    )
+    db.add(record)
+    await db.flush()  # get the id
+    record_id = record.id
+
     try:
         # Run the CPU-bound pipeline in a thread pool
-        video_id = await asyncio.to_thread(_run_pipeline, body.topic)
+        result = await asyncio.to_thread(_run_pipeline, body.topic)
     except Exception as e:
         logger.exception("Pipeline failed for topic '%s': %s", body.topic, e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Video generation failed: {str(e)}",
+        record.status = "failed"
+        record.error_message = str(e)
+        return GenerateResponse(
+            status="failed",
+            topic=body.topic,
+            message=f"Video generation failed: {str(e)}",
+            video_id=record_id,
         )
 
-    if video_id:
-        return GenerateResponse(
-            status="completed",
-            topic=body.topic,
-            message=f"Video uploaded successfully.",
-            video_id=video_id,
+    # Update record with pipeline output
+    if result:
+        record.status = "posted" if result.get("video_id") else "completed"
+        record.title = result.get("title", body.topic)
+        record.file_path = result.get("file_path")
+        record.youtube_video_id = result.get("video_id")
+        record.youtube_url = (
+            f"https://www.youtube.com/watch?v={result['video_id']}"
+            if result.get("video_id")
+            else None
         )
     else:
-        return GenerateResponse(
-            status="completed_no_upload",
-            topic=body.topic,
-            message="Video was generated but upload was skipped (duplicate or limit reached).",
-        )
+        record.status = "completed"
+
+    return GenerateResponse(
+        status=record.status,
+        topic=body.topic,
+        message="Video generated successfully.",
+        video_id=record_id,
+    )
 
 
-def _run_pipeline(topic: str) -> str | None:
+def _run_pipeline(topic: str) -> dict | None:
     """Synchronous wrapper around the existing CLI pipeline."""
-    # Import here to avoid circular imports and keep Phase 1 code isolated
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
     from main import run_full_auto_pipeline
-
-    # The pipeline currently doesn't return video_id cleanly,
-    # so we read it from the upload history after completion.
     import json
 
     history_path = OUTPUT_DIR / "upload_history.json"
@@ -123,7 +159,12 @@ def _run_pipeline(topic: str) -> str | None:
         try:
             after = json.loads(history_path.read_text())
             if len(after) > before_count:
-                return after[-1].get("video_id")
+                entry = after[-1]
+                return {
+                    "video_id": entry.get("video_id"),
+                    "title": entry.get("title", topic),
+                    "file_path": entry.get("file_path"),
+                }
         except Exception:
             pass
 
@@ -135,31 +176,57 @@ def _run_pipeline(topic: str) -> str | None:
 @router.get("/history", response_model=list[VideoHistoryItem])
 async def video_history(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Return the upload history from the JSON log.
-
-    NOTE: This reads from the shared output/upload_history.json.
-    In a multi-user production system, this should be per-user
-    and stored in the database.
-    """
-    import json
-
-    history_path = OUTPUT_DIR / "upload_history.json"
-    if not history_path.exists():
-        return []
-
-    try:
-        data = json.loads(history_path.read_text())
-    except Exception:
-        return []
+    """Return the per-user video history from the database."""
+    result = await db.execute(
+        select(VideoRecord)
+        .where(VideoRecord.user_id == current_user.id)
+        .order_by(VideoRecord.created_at.desc())
+        .limit(100)
+    )
+    records = result.scalars().all()
 
     return [
         VideoHistoryItem(
-            video_id=item.get("video_id", ""),
-            title=item.get("title", "Untitled"),
-            file_path=item.get("file_path", ""),
-            url=f"https://www.youtube.com/watch?v={item.get('video_id', '')}",
+            id=r.id,
+            topic=r.topic,
+            title=r.title,
+            status=r.status,
+            file_path=r.file_path,
+            youtube_video_id=r.youtube_video_id,
+            youtube_url=r.youtube_url,
+            thumbnail_path=r.thumbnail_path,
+            error_message=r.error_message,
+            created_at=r.created_at.isoformat() if r.created_at else "",
+            updated_at=r.updated_at.isoformat() if r.updated_at else "",
         )
-        for item in data
-        if item.get("video_id")
+        for r in records
     ]
+
+
+# ── GET /api/videos/stats ───────────────────────────────────────────
+
+@router.get("/stats", response_model=VideoStats)
+async def video_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return aggregate stats for the dashboard."""
+    base = select(func.count()).select_from(VideoRecord).where(
+        VideoRecord.user_id == current_user.id
+    )
+
+    total = (await db.execute(base)).scalar() or 0
+    posted = (await db.execute(base.where(VideoRecord.status == "posted"))).scalar() or 0
+    failed = (await db.execute(base.where(VideoRecord.status == "failed"))).scalar() or 0
+    pending = (await db.execute(
+        base.where(VideoRecord.status.in_(["pending", "generating"]))
+    )).scalar() or 0
+
+    return VideoStats(
+        total_generated=total,
+        total_posted=posted,
+        total_failed=failed,
+        total_pending=pending,
+    )
