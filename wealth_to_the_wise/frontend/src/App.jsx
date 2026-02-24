@@ -10,6 +10,8 @@ import Schedule from './pages/Schedule';
 import Settings from './pages/Settings';
 import GoogleCallback from './pages/GoogleCallback';
 import AppleCallback from './pages/AppleCallback';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -22,6 +24,8 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route
           path="/auth/google/callback"
           element={

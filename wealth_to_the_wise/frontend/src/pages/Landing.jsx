@@ -181,7 +181,11 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="border-t border-surface-300/50 py-10 text-center text-sm text-surface-600">
-        © {new Date().getFullYear()} Tubevo. All rights reserved.
+        <p>© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
+        <div className="mt-2 space-x-4">
+          <Link to="/privacy" className="hover:text-surface-800 transition-colors">Privacy Policy</Link>
+          <Link to="/terms" className="hover:text-surface-800 transition-colors">Terms of Service</Link>
+        </div>
       </footer>
     </div>
   );
