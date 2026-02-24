@@ -1,12 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
-import Spinner from '../components/Spinner';
-import { Save, Youtube, Bell, CreditCard, BarChart3, Key } from 'lucide-react';
+import { FadeIn } from '../components/Motion';
+import { SkeletonLine, SkeletonCard } from '../components/Skeleton';
+import {
+  Save,
+  Youtube,
+  Bell,
+  CreditCard,
+  BarChart3,
+  Key,
+  Check,
+  Shield,
+  Zap,
+  ExternalLink,
+  User,
+  RefreshCw,
+} from 'lucide-react';
+
+const ease = [0.25, 0.1, 0.25, 1];
 
 const tabs = [
-  { key: 'account', label: 'Account', icon: Save },
+  { key: 'account', label: 'Account', icon: User },
   { key: 'apikeys', label: 'API Keys', icon: Key },
   { key: 'youtube', label: 'YouTube', icon: Youtube },
   { key: 'notifications', label: 'Notifications', icon: Bell },
@@ -24,7 +41,6 @@ export default function Settings() {
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [email] = useState(user?.email || '');
 
-  // Sync tab when navigating back with ?tab= param (e.g. from OAuth callback)
   useEffect(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam && tabs.some((t) => t.key === tabParam)) {
@@ -33,42 +49,62 @@ export default function Settings() {
   }, [searchParams]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <FadeIn className="max-w-4xl mx-auto space-y-8">
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-white">Settings</h1>
-        <p className="text-sm text-surface-700 mt-1">Manage your account and preferences</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Settings</h1>
+        <p className="text-sm text-surface-600 mt-2">Manage your account and preferences</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-surface-100 border border-surface-300 rounded-xl p-1 overflow-x-auto scrollbar-none">
+      <div className="flex gap-1 card p-1.5 overflow-x-auto scrollbar-none">
         {tabs.map(({ key, label, icon: Icon }) => (
-          <button
+          <motion.button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            className={`relative flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === key
-                ? 'gradient-brand text-white shadow-md shadow-brand-500/15'
-                : 'text-surface-600 hover:text-surface-800 hover:bg-surface-200/50'
+                ? 'text-white'
+                : 'text-surface-600 hover:text-surface-800 hover:bg-surface-200/40'
             }`}
           >
-            <Icon size={16} />
-            <span className="hidden sm:inline">{label}</span>
-          </button>
+            {activeTab === key && (
+              <motion.div
+                layoutId="settings-tab-bg"
+                className="absolute inset-0 bg-gradient-to-r from-brand-500 to-brand-600 rounded-lg shadow-md shadow-brand-500/20"
+                transition={{ type: 'spring', bounce: 0.18, duration: 0.5 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-2">
+              <Icon size={16} />
+              <span className="hidden sm:inline">{label}</span>
+            </span>
+          </motion.button>
         ))}
       </div>
 
       {/* Tab Content */}
-      <div className="bg-surface-100 border border-surface-300 rounded-xl p-4 sm:p-6">
-        {activeTab === 'account' && (
-          <AccountTab fullName={fullName} setFullName={setFullName} email={email} />
-        )}
-        {activeTab === 'apikeys' && <ApiKeysTab />}
-        {activeTab === 'youtube' && <YouTubeTab />}
-        {activeTab === 'notifications' && <NotificationsTab />}
-        {activeTab === 'plan' && <PlanTab plan={user?.plan || 'free'} />}
-        {activeTab === 'usage' && <UsageTab />}
-      </div>
-    </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.3, ease }}
+          className="card-elevated p-5 sm:p-8"
+        >
+          {activeTab === 'account' && (
+            <AccountTab fullName={fullName} setFullName={setFullName} email={email} />
+          )}
+          {activeTab === 'apikeys' && <ApiKeysTab />}
+          {activeTab === 'youtube' && <YouTubeTab />}
+          {activeTab === 'notifications' && <NotificationsTab />}
+          {activeTab === 'plan' && <PlanTab plan={user?.plan || 'free'} />}
+          {activeTab === 'usage' && <UsageTab />}
+        </motion.div>
+      </AnimatePresence>
+    </FadeIn>
   );
 }
 
@@ -96,43 +132,69 @@ function AccountTab({ fullName, setFullName, email }) {
   }
 
   return (
-    <div className="space-y-5 max-w-md">
-      <h3 className="text-lg font-medium text-white">Account Details</h3>
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-2.5 rounded-lg">
-          {error}
+    <div className="space-y-6 max-w-md">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
+          <User size={20} className="text-brand-400" />
         </div>
-      )}
-      {saved && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-2.5 rounded-lg">
-          Changes saved.
+        <div>
+          <h3 className="text-lg font-semibold text-white">Account Details</h3>
+          <p className="text-xs text-surface-600">Update your profile information</p>
         </div>
-      )}
+      </div>
+
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+          >
+            {error}
+          </motion.div>
+        )}
+        {saved && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-emerald-500/8 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2"
+          >
+            <Check size={16} /> Changes saved successfully.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div>
-        <label className="block text-xs font-medium text-surface-700 mb-1.5">Full Name</label>
+        <label className="block text-xs font-medium text-surface-500 mb-2">Full Name</label>
         <input
           type="text"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-lg bg-surface-200 border border-surface-300 text-surface-900 text-sm placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+          className="input-premium w-full"
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-surface-700 mb-1.5">Email</label>
+        <label className="block text-xs font-medium text-surface-500 mb-2">Email</label>
         <input
           type="email"
           value={email}
           disabled
-          className="w-full px-3 py-2.5 rounded-lg bg-surface-200/50 border border-surface-300 text-surface-600 text-sm cursor-not-allowed"
+          className="input-premium w-full opacity-50 cursor-not-allowed"
         />
+        <p className="text-xs text-surface-500 mt-1.5">Email cannot be changed.</p>
       </div>
-      <button
+      <motion.button
         onClick={handleSave}
         disabled={saving}
-        className="px-5 py-2.5 rounded-lg text-sm font-medium gradient-brand text-white hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 glow-brand"
+        whileHover={{ scale: 1.02, y: -1 }}
+        whileTap={{ scale: 0.97 }}
+        className="btn-primary flex items-center gap-2 px-6 py-2.5"
       >
-        {saving ? <Spinner className="w-4 h-4" /> : 'Save Changes'}
-      </button>
+        {saving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+        {saving ? 'Saving…' : 'Save Changes'}
+      </motion.button>
     </div>
   );
 }
@@ -170,7 +232,6 @@ function ApiKeysTab() {
     setError('');
     setSaved(false);
     try {
-      // Only send fields that the user has actually typed something into
       const payload = {};
       if (form.openai_api_key) payload.openai_api_key = form.openai_api_key;
       if (form.elevenlabs_api_key) payload.elevenlabs_api_key = form.elevenlabs_api_key;
@@ -197,151 +258,171 @@ function ApiKeysTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="w-6 h-6 text-brand-500" />
+      <div className="space-y-4 max-w-lg">
+        <SkeletonLine width="w-40" />
+        <SkeletonCard />
+        <SkeletonCard />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 max-w-lg">
-      <div>
-        <h3 className="text-lg font-medium text-white">Your API Keys</h3>
-        <p className="text-sm text-surface-700 mt-1">
-          Tubevo uses <strong>your own API keys</strong> to generate videos. Your keys are stored
-          securely and never shared. You only pay for what you use directly to each provider.
-        </p>
+    <div className="space-y-6 max-w-lg">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center">
+          <Key size={20} className="text-amber-400" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Your API Keys</h3>
+          <p className="text-xs text-surface-600">Bring your own keys — you pay providers directly</p>
+        </div>
       </div>
 
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-2.5 rounded-lg">
-          {error}
-        </div>
-      )}
-      {saved && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-2.5 rounded-lg">
-          Keys saved successfully!
-        </div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+          >
+            {error}
+          </motion.div>
+        )}
+        {saved && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-emerald-500/8 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2"
+          >
+            <Check size={16} /> Keys saved and encrypted.
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Current status */}
       {keyStatus && (
-        <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-2">
-          <p className="text-xs font-medium text-surface-700 mb-2">Current Status</p>
+        <div className="card p-5 space-y-3">
+          <p className="text-xs font-medium text-surface-500 uppercase tracking-wider">Connection Status</p>
           <KeyStatusRow label="OpenAI" active={keyStatus.has_openai_key} hint={keyStatus.openai_key_hint} />
           <KeyStatusRow label="ElevenLabs" active={keyStatus.has_elevenlabs_key} hint={keyStatus.elevenlabs_key_hint} />
           <KeyStatusRow label="Pexels" active={keyStatus.has_pexels_key} hint={keyStatus.pexels_key_hint} />
           {keyStatus.elevenlabs_voice_id && (
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-surface-600">Voice ID</span>
-              <span className="text-xs text-surface-800 font-mono">{keyStatus.elevenlabs_voice_id}</span>
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-xs text-surface-500">Voice ID</span>
+              <span className="text-xs text-surface-800 font-mono bg-surface-200/60 px-2 py-0.5 rounded">{keyStatus.elevenlabs_voice_id}</span>
             </div>
           )}
         </div>
       )}
 
       {/* Input fields */}
-      <div className="space-y-4">
+      <div className="space-y-5">
+        <KeyInput
+          label="OpenAI API Key"
+          required
+          value={form.openai_api_key}
+          onChange={(v) => setForm({ ...form, openai_api_key: v })}
+          placeholder={keyStatus?.has_openai_key ? `Current: ••••${keyStatus.openai_key_hint?.slice(-4) || ''}` : 'sk-...'}
+          helpText="Get yours at"
+          helpLink="https://platform.openai.com/api-keys"
+          helpLinkText="platform.openai.com"
+        />
+        <KeyInput
+          label="ElevenLabs API Key"
+          required
+          value={form.elevenlabs_api_key}
+          onChange={(v) => setForm({ ...form, elevenlabs_api_key: v })}
+          placeholder={keyStatus?.has_elevenlabs_key ? `Current: ••••${keyStatus.elevenlabs_key_hint?.slice(-4) || ''}` : 'sk_...'}
+          helpText="Get yours at"
+          helpLink="https://elevenlabs.io"
+          helpLinkText="elevenlabs.io"
+        />
         <div>
-          <label className="block text-xs font-medium text-surface-700 mb-1.5">
-            OpenAI API Key <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="password"
-            value={form.openai_api_key}
-            onChange={(e) => setForm({ ...form, openai_api_key: e.target.value })}
-            placeholder={keyStatus?.has_openai_key ? `Current: ••••${keyStatus.openai_key_hint?.slice(-4) || ''}` : 'sk-...'}
-            className="w-full px-3 py-2.5 rounded-lg bg-surface-200 border border-surface-300 text-surface-900 text-sm font-mono placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
-          />
-          <p className="text-xs text-surface-600 mt-1">
-            Get yours at{' '}
-            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">
-              platform.openai.com
-            </a>
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-surface-700 mb-1.5">
-            ElevenLabs API Key <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="password"
-            value={form.elevenlabs_api_key}
-            onChange={(e) => setForm({ ...form, elevenlabs_api_key: e.target.value })}
-            placeholder={keyStatus?.has_elevenlabs_key ? `Current: ••••${keyStatus.elevenlabs_key_hint?.slice(-4) || ''}` : 'sk_...'}
-            className="w-full px-3 py-2.5 rounded-lg bg-surface-200 border border-surface-300 text-surface-900 text-sm font-mono placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
-          />
-          <p className="text-xs text-surface-600 mt-1">
-            Get yours at{' '}
-            <a href="https://elevenlabs.io" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">
-              elevenlabs.io
-            </a>
-          </p>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-surface-700 mb-1.5">
-            ElevenLabs Voice ID <span className="text-surface-500">(optional)</span>
+          <label className="block text-xs font-medium text-surface-500 mb-2">
+            ElevenLabs Voice ID <span className="text-surface-500/60">(optional)</span>
           </label>
           <input
             type="text"
             value={form.elevenlabs_voice_id}
             onChange={(e) => setForm({ ...form, elevenlabs_voice_id: e.target.value })}
             placeholder={keyStatus?.elevenlabs_voice_id || 'e.g. pNInz6obpgDQGcFmaJgB'}
-            className="w-full px-3 py-2.5 rounded-lg bg-surface-200 border border-surface-300 text-surface-900 text-sm font-mono placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+            className="input-premium w-full font-mono text-xs"
           />
-          <p className="text-xs text-surface-600 mt-1">
-            Leave blank to use the default voice. Find voice IDs in your ElevenLabs dashboard.
-          </p>
+          <p className="text-xs text-surface-500 mt-1.5">Leave blank to use the default voice.</p>
         </div>
-
-        <div>
-          <label className="block text-xs font-medium text-surface-700 mb-1.5">
-            Pexels API Key <span className="text-surface-500">(optional — for stock footage)</span>
-          </label>
-          <input
-            type="password"
-            value={form.pexels_api_key}
-            onChange={(e) => setForm({ ...form, pexels_api_key: e.target.value })}
-            placeholder={keyStatus?.has_pexels_key ? `Current: ••••${keyStatus.pexels_key_hint?.slice(-4) || ''}` : 'Free at pexels.com/api'}
-            className="w-full px-3 py-2.5 rounded-lg bg-surface-200 border border-surface-300 text-surface-900 text-sm font-mono placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
-          />
-          <p className="text-xs text-surface-600 mt-1">
-            Free at{' '}
-            <a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">
-              pexels.com/api
-            </a>
-            . Without this, videos use a plain dark background.
-          </p>
-        </div>
+        <KeyInput
+          label="Pexels API Key"
+          value={form.pexels_api_key}
+          onChange={(v) => setForm({ ...form, pexels_api_key: v })}
+          placeholder={keyStatus?.has_pexels_key ? `Current: ••••${keyStatus.pexels_key_hint?.slice(-4) || ''}` : 'Free at pexels.com/api'}
+          helpText="Free at"
+          helpLink="https://www.pexels.com/api/"
+          helpLinkText="pexels.com/api"
+          optional
+        />
       </div>
 
-      <button
+      <motion.button
         onClick={handleSave}
         disabled={saving}
-        className="px-5 py-2.5 rounded-lg text-sm font-medium gradient-brand text-white hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 glow-brand"
+        whileHover={{ scale: 1.02, y: -1 }}
+        whileTap={{ scale: 0.97 }}
+        className="btn-primary flex items-center gap-2 px-6 py-2.5"
       >
-        {saving ? <Spinner className="w-4 h-4" /> : 'Save API Keys'}
-      </button>
+        {saving ? <RefreshCw size={16} className="animate-spin" /> : <Shield size={16} />}
+        {saving ? 'Encrypting…' : 'Save API Keys'}
+      </motion.button>
 
-      <div className="bg-surface-200/50 border border-surface-300 rounded-xl p-4">
-        <p className="text-xs text-surface-600">
+      <div className="card p-4 flex items-start gap-3">
+        <Zap size={16} className="text-amber-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-surface-600 leading-relaxed">
           <strong className="text-surface-700">Why bring your own keys?</strong> This keeps your costs
-          transparent — you pay each provider directly for what you use. No hidden markups.
-          A typical video costs ~$0.05 in OpenAI credits and ~$0.10 in ElevenLabs credits.
+          transparent — you pay each provider directly. No hidden markups. A typical video costs ~$0.05 in
+          OpenAI credits and ~$0.10 in ElevenLabs credits.
         </p>
       </div>
     </div>
   );
 }
 
+function KeyInput({ label, required, value, onChange, placeholder, helpText, helpLink, helpLinkText, optional }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-surface-500 mb-2">
+        {label} {required && <span className="text-red-400">*</span>}
+        {optional && <span className="text-surface-500/60">(optional)</span>}
+      </label>
+      <input
+        type="password"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="input-premium w-full font-mono text-xs"
+      />
+      {helpText && (
+        <p className="text-xs text-surface-500 mt-1.5">
+          {helpText}{' '}
+          <a href={helpLink} target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 transition-colors">
+            {helpLinkText} <ExternalLink size={10} className="inline -mt-0.5" />
+          </a>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function KeyStatusRow({ label, active, hint }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-surface-600">{label}</span>
-      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${active ? 'text-emerald-400' : 'text-surface-500'}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-400' : 'bg-surface-500'}`} />
+    <div className="flex items-center justify-between py-1">
+      <span className="text-xs text-surface-500">{label}</span>
+      <span className={`inline-flex items-center gap-2 text-xs font-medium ${active ? 'text-emerald-400' : 'text-surface-500'}`}>
+        <motion.span
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className={`w-2 h-2 rounded-full ${active ? 'bg-emerald-400 shadow-sm shadow-emerald-400/40' : 'bg-surface-500'}`}
+        />
         {active ? `Connected (${hint})` : 'Not set'}
       </span>
     </div>
@@ -355,7 +436,6 @@ function YouTubeTab() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch current connection status on mount
   useEffect(() => {
     async function fetchStatus() {
       try {
@@ -377,7 +457,6 @@ function YouTubeTab() {
     setError('');
     try {
       const { data } = await api.get('/oauth/youtube/authorize');
-      // Redirect user to Google consent screen
       window.location.href = data.auth_url;
     } catch (err) {
       const detail = err.response?.data?.detail;
@@ -405,48 +484,64 @@ function YouTubeTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="w-6 h-6 text-brand-500" />
+      <div className="space-y-4 max-w-md">
+        <SkeletonLine width="w-40" />
+        <SkeletonCard />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 max-w-md">
-      <h3 className="text-lg font-medium text-white">YouTube Connection</h3>
-      <p className="text-sm text-surface-700">
-        Connect your YouTube channel to allow Tubevo to upload videos on your behalf.
-      </p>
-
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-2.5 rounded-lg">
-          {error}
+    <div className="space-y-6 max-w-md">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center ring-1 ring-red-500/20">
+          <Youtube size={20} className="text-red-400" />
         </div>
-      )}
+        <div>
+          <h3 className="text-lg font-semibold text-white">YouTube Connection</h3>
+          <p className="text-xs text-surface-600">Upload videos directly to your channel</p>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+          >
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {connection?.connected ? (
-        /* ── Connected state ── */
-        <div className="bg-surface-200 border border-emerald-500/20 rounded-xl p-4 space-y-3">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card border-emerald-500/15 p-5 space-y-4"
+        >
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center ring-1 ring-red-500/20">
-              <Youtube size={20} className="text-red-400" />
+            <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center ring-1 ring-red-500/20">
+              <Youtube size={24} className="text-red-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">
+              <p className="text-sm font-semibold text-white truncate">
                 {connection.channel_title || 'YouTube Channel'}
               </p>
-              <p className="text-xs text-surface-600 truncate">
+              <p className="text-xs text-surface-500 truncate">
                 {connection.provider_email || connection.channel_id}
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Connected
             </span>
           </div>
 
           {connection.channel_id && (
-            <div className="bg-surface-100 rounded-lg p-3 space-y-1.5">
+            <div className="bg-surface-200/40 rounded-xl p-4 space-y-2">
               <Row label="Channel ID" value={connection.channel_id} />
               {connection.connected_at && (
                 <Row label="Connected" value={new Date(connection.connected_at).toLocaleDateString()} />
@@ -454,32 +549,39 @@ function YouTubeTab() {
             </div>
           )}
 
-          <button
+          <motion.button
             onClick={handleDisconnect}
             disabled={actionLoading}
-            className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            className="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-red-500/8 text-red-400 border border-red-500/20 hover:bg-red-500/15 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {actionLoading ? <Spinner className="w-4 h-4" /> : 'Disconnect YouTube'}
-          </button>
-        </div>
+            {actionLoading ? <RefreshCw size={14} className="animate-spin" /> : 'Disconnect YouTube'}
+          </motion.button>
+        </motion.div>
       ) : (
-        /* ── Disconnected state ── */
-        <div className="flex items-center gap-4 bg-surface-200 border border-surface-300 rounded-xl p-4">
-          <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
-            <Youtube size={20} className="text-red-400" />
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-4 card p-5"
+        >
+          <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center">
+            <Youtube size={24} className="text-red-400" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium text-surface-900">No channel connected</p>
-            <p className="text-xs text-surface-600">Authorize via Google OAuth</p>
+            <p className="text-sm font-semibold text-white">No channel connected</p>
+            <p className="text-xs text-surface-500">Authorize via Google OAuth</p>
           </div>
-          <button
+          <motion.button
             onClick={handleConnect}
             disabled={actionLoading}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500 text-white hover:bg-red-400 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-red-500/20"
+            whileHover={{ scale: 1.03, y: -1 }}
+            whileTap={{ scale: 0.97 }}
+            className="px-5 py-2.5 rounded-xl text-sm font-medium bg-red-500 text-white hover:bg-red-400 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-red-500/20"
           >
-            {actionLoading ? <Spinner className="w-3 h-3" /> : 'Connect'}
-          </button>
-        </div>
+            {actionLoading ? <RefreshCw size={14} className="animate-spin" /> : 'Connect'}
+          </motion.button>
+        </motion.div>
       )}
     </div>
   );
@@ -492,54 +594,64 @@ function NotificationsTab() {
   const [weeklyDigest, setWeeklyDigest] = useState(false);
 
   return (
-    <div className="space-y-5 max-w-md">
-      <h3 className="text-lg font-medium text-white">Notification Preferences</h3>
-      <Toggle label="Email notifications" description="Get notified when videos are posted" checked={emailNotifs} onChange={setEmailNotifs} />
-      <Toggle label="Failure alerts" description="Immediately notified if a video fails" checked={failAlerts} onChange={setFailAlerts} />
-      <Toggle label="Weekly digest" description="Summary of your channel performance" checked={weeklyDigest} onChange={setWeeklyDigest} />
+    <div className="space-y-6 max-w-md">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center">
+          <Bell size={20} className="text-blue-400" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Notification Preferences</h3>
+          <p className="text-xs text-surface-600">Choose what you want to be notified about</p>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Toggle label="Email notifications" description="Get notified when videos are posted" checked={emailNotifs} onChange={setEmailNotifs} />
+        <Toggle label="Failure alerts" description="Immediately notified if a video fails" checked={failAlerts} onChange={setFailAlerts} />
+        <Toggle label="Weekly digest" description="Summary of your channel performance" checked={weeklyDigest} onChange={setWeeklyDigest} />
+      </div>
     </div>
   );
 }
 
 function Toggle({ label, description, checked, onChange }) {
   return (
-    <div className="flex items-center justify-between py-2">
+    <div className="flex items-center justify-between py-4 border-b border-surface-300/20 last:border-0">
       <div>
-        <p className="text-sm font-medium text-surface-900">{label}</p>
-        <p className="text-xs text-surface-600 mt-0.5">{description}</p>
+        <p className="text-sm font-medium text-white">{label}</p>
+        <p className="text-xs text-surface-500 mt-0.5">{description}</p>
       </div>
-      <button
+      <motion.button
         onClick={() => onChange(!checked)}
-        className={`relative w-11 h-6 rounded-full transition-all ${
-          checked ? 'gradient-brand shadow-md shadow-brand-500/25' : 'bg-surface-400'
+        whileTap={{ scale: 0.9 }}
+        className={`relative w-12 h-7 rounded-full transition-all ${
+          checked ? 'bg-gradient-to-r from-brand-500 to-brand-600 shadow-md shadow-brand-500/25' : 'bg-surface-400'
         }`}
       >
-        <span
-          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-            checked ? 'translate-x-5' : 'translate-x-0'
-          }`}
+        <motion.span
+          animate={{ x: checked ? 20 : 0 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          className="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm"
         />
-      </button>
+      </motion.button>
     </div>
   );
 }
 
 /* ── Plan ────────────────────────────────────────────────────── */
 function PlanTab({ plan }) {
-  const [loading, setLoading] = useState(null); // tracks which plan is loading
+  const [loading, setLoading] = useState(null);
   const [error, setError] = useState('');
 
   const plans = [
-    { key: 'free', name: 'Free', price: '$0/mo', features: ['1 video/month', 'Basic templates', 'Community support'] },
-    { key: 'starter', name: 'Starter', price: '$29/mo', features: ['10 videos/month', 'All voices', 'Email support', 'Stock footage'] },
-    { key: 'pro', name: 'Pro', price: '$79/mo', features: ['50 videos/month', 'Custom branding', 'Priority support', 'Analytics', 'Auto-scheduling'] },
-    { key: 'agency', name: 'Agency', price: '$199/mo', features: ['Unlimited videos', 'Multi-channel', 'API access', 'Dedicated manager', 'White label'] },
+    { key: 'free', name: 'Free', price: '$0', period: '/mo', features: ['1 video/month', 'Basic templates', 'Community support'], color: 'from-surface-400 to-surface-500' },
+    { key: 'starter', name: 'Starter', price: '$29', period: '/mo', features: ['10 videos/month', 'All voices', 'Email support', 'Stock footage'], color: 'from-blue-500 to-blue-600' },
+    { key: 'pro', name: 'Pro', price: '$79', period: '/mo', features: ['50 videos/month', 'Custom branding', 'Priority support', 'Analytics', 'Auto-scheduling'], color: 'from-brand-500 to-brand-600', popular: true },
+    { key: 'agency', name: 'Agency', price: '$199', period: '/mo', features: ['Unlimited videos', 'Multi-channel', 'API access', 'Dedicated manager', 'White label'], color: 'from-amber-500 to-amber-600' },
   ];
 
   async function handlePlanAction(planKey) {
     setError('');
-
-    // For downgrades to free, open the billing portal to cancel
     if (planKey === 'free') {
       setLoading('free');
       try {
@@ -547,88 +659,114 @@ function PlanTab({ plan }) {
         window.location.href = data.portal_url;
       } catch (err) {
         const detail = err.response?.data?.detail;
-        if (err.response?.status === 503) {
-          setError('Billing is not configured yet.');
-        } else if (err.response?.status === 404) {
-          setError('No billing account found. Nothing to cancel.');
-        } else {
-          setError(detail || 'Could not open billing portal.');
-        }
+        if (err.response?.status === 503) setError('Billing is not configured yet.');
+        else if (err.response?.status === 404) setError('No billing account found.');
+        else setError(detail || 'Could not open billing portal.');
       } finally {
         setLoading(null);
       }
       return;
     }
 
-    // For upgrades, create a checkout session
     setLoading(planKey);
     try {
       const { data } = await api.post('/billing/create-checkout-session', { plan: planKey });
       window.location.href = data.checkout_url;
     } catch (err) {
       const detail = err.response?.data?.detail;
-      if (err.response?.status === 503) {
-        setError('Billing is not configured yet.');
-      } else {
-        setError(detail || 'Could not start checkout.');
-      }
+      if (err.response?.status === 503) setError('Billing is not configured yet.');
+      else setError(detail || 'Could not start checkout.');
     } finally {
       setLoading(null);
     }
   }
 
   return (
-    <div className="space-y-5">
-      <h3 className="text-lg font-medium text-white">Your Plan</h3>
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-2.5 rounded-lg">
-          {error}
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
+          <CreditCard size={20} className="text-brand-400" />
         </div>
-      )}
+        <div>
+          <h3 className="text-lg font-semibold text-white">Your Plan</h3>
+          <p className="text-xs text-surface-600">Upgrade or manage your subscription</p>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+          >
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {plans.map((p) => (
-          <div
+        {plans.map((p, i) => (
+          <motion.div
             key={p.key}
-            className={`rounded-xl border p-5 transition-all ${
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.05 * i, ease }}
+            whileHover={{ y: -3, scale: 1.01 }}
+            className={`relative rounded-2xl border p-5 transition-all ${
               plan === p.key
-                ? 'border-brand-500 bg-brand-600/10 glow-brand'
-                : 'border-surface-300 bg-surface-200/50 hover:border-surface-400'
+                ? 'border-brand-500/50 bg-brand-600/8 shadow-lg shadow-brand-500/10'
+                : 'border-surface-300/40 bg-surface-200/30 hover:border-surface-400/60'
             }`}
           >
+            {p.popular && (
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/20">
+                Popular
+              </span>
+            )}
+            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center mb-3 shadow-sm`}>
+              <CreditCard size={14} className="text-white" />
+            </div>
             <p className="text-sm font-semibold text-white">{p.name}</p>
-            <p className="text-2xl font-bold text-white mt-1">{p.price}</p>
+            <p className="mt-1">
+              <span className="text-2xl font-bold text-white">{p.price}</span>
+              <span className="text-xs text-surface-500">{p.period}</span>
+            </p>
             <ul className="mt-4 space-y-2">
               {p.features.map((f) => (
-                <li key={f} className="text-xs text-surface-700 flex items-center gap-2">
-                  <span className="w-1 h-1 rounded-full bg-brand-400" />
+                <li key={f} className="text-xs text-surface-600 flex items-center gap-2">
+                  <Check size={12} className="text-brand-400 shrink-0" />
                   {f}
                 </li>
               ))}
             </ul>
             {plan === p.key ? (
-              <span className="inline-block mt-4 text-xs font-medium text-gradient">
-                Current Plan
+              <span className="inline-block mt-4 text-xs font-semibold text-brand-400">
+                ✓ Current Plan
               </span>
             ) : (
-              <button
+              <motion.button
                 onClick={() => handlePlanAction(p.key)}
                 disabled={loading !== null}
-                className={`mt-4 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className={`mt-4 w-full px-3 py-2.5 rounded-xl text-xs font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
                   p.key === 'free'
-                    ? 'bg-surface-300 text-surface-800 hover:bg-surface-400'
-                    : 'gradient-brand text-white hover:opacity-90 glow-brand'
+                    ? 'bg-surface-300/60 text-surface-700 hover:bg-surface-400/60'
+                    : 'btn-primary'
                 }`}
               >
                 {loading === p.key ? (
-                  <Spinner className="w-3 h-3" />
+                  <RefreshCw size={12} className="animate-spin" />
                 ) : p.key === 'free' ? (
                   'Downgrade'
                 ) : (
                   'Upgrade'
                 )}
-              </button>
+              </motion.button>
             )}
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>
@@ -656,8 +794,10 @@ function UsageTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Spinner className="w-6 h-6 text-brand-500" />
+      <div className="space-y-4 max-w-md">
+        <SkeletonLine width="w-40" />
+        <SkeletonCard />
+        <SkeletonCard />
       </div>
     );
   }
@@ -672,40 +812,59 @@ function UsageTab() {
   const usagePct = Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100));
 
   return (
-    <div className="space-y-5 max-w-md">
-      <h3 className="text-lg font-medium text-white">Usage & Stats</h3>
-      <p className="text-sm text-surface-700">
-        Your video generation activity. With BYOK, API costs are billed directly by each provider.
-      </p>
+    <div className="space-y-6 max-w-md">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 flex items-center justify-center">
+          <BarChart3 size={20} className="text-emerald-400" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Usage & Stats</h3>
+          <p className="text-xs text-surface-600">Your video generation activity</p>
+        </div>
+      </div>
 
       {/* Monthly quota progress */}
-      <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-3">
+      <div className="card p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-surface-700">Monthly Quota ({plan.charAt(0).toUpperCase() + plan.slice(1)})</span>
-          <span className="text-xs text-surface-800 font-medium">{monthlyUsed} / {monthlyLimit >= 999_999 ? '∞' : monthlyLimit}</span>
+          <span className="text-xs font-medium text-surface-500 uppercase tracking-wider">
+            Monthly Quota ({plan.charAt(0).toUpperCase() + plan.slice(1)})
+          </span>
+          <span className="text-sm text-white font-semibold">
+            {monthlyUsed} / {monthlyLimit >= 999_999 ? '∞' : monthlyLimit}
+          </span>
         </div>
-        <div className="w-full bg-surface-400 rounded-full h-2">
-          <div
-            className={`h-2 rounded-full transition-all ${usagePct >= 90 ? 'bg-red-500' : usagePct >= 70 ? 'bg-amber-500' : 'bg-brand-500'}`}
-            style={{ width: `${monthlyLimit >= 999_999 ? 5 : usagePct}%` }}
+        <div className="w-full bg-surface-300/40 rounded-full h-2.5 overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${monthlyLimit >= 999_999 ? 5 : usagePct}%` }}
+            transition={{ duration: 1, delay: 0.2, ease }}
+            className={`h-2.5 rounded-full ${
+              usagePct >= 90 ? 'bg-gradient-to-r from-red-500 to-red-400' :
+              usagePct >= 70 ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
+              'bg-gradient-to-r from-brand-500 to-brand-400'
+            }`}
           />
         </div>
         {usagePct >= 90 && monthlyLimit < 999_999 && (
-          <p className="text-xs text-amber-400">
-            You're approaching your monthly limit. Consider upgrading your plan.
+          <p className="text-xs text-amber-400 flex items-center gap-1.5">
+            <Zap size={12} /> Approaching limit — consider upgrading your plan.
           </p>
         )}
       </div>
 
-      <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-2">
+      <div className="card p-5 space-y-3">
         <Row label="Total videos generated" value={String(total)} />
+        <div className="h-px bg-surface-300/20" />
         <Row label="Successfully posted" value={String(posted)} />
+        <div className="h-px bg-surface-300/20" />
         <Row label="Currently generating" value={String(pending)} />
+        <div className="h-px bg-surface-300/20" />
         <Row label="Failed" value={String(failed)} />
       </div>
 
-      <div className="bg-surface-200/50 border border-surface-300 rounded-xl p-4">
-        <p className="text-xs text-surface-600">
+      <div className="card p-4 flex items-start gap-3">
+        <Zap size={16} className="text-amber-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-surface-600 leading-relaxed">
           <strong className="text-surface-700">Bring Your Own Keys:</strong> Since you provide your own
           API keys, video generation costs are billed directly to your OpenAI, ElevenLabs, and Pexels
           accounts. A typical video costs roughly $0.05–$0.15 in total API credits.
@@ -718,8 +877,8 @@ function UsageTab() {
 function Row({ label, value }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-xs text-surface-600">{label}</span>
-      <span className="text-xs text-surface-800 font-medium">{value}</span>
+      <span className="text-xs text-surface-500">{label}</span>
+      <span className="text-sm text-white font-medium">{value}</span>
     </div>
   );
 }

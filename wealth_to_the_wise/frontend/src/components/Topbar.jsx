@@ -20,44 +20,56 @@ export default function Topbar({ onMenuToggle }) {
   }, []);
 
   const connected = connection?.connected;
+  const initials = (user?.full_name || user?.email || '?')
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
-    <header className="h-14 sm:h-16 border-b border-surface-300 bg-surface-100/80 backdrop-blur-sm flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20">
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <header className="h-16 border-b border-surface-300/50 glass sticky top-0 z-20 flex items-center justify-between px-5 sm:px-8">
+      <div className="flex items-center gap-3 min-w-0">
         {/* Hamburger — mobile only */}
         <button
           onClick={onMenuToggle}
-          className="lg:hidden p-2 -ml-2 text-surface-600 hover:text-white transition-colors"
+          className="lg:hidden p-2 -ml-2 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all duration-200"
         >
           <Menu size={20} />
         </button>
 
-        <span className="hidden sm:inline text-sm text-surface-700">Channel:</span>
-        <span className="text-xs sm:text-sm font-medium text-surface-900 truncate max-w-[120px] sm:max-w-none">
-          {connected ? (connection.channel_title || 'YouTube Channel') : 'Not connected'}
-        </span>
-        {connected ? (
-          <span className="flex items-center gap-1 text-xs text-emerald-400">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="hidden sm:inline"><Wifi size={14} className="inline" /> Connected</span>
-          </span>
-        ) : (
-          <span className="flex items-center gap-1 text-xs text-surface-600">
-            <WifiOff size={14} />
-            <span className="hidden sm:inline">Disconnected</span>
-          </span>
-        )}
+        {/* YouTube connection status pill */}
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+          connected
+            ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
+            : 'bg-surface-200/80 border border-surface-300 text-surface-600'
+        }`}>
+          {connected ? (
+            <>
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-soft-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+              </span>
+              <span className="hidden sm:inline truncate max-w-[140px]">
+                {connection.channel_title || 'YouTube Connected'}
+              </span>
+              <span className="sm:hidden">Connected</span>
+            </>
+          ) : (
+            <>
+              <WifiOff size={12} />
+              <span className="hidden sm:inline">No channel</span>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-        <span className="text-xs sm:text-sm text-surface-700 truncate max-w-[100px] sm:max-w-none hidden sm:inline">
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="text-sm text-surface-700 truncate max-w-[140px] hidden sm:inline">
           {user?.full_name || user?.email}
         </span>
-        <div className="w-8 h-8 rounded-full gradient-brand flex items-center justify-center">
-          <UserCircle size={20} className="text-white/80" />
+        <div className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center shadow-soft text-xs font-semibold text-white/90 select-none">
+          {initials}
         </div>
       </div>
     </header>

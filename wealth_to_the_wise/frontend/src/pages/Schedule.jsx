@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import api from '../lib/api';
-import Spinner from '../components/Spinner';
-import { ExternalLink, CalendarDays, Sparkles } from 'lucide-react';
+import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
+import { SkeletonVideoList } from '../components/Skeleton';
+import { ExternalLink, CalendarDays, Sparkles, Upload, Play } from 'lucide-react';
+
+const ease = [0.25, 0.1, 0.25, 1];
 
 export default function Schedule() {
   const [history, setHistory] = useState([]);
@@ -11,7 +15,6 @@ export default function Schedule() {
     async function fetch() {
       try {
         const { data } = await api.get('/api/videos/history');
-        // Only show posted / completed videos in "Post History"
         setHistory(data.filter((v) => v.status === 'posted' || v.youtube_url));
       } catch {
         // keep empty
@@ -22,62 +25,78 @@ export default function Schedule() {
     fetch();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="w-8 h-8" />
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <FadeIn className="max-w-5xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-white">Post History</h1>
-        <p className="text-sm text-surface-700 mt-1">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Post History</h1>
+        <p className="text-sm text-surface-600 mt-2">
           Videos that have been posted to your YouTube channel
         </p>
       </div>
 
-      {/* Post History */}
-      <div className="bg-surface-100 border border-surface-300 rounded-xl overflow-hidden">
-        {history.length === 0 ? (
-          <div className="px-5 py-12 text-center">
-            <div className="w-12 h-12 rounded-2xl gradient-brand flex items-center justify-center mx-auto mb-3 glow-brand">
-              <Sparkles size={24} className="text-white" />
-            </div>
-            <p className="text-sm text-surface-600">
-              No videos posted yet. Generate and post your first video!
-            </p>
+      {/* Content */}
+      {loading ? (
+        <SkeletonVideoList />
+      ) : history.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15, ease }}
+          className="card-elevated p-12 text-center"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-500/10">
+            <Upload size={28} className="text-brand-400" />
           </div>
-        ) : (
-          <>
-            {/* Desktop table */}
-            <table className="hidden sm:table w-full text-left">
+          <h3 className="text-base font-semibold text-white mb-2">No videos posted yet</h3>
+          <p className="text-sm text-surface-600 max-w-sm mx-auto">
+            Generate and post your first video — it'll show up here with a direct YouTube link.
+          </p>
+        </motion.div>
+      ) : (
+        <>
+          {/* Desktop table */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1, ease }}
+            className="hidden sm:block card-elevated overflow-hidden"
+          >
+            <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-surface-300 bg-surface-200/50">
-                  <th className="px-5 py-3 text-xs font-medium text-surface-600 uppercase tracking-wider">
+                <tr className="border-b border-surface-300/40">
+                  <th className="px-6 py-4 text-xs font-medium text-surface-600 uppercase tracking-wider">
                     Title
                   </th>
-                  <th className="px-5 py-3 text-xs font-medium text-surface-600 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-xs font-medium text-surface-600 uppercase tracking-wider">
                     Posted
                   </th>
-                  <th className="px-5 py-3 text-xs font-medium text-surface-600 uppercase tracking-wider text-right">
+                  <th className="px-6 py-4 text-xs font-medium text-surface-600 uppercase tracking-wider text-right">
                     Link
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-300">
-                {history.map((item) => (
-                  <tr key={item.id} className="hover:bg-surface-200/50 transition-colors">
-                    <td className="px-5 py-4">
-                      <p className="text-sm font-medium text-surface-900 truncate max-w-xs">
-                        {item.title}
-                      </p>
+              <tbody className="divide-y divide-surface-300/30">
+                {history.map((item, i) => (
+                  <motion.tr
+                    key={item.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.05 * i, ease }}
+                    className="group transition-colors hover:bg-surface-200/30"
+                  >
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center shrink-0">
+                          <Play size={14} className="text-brand-400" />
+                        </div>
+                        <p className="text-sm font-medium text-white truncate max-w-xs group-hover:text-brand-300 transition-colors">
+                          {item.title}
+                        </p>
+                      </div>
                     </td>
-                    <td className="px-5 py-4">
-                      <span className="flex items-center gap-1.5 text-sm text-surface-700">
+                    <td className="px-6 py-5">
+                      <span className="flex items-center gap-2 text-sm text-surface-700">
                         <CalendarDays size={14} className="text-brand-400" />
                         {item.created_at
                           ? new Date(item.created_at).toLocaleDateString('en-US', {
@@ -90,32 +109,40 @@ export default function Schedule() {
                           : '—'}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-right">
+                    <td className="px-6 py-5 text-right">
                       {item.youtube_url ? (
-                        <a
+                        <motion.a
                           href={item.youtube_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-sm text-brand-400 hover:text-brand-300 transition-colors"
+                          className="inline-flex items-center gap-1.5 text-sm text-brand-400 hover:text-brand-300 transition-colors font-medium"
+                          whileHover={{ x: 2 }}
                         >
                           Watch <ExternalLink size={14} />
-                        </a>
+                        </motion.a>
                       ) : (
                         <span className="text-xs text-surface-500">—</span>
                       )}
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>
+          </motion.div>
 
-            {/* Mobile card list */}
-            <div className="sm:hidden divide-y divide-surface-300">
-              {history.map((item) => (
-                <div key={item.id} className="px-4 py-4 space-y-2">
-                  <p className="text-sm font-medium text-surface-900 truncate">{item.title}</p>
+          {/* Mobile card list */}
+          <StaggerContainer className="sm:hidden space-y-3" staggerDelay={0.05}>
+            {history.map((item) => (
+              <StaggerItem key={item.id}>
+                <div className="card-elevated px-5 py-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center shrink-0">
+                      <Play size={14} className="text-brand-400" />
+                    </div>
+                    <p className="text-sm font-medium text-white truncate">{item.title}</p>
+                  </div>
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs text-surface-700">
+                    <span className="flex items-center gap-1.5 text-xs text-surface-600">
                       <CalendarDays size={12} className="text-brand-400" />
                       {item.created_at
                         ? new Date(item.created_at).toLocaleDateString('en-US', {
@@ -130,7 +157,7 @@ export default function Schedule() {
                         href={item.youtube_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300 transition-colors"
+                        className="inline-flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300 transition-colors font-medium"
                       >
                         Watch <ExternalLink size={12} />
                       </a>
@@ -139,11 +166,11 @@ export default function Schedule() {
                     )}
                   </div>
                 </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+              </StaggerItem>
+            ))}
+          </StaggerContainer>
+        </>
+      )}
+    </FadeIn>
   );
 }
