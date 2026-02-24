@@ -35,6 +35,7 @@ from backend.auth import (
     hash_password,
     verify_password,
 )
+from backend.config import get_settings
 from backend.database import get_db
 from backend.models import User
 from backend.rate_limit import limiter
@@ -87,6 +88,13 @@ async def signup(
     await db.refresh(user)
 
     logger.info("New user registered: %s (id=%s)", user.email, user.id)
+
+    # Send welcome email (fire-and-forget, don't block signup)
+    try:
+        from backend.services.email_service import send_welcome_email
+        await send_welcome_email(to=user.email, name=user.full_name)
+    except Exception:
+        logger.warning("Failed to send welcome email to %s", user.email, exc_info=True)
 
     return SignUpResponse(
         id=user.id,
@@ -217,11 +225,18 @@ async def forgot_password(
         )
         db.add(user)
 
-        # TODO (Item 2 follow-up): Send email via SendGrid / Resend
-        # For now, log the token so it can be used manually in dev.
+        # Build the reset URL pointing to the frontend
+        settings = get_settings()
+        frontend_origin = settings.cors_origins.split(",")[0].strip()
+        reset_url = f"{frontend_origin}/reset-password?token={token}"
+
+        # Send the password reset email (gracefully degrades if Resend not configured)
+        from backend.services.email_service import send_password_reset_email
+        await send_password_reset_email(to=user.email, token=token, reset_url=reset_url)
+
         logger.info(
-            "Password reset requested for %s — token: %s (expires in %d min)",
-            user.email, token, RESET_TOKEN_LIFETIME_MINUTES,
+            "Password reset requested for %s (expires in %d min)",
+            user.email, RESET_TOKEN_LIFETIME_MINUTES,
         )
 
     return MessageResponse(

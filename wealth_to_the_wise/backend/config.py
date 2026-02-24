@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     google_client_secret: str = Field(default="", repr=False)
     google_redirect_uri: str = Field(default="http://localhost:3000/auth/google/callback")
 
+    # ── Email (Resend) ───────────────────────────────────────────────
+    resend_api_key: str = Field(default="", repr=False)
+    email_from: str = Field(default="Tubevo <noreply@tubevo.us>")
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

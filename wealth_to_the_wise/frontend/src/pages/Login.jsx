@@ -81,6 +81,11 @@ export default function Login() {
               className="input-premium"
               placeholder="••••••••"
             />
+            <div className="mt-2 text-right">
+              <Link to="/forgot-password" className="text-xs text-brand-400 hover:text-brand-300 transition-colors duration-200">
+                Forgot password?
+              </Link>
+            </div>
           </div>
 
           <motion.button

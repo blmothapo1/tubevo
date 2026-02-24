@@ -138,6 +138,12 @@ async def stripe_webhook(
                 db.add(user)
                 await db.commit()
                 logger.info("User %s upgraded to %s plan (stripe_customer=%s).", user.email, plan, customer_id)
+                # Send plan upgrade email
+                try:
+                    from backend.services.email_service import send_plan_upgrade_email
+                    await send_plan_upgrade_email(to=user.email, plan=plan)
+                except Exception:
+                    logger.warning("Failed to send plan upgrade email to %s", user.email, exc_info=True)
             else:
                 logger.warning("Webhook: user_id %s not found in DB.", user_id)
 
