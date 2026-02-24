@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Spinner from '../components/Spinner';
-import tubevoLogo from '../assets/tubevo-logo-no-bg.svg';
+import tubevoLogo from '../assets/tubevo-logo-web.png';
 
 export default function Signup() {
   const { signup, login } = useAuth();

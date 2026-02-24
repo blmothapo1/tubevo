@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Film, CalendarClock, Settings, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import tubevoLogo from '../assets/tubevo-logo-no-bg.svg';
+import tubevoLogo from '../assets/tubevo-logo-web.png';
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },

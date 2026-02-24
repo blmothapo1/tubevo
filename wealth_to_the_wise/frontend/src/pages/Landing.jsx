@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import {
   Sparkles, Mic, Upload, Target, CalendarClock, Zap, Check, ArrowRight,
 } from 'lucide-react';
-import tubevoLogo from '../assets/tubevo-logo-no-bg.svg';
+import tubevoLogo from '../assets/tubevo-logo-web.png';
 
 const features = [
   { icon: Sparkles, title: 'AI Script Generation', desc: 'GPT-4o writes engaging, niche-specific scripts in seconds.', iconColor: 'text-brand-400', iconBg: 'bg-brand-600/10' },
