@@ -18,6 +18,13 @@ import {
   ExternalLink,
   User,
   RefreshCw,
+  ChevronDown,
+  ChevronRight,
+  ArrowRight,
+  HelpCircle,
+  Sparkles,
+  CircleDot,
+  CheckCircle2,
 } from 'lucide-react';
 
 const ease = [0.25, 0.1, 0.25, 1];
@@ -199,7 +206,19 @@ function AccountTab({ fullName, setFullName, email }) {
   );
 }
 
-/* ── API Keys (BYOK) ─────────────────────────────────────────── */
+/* ── API Keys (BYOK) — Guided Setup ──────────────────────────── */
+
+const PROVIDER_URLS = {
+  openai: 'https://platform.openai.com/api-keys',
+  elevenlabs: 'https://elevenlabs.io/app/settings/api-keys',
+  pexels: 'https://www.pexels.com/api/new/',
+};
+
+const KEY_PREFIXES = {
+  openai: 'sk-',
+  elevenlabs: 'sk_',
+};
+
 function ApiKeysTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -212,6 +231,7 @@ function ApiKeysTab() {
     elevenlabs_voice_id: '',
     pexels_api_key: '',
   });
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     async function fetchKeys() {
@@ -227,7 +247,20 @@ function ApiKeysTab() {
     fetchKeys();
   }, []);
 
+  function validateFields() {
+    const errs = {};
+    if (form.openai_api_key && !form.openai_api_key.startsWith('sk-')) {
+      errs.openai_api_key = 'OpenAI keys usually start with "sk-"';
+    }
+    if (form.elevenlabs_api_key && form.elevenlabs_api_key.length < 10) {
+      errs.elevenlabs_api_key = 'This key looks too short';
+    }
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   async function handleSave() {
+    if (!validateFields()) return;
     setSaving(true);
     setError('');
     setSaved(false);
@@ -247,6 +280,7 @@ function ApiKeysTab() {
       const { data } = await api.put('/api/keys', payload);
       setKeyStatus(data);
       setForm({ openai_api_key: '', elevenlabs_api_key: '', elevenlabs_voice_id: '', pexels_api_key: '' });
+      setFieldErrors({});
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -258,7 +292,7 @@ function ApiKeysTab() {
 
   if (loading) {
     return (
-      <div className="space-y-4 max-w-lg">
+      <div className="space-y-4 max-w-xl">
         <SkeletonLine width="w-40" />
         <SkeletonCard />
         <SkeletonCard />
@@ -266,16 +300,58 @@ function ApiKeysTab() {
     );
   }
 
+  const allKeysSet = keyStatus?.has_openai_key && keyStatus?.has_elevenlabs_key;
+  const steps = [
+    { label: 'Add OpenAI key', done: !!keyStatus?.has_openai_key, field: 'openai' },
+    { label: 'Add ElevenLabs key', done: !!keyStatus?.has_elevenlabs_key, field: 'elevenlabs' },
+    { label: 'Add Pexels key', done: !!keyStatus?.has_pexels_key, field: 'pexels', optional: true },
+  ];
+
   return (
-    <div className="space-y-6 max-w-lg">
+    <div className="space-y-6 max-w-xl">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center">
           <Key size={20} className="text-amber-400" />
         </div>
         <div>
           <h3 className="text-lg font-semibold text-white">Your API Keys</h3>
-          <p className="text-xs text-surface-600">Bring your own keys — you pay providers directly</p>
+          <p className="text-xs text-surface-600">
+            An API key is a private password that lets Tubevo use AI services on your behalf.
+          </p>
         </div>
+      </div>
+
+      {/* Setup checklist */}
+      <div className="card p-5 space-y-3">
+        <p className="text-xs font-medium text-surface-500 uppercase tracking-wider mb-1">Setup Checklist</p>
+        {steps.map((s, i) => (
+          <div key={i} className="flex items-center gap-3">
+            {s.done ? (
+              <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+            ) : (
+              <CircleDot size={18} className="text-surface-500 shrink-0" />
+            )}
+            <span className={`text-sm ${s.done ? 'text-emerald-400 line-through' : 'text-white'}`}>
+              {s.label}
+              {s.optional && <span className="text-surface-500 text-xs ml-1.5">(optional — free stock footage)</span>}
+            </span>
+          </div>
+        ))}
+        {allKeysSet && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="pt-2"
+          >
+            <a
+              href="/videos"
+              className="btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-sm w-full justify-center"
+            >
+              <Sparkles size={16} /> Start Creating Videos <ArrowRight size={14} />
+            </a>
+          </motion.div>
+        )}
       </div>
 
       <AnimatePresence>
@@ -296,48 +372,46 @@ function ApiKeysTab() {
             exit={{ opacity: 0, height: 0 }}
             className="bg-emerald-500/8 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2"
           >
-            <Check size={16} /> Keys saved and encrypted.
+            <Check size={16} /> Keys saved and encrypted securely.
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Current status */}
-      {keyStatus && (
-        <div className="card p-5 space-y-3">
-          <p className="text-xs font-medium text-surface-500 uppercase tracking-wider">Connection Status</p>
-          <KeyStatusRow label="OpenAI" active={keyStatus.has_openai_key} hint={keyStatus.openai_key_hint} />
-          <KeyStatusRow label="ElevenLabs" active={keyStatus.has_elevenlabs_key} hint={keyStatus.elevenlabs_key_hint} />
-          <KeyStatusRow label="Pexels" active={keyStatus.has_pexels_key} hint={keyStatus.pexels_key_hint} />
-          {keyStatus.elevenlabs_voice_id && (
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-xs text-surface-500">Voice ID</span>
-              <span className="text-xs text-surface-800 font-mono bg-surface-200/60 px-2 py-0.5 rounded">{keyStatus.elevenlabs_voice_id}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Input fields */}
+      {/* Input fields with "Get Key" buttons */}
       <div className="space-y-5">
         <KeyInput
           label="OpenAI API Key"
           required
           value={form.openai_api_key}
-          onChange={(v) => setForm({ ...form, openai_api_key: v })}
-          placeholder={keyStatus?.has_openai_key ? `Current: ••••${keyStatus.openai_key_hint?.slice(-4) || ''}` : 'sk-...'}
-          helpText="Get yours at"
-          helpLink="https://platform.openai.com/api-keys"
-          helpLinkText="platform.openai.com"
+          onChange={(v) => { setForm({ ...form, openai_api_key: v }); setFieldErrors({ ...fieldErrors, openai_api_key: '' }); }}
+          placeholder={keyStatus?.has_openai_key ? `Current: ${keyStatus.openai_key_hint || '••••'}` : 'sk-proj-...'}
+          providerUrl={PROVIDER_URLS.openai}
+          providerName="OpenAI"
+          fieldError={fieldErrors.openai_api_key}
+          isSet={keyStatus?.has_openai_key}
+          hint={keyStatus?.openai_key_hint}
+          helpSteps={[
+            'Go to platform.openai.com and sign in (or create a free account)',
+            'Click your profile → "API keys" → "Create new secret key"',
+            'Copy the key and paste it below',
+          ]}
         />
         <KeyInput
           label="ElevenLabs API Key"
           required
           value={form.elevenlabs_api_key}
-          onChange={(v) => setForm({ ...form, elevenlabs_api_key: v })}
-          placeholder={keyStatus?.has_elevenlabs_key ? `Current: ••••${keyStatus.elevenlabs_key_hint?.slice(-4) || ''}` : 'sk_...'}
-          helpText="Get yours at"
-          helpLink="https://elevenlabs.io"
-          helpLinkText="elevenlabs.io"
+          onChange={(v) => { setForm({ ...form, elevenlabs_api_key: v }); setFieldErrors({ ...fieldErrors, elevenlabs_api_key: '' }); }}
+          placeholder={keyStatus?.has_elevenlabs_key ? `Current: ${keyStatus.elevenlabs_key_hint || '••••'}` : 'sk_...'}
+          providerUrl={PROVIDER_URLS.elevenlabs}
+          providerName="ElevenLabs"
+          fieldError={fieldErrors.elevenlabs_api_key}
+          isSet={keyStatus?.has_elevenlabs_key}
+          hint={keyStatus?.elevenlabs_key_hint}
+          helpSteps={[
+            'Go to elevenlabs.io and sign in (or create an account)',
+            'Click your profile icon → "Profile + API key"',
+            'Copy the API key and paste it below',
+          ]}
         />
         <div>
           <label className="block text-xs font-medium text-surface-500 mb-2">
@@ -356,11 +430,17 @@ function ApiKeysTab() {
           label="Pexels API Key"
           value={form.pexels_api_key}
           onChange={(v) => setForm({ ...form, pexels_api_key: v })}
-          placeholder={keyStatus?.has_pexels_key ? `Current: ••••${keyStatus.pexels_key_hint?.slice(-4) || ''}` : 'Free at pexels.com/api'}
-          helpText="Free at"
-          helpLink="https://www.pexels.com/api/"
-          helpLinkText="pexels.com/api"
+          placeholder={keyStatus?.has_pexels_key ? `Current: ${keyStatus.pexels_key_hint || '••••'}` : 'Free at pexels.com/api'}
+          providerUrl={PROVIDER_URLS.pexels}
+          providerName="Pexels"
+          isSet={keyStatus?.has_pexels_key}
+          hint={keyStatus?.pexels_key_hint}
           optional
+          helpSteps={[
+            'Go to pexels.com/api and click "Your API Key"',
+            'Sign up (free) or log in, then copy the key',
+            'Paste it below — Pexels provides free stock footage for your videos',
+          ]}
         />
       </div>
 
@@ -369,45 +449,85 @@ function ApiKeysTab() {
         disabled={saving}
         whileHover={{ scale: 1.02, y: -1 }}
         whileTap={{ scale: 0.97 }}
-        className="btn-primary flex items-center gap-2 px-6 py-2.5"
+        className="btn-primary flex items-center gap-2 px-6 py-2.5 w-full justify-center"
       >
         {saving ? <RefreshCw size={16} className="animate-spin" /> : <Shield size={16} />}
-        {saving ? 'Encrypting…' : 'Save API Keys'}
+        {saving ? 'Encrypting & saving…' : 'Save API Keys'}
       </motion.button>
 
       <div className="card p-4 flex items-start gap-3">
-        <Zap size={16} className="text-amber-400 shrink-0 mt-0.5" />
+        <Shield size={16} className="text-brand-400 shrink-0 mt-0.5" />
         <p className="text-xs text-surface-600 leading-relaxed">
-          <strong className="text-surface-700">Why bring your own keys?</strong> This keeps your costs
-          transparent — you pay each provider directly. No hidden markups. A typical video costs ~$0.05 in
-          OpenAI credits and ~$0.10 in ElevenLabs credits.
+          <strong className="text-surface-700">Your keys are encrypted</strong> and stored securely on our servers.
+          They are only used to generate videos on your behalf. We never share or expose your keys.
+          You pay each provider directly — no hidden markups.
         </p>
       </div>
     </div>
   );
 }
 
-function KeyInput({ label, required, value, onChange, placeholder, helpText, helpLink, helpLinkText, optional }) {
+function KeyInput({ label, required, optional, value, onChange, placeholder, providerUrl, providerName, fieldError, isSet, hint, helpSteps }) {
+  const [helpOpen, setHelpOpen] = useState(false);
+
   return (
     <div>
-      <label className="block text-xs font-medium text-surface-500 mb-2">
-        {label} {required && <span className="text-red-400">*</span>}
-        {optional && <span className="text-surface-500/60">(optional)</span>}
-      </label>
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-xs font-medium text-surface-500">
+          {label} {required && <span className="text-red-400">*</span>}
+          {optional && <span className="text-surface-500/60">(optional)</span>}
+          {isSet && (
+            <span className="ml-2 inline-flex items-center gap-1 text-emerald-400 text-[10px] font-semibold uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Connected
+            </span>
+          )}
+        </label>
+        <a
+          href={providerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-400 hover:text-brand-300 transition-colors px-2.5 py-1 rounded-lg bg-brand-500/8 hover:bg-brand-500/15 border border-brand-500/15"
+        >
+          Get {providerName} Key <ExternalLink size={10} />
+        </a>
+      </div>
       <input
         type="password"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="input-premium w-full font-mono text-xs"
+        className={`input-premium w-full font-mono text-xs ${fieldError ? 'border-red-500/50 focus:border-red-500' : ''}`}
       />
-      {helpText && (
-        <p className="text-xs text-surface-500 mt-1.5">
-          {helpText}{' '}
-          <a href={helpLink} target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 transition-colors">
-            {helpLinkText} <ExternalLink size={10} className="inline -mt-0.5" />
-          </a>
-        </p>
+      {fieldError && (
+        <p className="text-xs text-red-400 mt-1">{fieldError}</p>
+      )}
+      {/* Expandable help */}
+      {helpSteps && (
+        <div className="mt-1.5">
+          <button
+            onClick={() => setHelpOpen(!helpOpen)}
+            className="text-xs text-surface-500 hover:text-surface-700 transition-colors flex items-center gap-1"
+          >
+            <HelpCircle size={11} />
+            How to get this key
+            {helpOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+          </button>
+          <AnimatePresence>
+            {helpOpen && (
+              <motion.ol
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="mt-2 ml-1 space-y-1.5 list-decimal list-inside"
+              >
+                {helpSteps.map((s, i) => (
+                  <li key={i} className="text-xs text-surface-600 leading-relaxed">{s}</li>
+                ))}
+              </motion.ol>
+            )}
+          </AnimatePresence>
+        </div>
       )}
     </div>
   );

@@ -30,10 +30,10 @@ export default function Topbar({ onMenuToggle }) {
   return (
     <header className="h-16 border-b border-surface-300/50 glass sticky top-0 z-20 flex items-center justify-between px-5 sm:px-8">
       <div className="flex items-center gap-3 min-w-0">
-        {/* Hamburger — mobile only */}
+        {/* Hamburger menu — visible on all screen sizes */}
         <button
           onClick={onMenuToggle}
-          className="lg:hidden p-2 -ml-2 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all duration-200"
+          className="p-2 -ml-2 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all duration-200"
         >
           <Menu size={20} />
         </button>

@@ -17,7 +17,7 @@ export default function Sidebar({ open, onClose }) {
 
   return (
     <>
-      {/* Mobile backdrop — blurred overlay */}
+      {/* Backdrop — blurred overlay on all screen sizes */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -25,17 +25,16 @@ export default function Sidebar({ open, onClose }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 lg:hidden"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
             onClick={onClose}
           />
         )}
       </AnimatePresence>
 
-      {/* Sidebar panel */}
+      {/* Sidebar panel — overlay on all screen sizes */}
       <aside
         className={`fixed left-0 top-0 bottom-0 w-64 glass border-r border-surface-300/50 flex flex-col z-40 transition-transform duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]
-          ${open ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0`}
+          ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         {/* Top gradient accent line */}
         <div className="h-[2px] gradient-brand-accent opacity-60" />
@@ -45,7 +44,7 @@ export default function Sidebar({ open, onClose }) {
           <img src={tubevoLogo} alt="Tubevo" className="h-7" />
           <button
             onClick={onClose}
-            className="lg:hidden p-1.5 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all duration-200"
+            className="p-1.5 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all duration-200"
           >
             <X size={18} />
           </button>
