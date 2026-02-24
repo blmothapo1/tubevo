@@ -129,3 +129,25 @@ class YouTubeConnectionResponse(BaseModel):
 
 class AppleLoginRequest(BaseModel):
     code: str
+
+
+# ── User API Keys (BYOK) ────────────────────────────────────────────
+
+class UserApiKeysResponse(BaseModel):
+    """Returned by GET /api/keys — masks secret keys for display."""
+    has_openai_key: bool
+    has_elevenlabs_key: bool
+    has_pexels_key: bool
+    elevenlabs_voice_id: str | None = None
+    # Show last 4 chars so user knows which key is saved
+    openai_key_hint: str | None = None
+    elevenlabs_key_hint: str | None = None
+    pexels_key_hint: str | None = None
+
+
+class UpdateApiKeysRequest(BaseModel):
+    """PUT /api/keys body — any field left None is not changed."""
+    openai_api_key: str | None = Field(None, max_length=200)
+    elevenlabs_api_key: str | None = Field(None, max_length=200)
+    elevenlabs_voice_id: str | None = Field(None, max_length=100)
+    pexels_api_key: str | None = Field(None, max_length=200)

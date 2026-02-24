@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
 from backend.database import async_session_factory, get_db
-from backend.models import OAuthToken, User, VideoRecord
+from backend.models import OAuthToken, User, UserApiKeys, VideoRecord
 from backend.rate_limit import limiter
 
 logger = logging.getLogger("tubevo.backend.videos")
@@ -94,6 +94,31 @@ async def generate_video(
     """
     logger.info("User %s requested video generation: '%s'", current_user.email, body.topic)
 
+    # ── Fetch the user's API keys (BYOK) ─────────────────────────────
+    keys_result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = keys_result.scalar_one_or_none()
+
+    if not user_keys or not user_keys.openai_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please add your OpenAI API key in Settings → API Keys before generating videos.",
+        )
+    if not user_keys.elevenlabs_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please add your ElevenLabs API key in Settings → API Keys before generating videos.",
+        )
+
+    # Pack the user's keys for the pipeline
+    user_api_keys = {
+        "openai_api_key": user_keys.openai_api_key,
+        "elevenlabs_api_key": user_keys.elevenlabs_api_key,
+        "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "",
+        "pexels_api_key": user_keys.pexels_api_key or "",
+    }
+
     # ── Fetch the user's YouTube OAuth tokens (needed for upload) ────
     result = await db.execute(
         select(OAuthToken).where(
@@ -125,6 +150,7 @@ async def generate_video(
         record_id=record_id,
         topic=body.topic,
         user_id=current_user.id,
+        user_api_keys=user_api_keys,
         yt_access_token=yt_access_token,
         yt_refresh_token=yt_refresh_token,
     )
@@ -144,6 +170,7 @@ async def _run_pipeline_background(
     record_id: str,
     topic: str,
     user_id: str,
+    user_api_keys: dict,
     yt_access_token: str | None,
     yt_refresh_token: str | None,
 ) -> None:
@@ -156,6 +183,7 @@ async def _run_pipeline_background(
         result = await asyncio.to_thread(
             _run_pipeline_sync,
             topic=topic,
+            user_api_keys=user_api_keys,
             yt_access_token=yt_access_token,
             yt_refresh_token=yt_refresh_token,
         )
@@ -200,13 +228,14 @@ async def _run_pipeline_background(
 def _run_pipeline_sync(
     *,
     topic: str,
+    user_api_keys: dict,
     yt_access_token: str | None,
     yt_refresh_token: str | None,
 ) -> dict:
     """Synchronous pipeline: script → voiceover → video → (optional) upload.
 
-    Runs each step of the CLI pipeline but uses per-user OAuth tokens
-    (from the DB) instead of the local token.json file.
+    Uses per-user API keys (BYOK model) and per-user OAuth tokens
+    instead of server-level env vars.
     """
     # Ensure the top-level project dir is on sys.path so we can import
     # the Phase 1 modules (config, script_generator, etc.)
@@ -214,51 +243,88 @@ def _run_pipeline_sync(
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
+    # ── Temporarily override env vars with user's keys ───────────────
+    # The Phase 1 modules (script_generator, voiceover, stock_footage)
+    # read API keys from env vars / module-level globals.  We patch them
+    # for the duration of this call so each user uses their own keys.
     import config as app_config  # noqa: F811 — top-level config.py
-    from script_generator import generate_script, generate_metadata
+
+    # Patch OpenAI key (used by script_generator via config.OPENAI_API_KEY)
+    old_openai = app_config.OPENAI_API_KEY
+    app_config.OPENAI_API_KEY = user_api_keys["openai_api_key"]
+
+    # We also need to reset the cached OpenAI client in script_generator
+    import script_generator
+    script_generator._client = None  # force re-init with new key
 
     result: dict = {"title": topic}
 
-    # ── Step 1: Generate script ──────────────────────────────────────
-    logger.info("Pipeline step 1/5: Generating script for '%s'", topic)
-    script = generate_script(topic)
-    (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
+    try:
+        # ── Step 1: Generate script ──────────────────────────────────
+        logger.info("Pipeline step 1/5: Generating script for '%s'", topic)
+        script = script_generator.generate_script(topic)
+        (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
 
-    # ── Step 2: Generate metadata ────────────────────────────────────
-    logger.info("Pipeline step 2/5: Generating metadata")
-    metadata = generate_metadata(script, topic)
-    result["title"] = metadata.get("title", topic)
+        # ── Step 2: Generate metadata ────────────────────────────────
+        logger.info("Pipeline step 2/5: Generating metadata")
+        metadata = script_generator.generate_metadata(script, topic)
+        result["title"] = metadata.get("title", topic)
 
-    # ── Step 3: Generate voiceover ───────────────────────────────────
-    logger.info("Pipeline step 3/5: Generating voiceover")
-    from voiceover import generate_voiceover
-    audio_path = generate_voiceover(script)
+        # ── Step 3: Generate voiceover ───────────────────────────────
+        logger.info("Pipeline step 3/5: Generating voiceover")
+        import voiceover as voiceover_mod
+        # Patch ElevenLabs keys
+        old_el_key = voiceover_mod.ELEVENLABS_API_KEY
+        old_el_voice = voiceover_mod.DEFAULT_VOICE_ID
+        voiceover_mod.ELEVENLABS_API_KEY = user_api_keys["elevenlabs_api_key"]
+        if user_api_keys.get("elevenlabs_voice_id"):
+            voiceover_mod.DEFAULT_VOICE_ID = user_api_keys["elevenlabs_voice_id"]
 
-    # ── Step 4: Build video ──────────────────────────────────────────
-    logger.info("Pipeline step 4/5: Building video")
-    from video_builder import build_video
-    video_path = build_video(audio_path=audio_path, title=metadata["title"], script=script)
-    result["file_path"] = video_path
+        audio_path = voiceover_mod.generate_voiceover(script)
 
-    # ── Step 4b: Generate thumbnail ──────────────────────────────────
-    logger.info("Pipeline step 4b: Generating thumbnail")
-    from thumbnail import generate_thumbnail
-    thumbnail_path = generate_thumbnail(metadata["title"])
+        # Restore ElevenLabs keys
+        voiceover_mod.ELEVENLABS_API_KEY = old_el_key
+        voiceover_mod.DEFAULT_VOICE_ID = old_el_voice
 
-    # ── Step 5: Upload to YouTube (if user has connected their channel) ─
-    if yt_access_token:
-        logger.info("Pipeline step 5/5: Uploading to YouTube")
-        youtube_video_id = _upload_with_user_tokens(
-            video_path=video_path,
-            metadata=metadata,
-            thumbnail_path=thumbnail_path,
-            access_token=yt_access_token,
-            refresh_token=yt_refresh_token,
-        )
-        if youtube_video_id:
-            result["youtube_video_id"] = youtube_video_id
-    else:
-        logger.info("Pipeline step 5/5: Skipping upload — no YouTube connection")
+        # ── Step 4: Build video ──────────────────────────────────────
+        logger.info("Pipeline step 4/5: Building video")
+        # Patch Pexels key for stock footage
+        import stock_footage as stock_mod
+        old_pexels = stock_mod.PEXELS_API_KEY
+        if user_api_keys.get("pexels_api_key"):
+            stock_mod.PEXELS_API_KEY = user_api_keys["pexels_api_key"]
+
+        from video_builder import build_video
+        video_path = build_video(audio_path=audio_path, title=metadata["title"], script=script)
+        result["file_path"] = video_path
+
+        # Restore Pexels key
+        stock_mod.PEXELS_API_KEY = old_pexels
+
+        # ── Step 4b: Generate thumbnail ──────────────────────────────
+        logger.info("Pipeline step 4b: Generating thumbnail")
+        from thumbnail import generate_thumbnail
+        thumbnail_path = generate_thumbnail(metadata["title"])
+
+        # ── Step 5: Upload to YouTube (if user connected) ────────────
+        if yt_access_token:
+            logger.info("Pipeline step 5/5: Uploading to YouTube")
+            youtube_video_id = _upload_with_user_tokens(
+                video_path=video_path,
+                metadata=metadata,
+                thumbnail_path=thumbnail_path,
+                access_token=yt_access_token,
+                refresh_token=yt_refresh_token,
+            )
+            if youtube_video_id:
+                result["youtube_video_id"] = youtube_video_id
+        else:
+            logger.info("Pipeline step 5/5: Skipping upload — no YouTube connection")
+
+    finally:
+        # ── Always restore original keys ─────────────────────────────
+        app_config.OPENAI_API_KEY = old_openai
+        script_generator._client = None  # reset client
 
     return result
 

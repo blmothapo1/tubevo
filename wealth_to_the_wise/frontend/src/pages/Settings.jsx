@@ -3,10 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import Spinner from '../components/Spinner';
-import { Save, Youtube, Bell, CreditCard, BarChart3 } from 'lucide-react';
+import { Save, Youtube, Bell, CreditCard, BarChart3, Key } from 'lucide-react';
 
 const tabs = [
   { key: 'account', label: 'Account', icon: Save },
+  { key: 'apikeys', label: 'API Keys', icon: Key },
   { key: 'youtube', label: 'YouTube', icon: Youtube },
   { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'plan', label: 'Plan', icon: CreditCard },
@@ -61,6 +62,7 @@ export default function Settings() {
         {activeTab === 'account' && (
           <AccountTab fullName={fullName} setFullName={setFullName} email={email} />
         )}
+        {activeTab === 'apikeys' && <ApiKeysTab />}
         {activeTab === 'youtube' && <YouTubeTab />}
         {activeTab === 'notifications' && <NotificationsTab />}
         {activeTab === 'plan' && <PlanTab plan={user?.plan || 'free'} />}
@@ -131,6 +133,217 @@ function AccountTab({ fullName, setFullName, email }) {
       >
         {saving ? <Spinner className="w-4 h-4" /> : 'Save Changes'}
       </button>
+    </div>
+  );
+}
+
+/* ── API Keys (BYOK) ─────────────────────────────────────────── */
+function ApiKeysTab() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+  const [keyStatus, setKeyStatus] = useState(null);
+  const [form, setForm] = useState({
+    openai_api_key: '',
+    elevenlabs_api_key: '',
+    elevenlabs_voice_id: '',
+    pexels_api_key: '',
+  });
+
+  useEffect(() => {
+    async function fetchKeys() {
+      try {
+        const { data } = await api.get('/api/keys');
+        setKeyStatus(data);
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchKeys();
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      // Only send fields that the user has actually typed something into
+      const payload = {};
+      if (form.openai_api_key) payload.openai_api_key = form.openai_api_key;
+      if (form.elevenlabs_api_key) payload.elevenlabs_api_key = form.elevenlabs_api_key;
+      if (form.elevenlabs_voice_id) payload.elevenlabs_voice_id = form.elevenlabs_voice_id;
+      if (form.pexels_api_key) payload.pexels_api_key = form.pexels_api_key;
+
+      if (Object.keys(payload).length === 0) {
+        setError('Enter at least one key to save.');
+        setSaving(false);
+        return;
+      }
+
+      const { data } = await api.put('/api/keys', payload);
+      setKeyStatus(data);
+      setForm({ openai_api_key: '', elevenlabs_api_key: '', elevenlabs_voice_id: '', pexels_api_key: '' });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to save keys.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner className="w-6 h-6 text-brand-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 max-w-lg">
+      <div>
+        <h3 className="text-lg font-medium text-white">Your API Keys</h3>
+        <p className="text-sm text-surface-700 mt-1">
+          Tubevo uses <strong>your own API keys</strong> to generate videos. Your keys are stored
+          securely and never shared. You only pay for what you use directly to each provider.
+        </p>
+      </div>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-2.5 rounded-lg">
+          {error}
+        </div>
+      )}
+      {saved && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-2.5 rounded-lg">
+          Keys saved successfully!
+        </div>
+      )}
+
+      {/* Current status */}
+      {keyStatus && (
+        <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-2">
+          <p className="text-xs font-medium text-surface-700 mb-2">Current Status</p>
+          <KeyStatusRow label="OpenAI" active={keyStatus.has_openai_key} hint={keyStatus.openai_key_hint} />
+          <KeyStatusRow label="ElevenLabs" active={keyStatus.has_elevenlabs_key} hint={keyStatus.elevenlabs_key_hint} />
+          <KeyStatusRow label="Pexels" active={keyStatus.has_pexels_key} hint={keyStatus.pexels_key_hint} />
+          {keyStatus.elevenlabs_voice_id && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-surface-600">Voice ID</span>
+              <span className="text-xs text-surface-800 font-mono">{keyStatus.elevenlabs_voice_id}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Input fields */}
+      <div className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-surface-700 mb-1.5">
+            OpenAI API Key <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="password"
+            value={form.openai_api_key}
+            onChange={(e) => setForm({ ...form, openai_api_key: e.target.value })}
+            placeholder={keyStatus?.has_openai_key ? `Current: ••••${keyStatus.openai_key_hint?.slice(-4) || ''}` : 'sk-...'}
+            className="w-full px-3 py-2.5 rounded-lg bg-surface-200 border border-surface-300 text-surface-900 text-sm font-mono placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+          />
+          <p className="text-xs text-surface-600 mt-1">
+            Get yours at{' '}
+            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">
+              platform.openai.com
+            </a>
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-surface-700 mb-1.5">
+            ElevenLabs API Key <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="password"
+            value={form.elevenlabs_api_key}
+            onChange={(e) => setForm({ ...form, elevenlabs_api_key: e.target.value })}
+            placeholder={keyStatus?.has_elevenlabs_key ? `Current: ••••${keyStatus.elevenlabs_key_hint?.slice(-4) || ''}` : 'sk_...'}
+            className="w-full px-3 py-2.5 rounded-lg bg-surface-200 border border-surface-300 text-surface-900 text-sm font-mono placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+          />
+          <p className="text-xs text-surface-600 mt-1">
+            Get yours at{' '}
+            <a href="https://elevenlabs.io" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">
+              elevenlabs.io
+            </a>
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-surface-700 mb-1.5">
+            ElevenLabs Voice ID <span className="text-surface-500">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={form.elevenlabs_voice_id}
+            onChange={(e) => setForm({ ...form, elevenlabs_voice_id: e.target.value })}
+            placeholder={keyStatus?.elevenlabs_voice_id || 'e.g. pNInz6obpgDQGcFmaJgB'}
+            className="w-full px-3 py-2.5 rounded-lg bg-surface-200 border border-surface-300 text-surface-900 text-sm font-mono placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+          />
+          <p className="text-xs text-surface-600 mt-1">
+            Leave blank to use the default voice. Find voice IDs in your ElevenLabs dashboard.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-surface-700 mb-1.5">
+            Pexels API Key <span className="text-surface-500">(optional — for stock footage)</span>
+          </label>
+          <input
+            type="password"
+            value={form.pexels_api_key}
+            onChange={(e) => setForm({ ...form, pexels_api_key: e.target.value })}
+            placeholder={keyStatus?.has_pexels_key ? `Current: ••••${keyStatus.pexels_key_hint?.slice(-4) || ''}` : 'Free at pexels.com/api'}
+            className="w-full px-3 py-2.5 rounded-lg bg-surface-200 border border-surface-300 text-surface-900 text-sm font-mono placeholder-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
+          />
+          <p className="text-xs text-surface-600 mt-1">
+            Free at{' '}
+            <a href="https://www.pexels.com/api/" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">
+              pexels.com/api
+            </a>
+            . Without this, videos use a plain dark background.
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="px-5 py-2.5 rounded-lg text-sm font-medium gradient-brand text-white hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 glow-brand"
+      >
+        {saving ? <Spinner className="w-4 h-4" /> : 'Save API Keys'}
+      </button>
+
+      <div className="bg-surface-200/50 border border-surface-300 rounded-xl p-4">
+        <p className="text-xs text-surface-600">
+          <strong className="text-surface-700">Why bring your own keys?</strong> This keeps your costs
+          transparent — you pay each provider directly for what you use. No hidden markups.
+          A typical video costs ~$0.05 in OpenAI credits and ~$0.10 in ElevenLabs credits.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function KeyStatusRow({ label, active, hint }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-surface-600">{label}</span>
+      <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${active ? 'text-emerald-400' : 'text-surface-500'}`}>
+        <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-400' : 'bg-surface-500'}`} />
+        {active ? `Connected (${hint})` : 'Not set'}
+      </span>
     </div>
   );
 }

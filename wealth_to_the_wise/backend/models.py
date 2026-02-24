@@ -154,3 +154,38 @@ class OAuthToken(Base):
 
     def __repr__(self) -> str:
         return f"<OAuthToken {self.provider} user={self.user_id} channel={self.channel_id}>"
+
+
+class UserApiKeys(Base):
+    """Per-user API keys for external services (BYOK model).
+
+    Users provide their own OpenAI, ElevenLabs, and Pexels keys.
+    Keys are stored in the DB (encrypted at rest via DB-level encryption
+    in production; application-layer encryption TODO).
+    """
+
+    __tablename__ = "user_api_keys"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), unique=True, nullable=False, index=True,
+    )
+
+    # ── API Keys (stored as-is; encryption TODO) ─────────────────────
+    openai_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    elevenlabs_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    elevenlabs_voice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    pexels_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ── Timestamps ───────────────────────────────────────────────────
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<UserApiKeys user={self.user_id}>"
