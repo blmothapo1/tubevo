@@ -119,16 +119,16 @@ export default function Landing() {
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="max-w-6xl mx-auto px-6 py-20 sm:py-28">
+      <section id="features" className="max-w-6xl mx-auto px-6 py-24 sm:py-32">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.5, ease }}
-          className="text-center mb-16"
+          className="flex flex-col items-center text-center mb-20"
         >
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">Everything you need</h2>
-          <p className="text-surface-700 max-w-lg mx-auto">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-5">Everything you need</h2>
+          <p className="text-surface-700 max-w-lg mx-auto leading-relaxed">
             From script to published video — every step is automated.
           </p>
         </motion.div>
@@ -138,19 +138,19 @@ export default function Landing() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={stagger}
-          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5"
+          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8"
         >
           {features.map(({ icon: Icon, title, desc, color, iconColor }) => (
             <motion.div
               key={title}
               variants={fadeUp}
               whileHover={{ y: -4, transition: { duration: 0.25 } }}
-              className="card-elevated p-7 group cursor-default"
+              className="card-elevated p-8 group cursor-default"
             >
               <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}>
                 <Icon size={20} className={iconColor} />
               </div>
-              <h3 className="text-[15px] font-semibold text-white mb-2">{title}</h3>
+              <h3 className="text-[15px] font-semibold text-white mb-3">{title}</h3>
               <p className="text-sm text-surface-700 leading-relaxed">{desc}</p>
             </motion.div>
           ))}
@@ -158,16 +158,16 @@ export default function Landing() {
       </section>
 
       {/* ── Pricing ── */}
-      <section id="pricing" className="max-w-5xl mx-auto px-6 py-20 sm:py-28">
+      <section id="pricing" className="max-w-5xl mx-auto px-6 py-24 sm:py-32">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.5, ease }}
-          className="text-center mb-16"
+          className="flex flex-col items-center text-center mb-20"
         >
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">Simple pricing</h2>
-          <p className="text-surface-700">Start free. Scale when you're ready.</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-5">Simple pricing</h2>
+          <p className="text-surface-700 leading-relaxed">Start free. Scale when you're ready.</p>
         </motion.div>
 
         <motion.div
@@ -175,14 +175,14 @@ export default function Landing() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={stagger}
-          className="grid sm:grid-cols-2 md:grid-cols-3 gap-6"
+          className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8"
         >
           {tiers.map((tier) => (
             <motion.div
               key={tier.name}
               variants={fadeUp}
               whileHover={{ y: -4, transition: { duration: 0.25 } }}
-              className={`relative card-elevated p-7 flex flex-col ${
+              className={`relative card-elevated p-8 flex flex-col ${
                 tier.popular ? 'border-brand-500/40 ring-1 ring-brand-500/15' : ''
               }`}
             >
@@ -192,11 +192,11 @@ export default function Landing() {
                 </span>
               )}
               <h3 className="text-lg font-semibold text-white">{tier.name}</h3>
-              <div className="mt-5 mb-7">
+              <div className="mt-6 mb-8">
                 <span className="text-4xl font-bold text-white tracking-tight">{tier.price}</span>
                 <span className="text-surface-600 text-sm ml-1">{tier.period}</span>
               </div>
-              <ul className="space-y-3.5 flex-1">
+              <ul className="space-y-4 flex-1">
                 {tier.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-sm text-surface-700">
                     <Check size={16} className="text-brand-400 mt-0.5 shrink-0" />
@@ -220,9 +220,9 @@ export default function Landing() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-surface-300/30 py-12 text-center">
+      <footer className="border-t border-surface-300/30 py-16 text-center">
         <p className="text-sm text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
-        <div className="mt-3 flex items-center justify-center gap-6">
+        <div className="mt-4 flex items-center justify-center gap-8">
           <Link to="/privacy" className="text-sm text-surface-600 hover:text-surface-800 transition-colors duration-200">Privacy Policy</Link>
           <Link to="/terms" className="text-sm text-surface-600 hover:text-surface-800 transition-colors duration-200">Terms of Service</Link>
         </div>
