@@ -11,14 +11,18 @@ GET  /auth/me               — Get current user profile
 PATCH /auth/me              — Update profile (full_name)
 POST /auth/forgot-password  — Request a password-reset token
 POST /auth/reset-password   — Reset password using the token
+POST /auth/apple            — Log in with Apple ID OAuth2
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 
+import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from jose import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +49,7 @@ from backend.schemas import (
     TokenResponse,
     UpdateProfileRequest,
     UserProfile,
+    AppleLoginRequest,  # <-- add this import
 )
 
 logger = logging.getLogger("tubevo.backend.auth_router")
@@ -266,3 +271,75 @@ async def reset_password(
     logger.info("Password reset completed for %s.", user.email)
 
     return MessageResponse(message="Password has been reset successfully.")
+
+
+# ── POST /auth/apple ────────────────────────────────────────────────
+
+@router.post("/apple", response_model=TokenResponse)
+@limiter.limit("20/minute")
+async def apple_login(
+    request: Request,
+    body: AppleLoginRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Authenticate with Apple ID OAuth2."""
+    code = body.code
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing Apple auth code.")
+
+    # Apple credentials from env
+    client_id = os.getenv("APPLE_CLIENT_ID")
+    team_id = os.getenv("APPLE_TEAM_ID")
+    key_id = os.getenv("APPLE_KEY_ID")
+    private_key = os.getenv("APPLE_PRIVATE_KEY")
+
+    if not private_key:
+        raise HTTPException(status_code=500, detail="Apple private key not configured.")
+
+    # Create client secret (JWT)
+    headers = {"kid": key_id}
+    claims = {
+        "iss": team_id,
+        "iat": int(datetime.utcnow().timestamp()),
+        "exp": int((datetime.utcnow() + timedelta(days=180)).timestamp()),
+        "aud": "https://appleid.apple.com",
+        "sub": client_id,
+    }
+    client_secret = jwt.encode(claims, private_key, algorithm="ES256", headers=headers)
+
+    # Exchange code for tokens
+    token_url = "https://appleid.apple.com/auth/token"
+    data = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code": code,
+        "grant_type": "authorization_code",
+    }
+    resp = requests.post(token_url, data=data)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=400, detail="Apple token exchange failed.")
+    tokens = resp.json()
+    id_token = tokens.get("id_token")
+    if not id_token:
+        raise HTTPException(status_code=400, detail="No id_token from Apple.")
+    apple_info = jwt.decode(id_token, key="", options={"verify_signature": False})
+    email = apple_info.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="No email from Apple.")
+
+    # Find or create user
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if not user:
+        user = User(email=email, hashed_password="", full_name=apple_info.get("name", ""), is_verified=True)
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is deactivated.")
+
+    return TokenResponse(
+        access_token=create_access_token(user.id, user.email),
+        refresh_token=create_refresh_token(user.id),
+        token_type="bearer",
+    )

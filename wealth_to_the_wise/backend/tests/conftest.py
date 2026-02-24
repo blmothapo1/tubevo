@@ -35,9 +35,10 @@ def _reset_rate_limiter():
         # fall back to clearing the internal storage.
         if hasattr(limiter, "_storage"):
             limiter._storage.reset()
-        elif hasattr(limiter, "_limiter") and hasattr(limiter._limiter, "_storage"):
-            storage = limiter._limiter._storage
-            if hasattr(storage, "reset"):
-                storage.reset()
-            elif hasattr(storage, "storage"):
-                storage.storage.clear()
+        elif hasattr(limiter, "_limiter"):
+            storage = getattr(limiter._limiter, "_storage", None)
+            if storage is not None:
+                if hasattr(storage, "reset"):
+                    storage.reset()
+                elif hasattr(storage, "storage"):
+                    storage.storage.clear()

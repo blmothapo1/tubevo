@@ -123,3 +123,9 @@ class YouTubeConnectionResponse(BaseModel):
     channel_id: str | None = None
     scopes: str | None = None
     connected_at: datetime | None = None
+
+
+# ── Apple OAuth ─────────────────────────────────────────────────────
+
+class AppleLoginRequest(BaseModel):
+    code: str
