@@ -87,9 +87,9 @@ export default function Landing() {
           initial="hidden"
           animate="visible"
           variants={stagger}
-          className="relative"
+          className="relative flex flex-col items-center"
         >
-          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-600/8 border border-brand-500/15 text-brand-300 text-xs font-medium px-4 py-1.5 rounded-full mb-8">
+          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-600/8 border border-brand-500/15 text-brand-300 text-xs font-medium px-4 py-1.5 rounded-full mb-10">
             <Zap size={12} className="text-accent-400" /> Now in public beta
           </motion.div>
 
@@ -99,11 +99,11 @@ export default function Landing() {
             <span className="text-gradient">On Autopilot.</span>
           </motion.h1>
 
-          <motion.p variants={fadeUp} className="mt-6 sm:mt-8 text-base sm:text-lg text-surface-700 max-w-2xl mx-auto leading-relaxed">
+          <motion.p variants={fadeUp} className="mt-8 sm:mt-10 text-base sm:text-lg text-surface-700 max-w-2xl leading-relaxed">
             Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
           </motion.p>
 
-          <motion.div variants={fadeUp} className="mt-10 sm:mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
+          <motion.div variants={fadeUp} className="mt-12 sm:mt-16 flex flex-col sm:flex-row items-center justify-center gap-5">
             <Link to="/signup" className="btn-primary !px-8 !py-3.5 text-sm">
               Get Started Free <ArrowRight size={16} />
             </Link>
