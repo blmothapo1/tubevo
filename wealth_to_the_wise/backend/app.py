@@ -21,6 +21,7 @@ Future items will add routers here as they're built:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -36,7 +37,8 @@ from backend.config import get_settings, logger as config_logger  # noqa: F401 �
 from backend.database import create_tables, dispose_engine
 from backend.middleware import RequestLoggingMiddleware
 from backend.rate_limit import limiter
-from backend.routers import api_keys, auth, billing, health, videos, youtube
+from backend.routers import api_keys, auth, billing, health, schedules, videos, youtube
+from backend.scheduler_worker import scheduler_loop
 
 logger = logging.getLogger("tubevo.backend.app")
 
@@ -54,8 +56,19 @@ def create_app() -> FastAPI:
                      settings.debug, settings.cors_origins, settings.rate_limit_default)
         logger.info("═" * 60)
         await create_tables()
+
+        # Start the background scheduler worker
+        scheduler_task = asyncio.create_task(scheduler_loop())
+        logger.info("🕐 Scheduler worker task created")
+
         yield
+
         # ── Shutdown ──
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except asyncio.CancelledError:
+            pass
         await dispose_engine()
         logger.info("Backend shutting down.")
 
@@ -115,6 +128,7 @@ def create_app() -> FastAPI:
     app.include_router(billing.router)
     app.include_router(videos.router)
     app.include_router(youtube.router)
+    app.include_router(schedules.router)
 
     return app
 

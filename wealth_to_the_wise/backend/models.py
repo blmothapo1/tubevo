@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -192,3 +192,59 @@ class UserApiKeys(Base):
 
     def __repr__(self) -> str:
         return f"<UserApiKeys user={self.user_id}>"
+
+
+class PostingSchedule(Base):
+    """A recurring automation schedule for a user.
+
+    Users can queue up topics and set a posting frequency (e.g. daily, weekly).
+    The scheduler worker picks up active schedules and triggers video generation
+    when `next_run_at` is in the past.
+    """
+
+    __tablename__ = "posting_schedules"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True,
+    )
+
+    # Human-readable label, e.g. "Daily Finance Shorts"
+    name: Mapped[str] = mapped_column(String(200), nullable=False, default="My Schedule")
+
+    # ── Frequency ────────────────────────────────────────────────────
+    # One of: daily, every_other_day, twice_weekly, weekly
+    frequency: Mapped[str] = mapped_column(String(30), nullable=False, default="weekly")
+
+    # Preferred hour (0-23, UTC) for the next run
+    preferred_hour_utc: Mapped[int] = mapped_column(Integer, nullable=False, default=14)
+
+    # ── Topic queue — JSON array of strings ──────────────────────────
+    # e.g. '["compound interest", "index funds", "budgeting tips"]'
+    topics_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+
+    # Index into topics_json — cycles back to 0 when exhausted
+    topic_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # ── State ────────────────────────────────────────────────────────
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    next_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    last_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    total_runs: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # ── Timestamps ───────────────────────────────────────────────────
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<PostingSchedule {self.id} user={self.user_id} freq={self.frequency} active={self.is_active}>"
