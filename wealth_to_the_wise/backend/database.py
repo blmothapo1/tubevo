@@ -86,11 +86,61 @@ async def get_db() -> AsyncSession:  # type: ignore[misc]
 
 # ── Startup helper ───────────────────────────────────────────────────
 
+async def _run_migrations(conn) -> None:
+    """Add missing columns to existing tables.
+
+    ``Base.metadata.create_all`` only creates *new* tables — it won't add
+    columns that were added to the ORM models after the table was first
+    created.  This function uses ``ALTER TABLE … ADD COLUMN IF NOT EXISTS``
+    (PostgreSQL 9.6+) to patch the schema forward without data loss.
+
+    For SQLite (dev only) we use a try/except approach since SQLite
+    doesn't support ``IF NOT EXISTS`` on ``ADD COLUMN``.
+    """
+    from sqlalchemy import text
+
+    is_pg = not _using_sqlite
+
+    # (table, column, type)
+    migrations: list[tuple[str, str, str]] = [
+        # User model additions
+        ("users", "stripe_customer_id", "VARCHAR(64)"),
+        ("users", "reset_token", "VARCHAR(64)"),
+        ("users", "reset_token_expires", "TIMESTAMPTZ"),
+    ]
+
+    for table, column, col_type in migrations:
+        if is_pg:
+            stmt = text(
+                f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"
+            )
+            await conn.execute(stmt)
+            logger.info("Migration: ensured %s.%s exists", table, column)
+        else:
+            # SQLite: no IF NOT EXISTS — just catch the "duplicate column" error
+            try:
+                await conn.execute(
+                    text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+                )
+                logger.info("Migration: added %s.%s", table, column)
+            except Exception:
+                pass  # column already exists
+
+    # Add unique index on stripe_customer_id if it doesn't exist (PostgreSQL)
+    if is_pg:
+        await conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_stripe_customer_id "
+            "ON users (stripe_customer_id) WHERE stripe_customer_id IS NOT NULL"
+        ))
+        logger.info("Migration: ensured ix_users_stripe_customer_id index exists")
+
+
 async def create_tables() -> None:
-    """Create all tables that don't exist yet (non-destructive)."""
+    """Create all tables that don't exist yet, then run column migrations."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables verified / created.")
+        await _run_migrations(conn)
+    logger.info("Database tables verified / created / migrated.")
 
 
 async def dispose_engine() -> None:

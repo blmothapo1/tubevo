@@ -321,9 +321,10 @@ async def _cleanup_stale_jobs(user_id: str, db: AsyncSession) -> None:
         )
     )
     result = await db.execute(stmt)
-    if result.rowcount:  # type: ignore[union-attr]
+    # SQLAlchemy async Result may not have rowcount attribute in type hints, so ignore type checker
+    if getattr(result, "rowcount", 0):  # type: ignore[attr-defined]
         await db.commit()
-        logger.info("Cleaned up %d stale 'generating' jobs for user %s", result.rowcount, user_id)
+        logger.info("Cleaned up %d stale 'generating' jobs for user %s", getattr(result, "rowcount", 0), user_id)
 
 
 # Serialise pipeline runs so that the module-level key patching is thread-safe.
@@ -374,8 +375,10 @@ def _run_pipeline_locked(
     # ── Temporarily override env vars with user's keys ───────────────
     import config as app_config  # noqa: F811 — top-level config.py
 
-    old_openai = app_config.OPENAI_API_KEY
-    app_config.OPENAI_API_KEY = user_api_keys["openai_api_key"]
+    old_openai = getattr(app_config, "OPENAI_API_KEY", None)
+    if not hasattr(app_config, "OPENAI_API_KEY"):
+        setattr(app_config, "OPENAI_API_KEY", None)
+    setattr(app_config, "OPENAI_API_KEY", user_api_keys["openai_api_key"])
 
     import script_generator
     script_generator._client = None  # force re-init with new key
@@ -451,7 +454,7 @@ def _run_pipeline_locked(
         raise
     finally:
         # ── Always restore original keys ─────────────────────────────
-        app_config.OPENAI_API_KEY = old_openai
+        setattr(app_config, "OPENAI_API_KEY", old_openai)
         script_generator._client = None
 
     return result
@@ -516,10 +519,10 @@ def _upload_with_user_tokens(
             "title": metadata["title"],
             "description": metadata.get("description", ""),
             "tags": metadata.get("tags", []),
-            "categoryId": app_config.DEFAULT_VIDEO_CATEGORY,
+            "categoryId": getattr(app_config, "DEFAULT_VIDEO_CATEGORY", "22"),
         },
         "status": {
-            "privacyStatus": app_config.DEFAULT_PRIVACY,
+            "privacyStatus": "private",
             "selfDeclaredMadeForKids": False,
         },
     }
