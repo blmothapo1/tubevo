@@ -40,9 +40,28 @@ TEXT_COLOR = (255, 255, 255)
 SUBTITLE_COLOR = (200, 200, 200)
 
 # ── Fonts ────────────────────────────────────────────────────────────
-# macOS system fonts — fallback to default if unavailable
-_FONT_BOLD = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
-_FONT_REGULAR = "/System/Library/Fonts/Supplemental/Arial.ttf"
+# Cross-platform font detection
+def _find_system_font(bold: bool = True) -> str:
+    if bold:
+        for p in [
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        ]:
+            if os.path.isfile(p):
+                return p
+    else:
+        for p in [
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ]:
+            if os.path.isfile(p):
+                return p
+    return ""
+
+_FONT_BOLD = _find_system_font(bold=True)
+_FONT_REGULAR = _find_system_font(bold=False)
 
 
 def _load_font(path: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:

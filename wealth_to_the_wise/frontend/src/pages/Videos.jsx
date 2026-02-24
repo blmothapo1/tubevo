@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../lib/api';
 import Spinner from '../components/Spinner';
 import {
@@ -11,11 +11,12 @@ import {
   Sparkles,
   Send,
   ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 
 const statusConfig = {
   pending: { label: 'Pending', color: 'bg-amber-500/15 text-amber-400', icon: Clock },
-  generating: { label: 'Generating', color: 'bg-brand-500/15 text-brand-400', icon: Film },
+  generating: { label: 'Generating…', color: 'bg-brand-500/15 text-brand-400', icon: Film },
   completed: { label: 'Completed', color: 'bg-blue-500/15 text-blue-400', icon: CheckCircle },
   posted: { label: 'Posted', color: 'bg-emerald-500/15 text-emerald-400', icon: Upload },
   failed: { label: 'Failed', color: 'bg-red-500/15 text-red-400', icon: AlertTriangle },
@@ -27,6 +28,8 @@ export default function Videos() {
   const [topic, setTopic] = useState('');
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [activeJobId, setActiveJobId] = useState(null);
+  const pollRef = useRef(null);
 
   const fetchVideos = useCallback(async () => {
     try {
@@ -43,6 +46,55 @@ export default function Videos() {
     fetchVideos();
   }, [fetchVideos]);
 
+  // ── Poll for status when a job is active ──
+  useEffect(() => {
+    if (!activeJobId) return;
+
+    async function pollStatus() {
+      try {
+        const { data } = await api.get(`/api/videos/${activeJobId}/status`);
+        if (data.status === 'generating') {
+          // Still running — keep polling
+          return;
+        }
+        // Job finished — stop polling and update UI
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+        setActiveJobId(null);
+        setGenerating(false);
+
+        if (data.status === 'failed') {
+          setMessage({
+            type: 'error',
+            text: data.error_message || 'Video generation failed.',
+          });
+        } else if (data.status === 'posted') {
+          setMessage({
+            type: 'success',
+            text: `Video "${data.title}" generated and posted to YouTube!`,
+          });
+        } else {
+          setMessage({
+            type: 'success',
+            text: `Video "${data.title}" generated successfully!`,
+          });
+        }
+        fetchVideos();
+      } catch {
+        // Network error — keep polling
+      }
+    }
+
+    // Poll every 5 seconds
+    pollRef.current = setInterval(pollStatus, 5000);
+    // Also poll immediately
+    pollStatus();
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [activeJobId, fetchVideos]);
+
   async function handleGenerate(e) {
     e.preventDefault();
     if (!topic.trim() || topic.trim().length < 3) {
@@ -55,12 +107,25 @@ export default function Videos() {
 
     try {
       const { data } = await api.post('/api/videos/generate', { topic: topic.trim() });
-      setMessage({
-        type: data.status === 'failed' ? 'error' : 'success',
-        text: data.message,
-      });
-      setTopic('');
-      fetchVideos();
+
+      if (data.status === 'generating' && data.video_id) {
+        // Pipeline running in background — start polling
+        setActiveJobId(data.video_id);
+        setMessage({
+          type: 'info',
+          text: data.message,
+        });
+        setTopic('');
+        fetchVideos();
+      } else if (data.status === 'failed') {
+        setMessage({ type: 'error', text: data.message });
+        setGenerating(false);
+      } else {
+        setMessage({ type: 'success', text: data.message });
+        setTopic('');
+        setGenerating(false);
+        fetchVideos();
+      }
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (err.response?.status === 429) {
@@ -68,7 +133,6 @@ export default function Videos() {
       } else {
         setMessage({ type: 'error', text: detail || 'Generation failed.' });
       }
-    } finally {
       setGenerating(false);
     }
   }
@@ -112,7 +176,10 @@ export default function Videos() {
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium gradient-brand text-white hover:opacity-90 transition-all disabled:opacity-50 glow-brand"
           >
             {generating ? (
-              <Spinner className="w-4 h-4" />
+              <>
+                <RefreshCw size={16} className="animate-spin" />
+                Generating…
+              </>
             ) : (
               <>
                 <Send size={16} />
@@ -126,10 +193,18 @@ export default function Videos() {
             className={`mt-3 text-sm px-4 py-2.5 rounded-lg ${
               message.type === 'error'
                 ? 'bg-red-500/10 border border-red-500/20 text-red-400'
+                : message.type === 'info'
+                ? 'bg-brand-500/10 border border-brand-500/20 text-brand-400'
                 : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
             }`}
           >
-            {message.text}
+            {message.type === 'info' && (
+              <span className="inline-flex items-center gap-2">
+                <RefreshCw size={14} className="animate-spin" />
+                {message.text}
+              </span>
+            )}
+            {message.type !== 'info' && message.text}
           </div>
         )}
       </form>
@@ -152,7 +227,11 @@ export default function Videos() {
               <div key={video.id} className="flex items-center gap-4 px-5 py-4">
                 {/* Thumbnail placeholder */}
                 <div className="hidden sm:flex w-28 h-16 rounded-lg bg-surface-200 items-center justify-center shrink-0 overflow-hidden border border-surface-300">
-                  <Film size={20} className="text-brand-400/60" />
+                  {video.status === 'generating' ? (
+                    <RefreshCw size={20} className="text-brand-400/60 animate-spin" />
+                  ) : (
+                    <Film size={20} className="text-brand-400/60" />
+                  )}
                 </div>
 
                 {/* Info */}
@@ -163,13 +242,22 @@ export default function Videos() {
                   <p className="text-xs text-surface-600 mt-1">
                     {video.topic}
                   </p>
+                  {video.error_message && (
+                    <p className="text-xs text-red-400 mt-1 truncate" title={video.error_message}>
+                      {video.error_message}
+                    </p>
+                  )}
                 </div>
 
                 {/* Status badge */}
                 <span
                   className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${cfg.color}`}
                 >
-                  <StatusIcon size={12} />
+                  {video.status === 'generating' ? (
+                    <RefreshCw size={12} className="animate-spin" />
+                  ) : (
+                    <StatusIcon size={12} />
+                  )}
                   {cfg.label}
                 </span>
 

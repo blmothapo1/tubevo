@@ -10,9 +10,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# ── System deps (needed by some Python packages) ─────────────────────
+# ── System deps (needed by some Python packages + video pipeline) ─────
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libffi-dev libpq-dev && \
+    apt-get install -y --no-install-recommends \
+        gcc libffi-dev libpq-dev \
+        ffmpeg \
+        fonts-liberation fonts-dejavu-core && \
     rm -rf /var/lib/apt/lists/*
 
 # ── Python deps (cached layer — only re-runs when requirements change) ─

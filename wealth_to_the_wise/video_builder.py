@@ -50,8 +50,31 @@ VIDEO_HEIGHT = 1080
 FPS = 30                  # ↑ from 24 → smoother playback
 
 # ── Styling ──────────────────────────────────────────────────────────
-FONT = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
-FONT_BODY = "/System/Library/Fonts/Supplemental/Arial.ttf"
+# Cross-platform font detection: macOS → Linux fallback
+import shutil
+
+def _find_font(bold: bool = True) -> str:
+    """Return the best available font path for the current OS."""
+    if bold:
+        candidates = [
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",       # macOS
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",  # Debian/Ubuntu
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",    # Debian fallback
+        ]
+    else:
+        candidates = [
+            "/System/Library/Fonts/Supplemental/Arial.ttf",            # macOS
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    # Last resort: let moviepy/ImageMagick figure it out
+    return "Liberation-Sans-Bold" if bold else "Liberation-Sans"
+
+FONT = _find_font(bold=True)
+FONT_BODY = _find_font(bold=False)
 
 # Caption style — large, centered, white text with dark stroke
 CAPTION_FONT_SIZE = 62        # ↑ slightly larger for readability

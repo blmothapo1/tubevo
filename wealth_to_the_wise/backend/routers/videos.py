@@ -1,4 +1,3 @@
-# filepath: backend/routers/videos.py
 """
 Video pipeline router — /api/videos/*
 
@@ -6,25 +5,31 @@ Exposes the CLI auto-pipeline as a REST API for the frontend.
 
 Endpoints
 ---------
-POST /api/videos/generate   — Trigger auto video generation for a topic
-GET  /api/videos/history     — Get the user's video upload history
-GET  /api/videos/stats       — Dashboard stats for the current user
+POST /api/videos/generate      — Trigger auto video generation for a topic
+GET  /api/videos/{id}/status   — Poll the status of a generation job
+GET  /api/videos/history       — Get the user's video upload history
+GET  /api/videos/stats         — Dashboard stats for the current user
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import random
+import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
-from backend.database import get_db
-from backend.models import User, VideoRecord
+from backend.database import async_session_factory, get_db
+from backend.models import OAuthToken, User, VideoRecord
 from backend.rate_limit import limiter
 
 logger = logging.getLogger("tubevo.backend.videos")
@@ -32,6 +37,7 @@ logger = logging.getLogger("tubevo.backend.videos")
 router = APIRouter(prefix="/api/videos", tags=["Videos"])
 
 OUTPUT_DIR = Path("output")
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 # ── Schemas ──────────────────────────────────────────────────────────
@@ -76,17 +82,33 @@ class VideoStats(BaseModel):
 async def generate_video(
     request: Request,
     body: GenerateRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Trigger the full-auto pipeline for a given topic.
 
-    Creates a VideoRecord in the database, runs the pipeline in a
-    background thread, then updates the record with the result.
+    Creates a VideoRecord in the database, kicks off the pipeline in the
+    background, and returns immediately so the HTTP request doesn't time out.
+    The frontend can poll GET /api/videos/{id}/status for progress.
     """
     logger.info("User %s requested video generation: '%s'", current_user.email, body.topic)
 
-    # Create a pending record
+    # ── Fetch the user's YouTube OAuth tokens (needed for upload) ────
+    result = await db.execute(
+        select(OAuthToken).where(
+            OAuthToken.user_id == current_user.id,
+            OAuthToken.provider == "google",
+        )
+    )
+    oauth_token = result.scalar_one_or_none()
+
+    # We still allow generation without YouTube connected —
+    # the video will be built but not uploaded.
+    yt_access_token = oauth_token.access_token if oauth_token else None
+    yt_refresh_token = oauth_token.refresh_token if oauth_token else None
+
+    # ── Create a pending record ──────────────────────────────────────
     record = VideoRecord(
         user_id=current_user.id,
         topic=body.topic,
@@ -97,78 +119,292 @@ async def generate_video(
     await db.flush()  # get the id
     record_id = record.id
 
-    try:
-        # Run the CPU-bound pipeline in a thread pool
-        result = await asyncio.to_thread(_run_pipeline, body.topic)
-    except Exception as e:
-        logger.exception("Pipeline failed for topic '%s': %s", body.topic, e)
-        record.status = "failed"
-        record.error_message = str(e)
-        return GenerateResponse(
-            status="failed",
-            topic=body.topic,
-            message=f"Video generation failed: {str(e)}",
-            video_id=record_id,
-        )
-
-    # Update record with pipeline output
-    if result:
-        record.status = "posted" if result.get("video_id") else "completed"
-        record.title = result.get("title", body.topic)
-        record.file_path = result.get("file_path")
-        record.youtube_video_id = result.get("video_id")
-        record.youtube_url = (
-            f"https://www.youtube.com/watch?v={result['video_id']}"
-            if result.get("video_id")
-            else None
-        )
-    else:
-        record.status = "completed"
+    # ── Kick off the pipeline in the background ──────────────────────
+    background_tasks.add_task(
+        _run_pipeline_background,
+        record_id=record_id,
+        topic=body.topic,
+        user_id=current_user.id,
+        yt_access_token=yt_access_token,
+        yt_refresh_token=yt_refresh_token,
+    )
 
     return GenerateResponse(
-        status=record.status,
+        status="generating",
         topic=body.topic,
-        message="Video generated successfully.",
+        message="Video generation started! This takes 2-5 minutes. Check back shortly.",
         video_id=record_id,
     )
 
 
-def _run_pipeline(topic: str) -> dict | None:
-    """Synchronous wrapper around the existing CLI pipeline."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+# ── Background pipeline runner ───────────────────────────────────────
 
-    from main import run_full_auto_pipeline
-    import json
+async def _run_pipeline_background(
+    *,
+    record_id: str,
+    topic: str,
+    user_id: str,
+    yt_access_token: str | None,
+    yt_refresh_token: str | None,
+) -> None:
+    """Run the full auto pipeline in a background thread, then update the DB.
 
-    history_path = OUTPUT_DIR / "upload_history.json"
+    This function owns its own DB session (the request session is already
+    closed by the time this runs).
+    """
+    try:
+        result = await asyncio.to_thread(
+            _run_pipeline_sync,
+            topic=topic,
+            yt_access_token=yt_access_token,
+            yt_refresh_token=yt_refresh_token,
+        )
+    except Exception as e:
+        logger.exception("Pipeline background task failed for record %s: %s", record_id, e)
+        result = {"error": str(e)}
 
-    # Snapshot current history length
-    before_count = 0
-    if history_path.exists():
+    # ── Update the DB record with results ────────────────────────────
+    async with async_session_factory() as db:
         try:
-            before = json.loads(history_path.read_text())
-            before_count = len(before)
+            stmt = select(VideoRecord).where(VideoRecord.id == record_id)
+            row = (await db.execute(stmt)).scalar_one_or_none()
+            if not row:
+                logger.error("VideoRecord %s not found after pipeline!", record_id)
+                return
+
+            if "error" in result:
+                row.status = "failed"
+                row.error_message = result["error"][:2000]  # truncate
+            elif result.get("youtube_video_id"):
+                row.status = "posted"
+                row.title = result.get("title", topic)
+                row.file_path = result.get("file_path")
+                row.youtube_video_id = result["youtube_video_id"]
+                row.youtube_url = f"https://www.youtube.com/watch?v={result['youtube_video_id']}"
+            elif result.get("file_path"):
+                row.status = "completed"
+                row.title = result.get("title", topic)
+                row.file_path = result.get("file_path")
+            else:
+                row.status = "completed"
+                row.title = result.get("title", topic)
+
+            row.updated_at = datetime.now(timezone.utc)
+            await db.commit()
+            logger.info("Updated VideoRecord %s → status=%s", record_id, row.status)
         except Exception:
-            pass
+            await db.rollback()
+            logger.exception("Failed to update VideoRecord %s", record_id)
 
-    run_full_auto_pipeline(topic)
 
-    # Check if a new entry was added
-    if history_path.exists():
+def _run_pipeline_sync(
+    *,
+    topic: str,
+    yt_access_token: str | None,
+    yt_refresh_token: str | None,
+) -> dict:
+    """Synchronous pipeline: script → voiceover → video → (optional) upload.
+
+    Runs each step of the CLI pipeline but uses per-user OAuth tokens
+    (from the DB) instead of the local token.json file.
+    """
+    # Ensure the top-level project dir is on sys.path so we can import
+    # the Phase 1 modules (config, script_generator, etc.)
+    project_root = str(Path(__file__).resolve().parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+    import config as app_config  # noqa: F811 — top-level config.py
+    from script_generator import generate_script, generate_metadata
+
+    result: dict = {"title": topic}
+
+    # ── Step 1: Generate script ──────────────────────────────────────
+    logger.info("Pipeline step 1/5: Generating script for '%s'", topic)
+    script = generate_script(topic)
+    (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
+
+    # ── Step 2: Generate metadata ────────────────────────────────────
+    logger.info("Pipeline step 2/5: Generating metadata")
+    metadata = generate_metadata(script, topic)
+    result["title"] = metadata.get("title", topic)
+
+    # ── Step 3: Generate voiceover ───────────────────────────────────
+    logger.info("Pipeline step 3/5: Generating voiceover")
+    from voiceover import generate_voiceover
+    audio_path = generate_voiceover(script)
+
+    # ── Step 4: Build video ──────────────────────────────────────────
+    logger.info("Pipeline step 4/5: Building video")
+    from video_builder import build_video
+    video_path = build_video(audio_path=audio_path, title=metadata["title"], script=script)
+    result["file_path"] = video_path
+
+    # ── Step 4b: Generate thumbnail ──────────────────────────────────
+    logger.info("Pipeline step 4b: Generating thumbnail")
+    from thumbnail import generate_thumbnail
+    thumbnail_path = generate_thumbnail(metadata["title"])
+
+    # ── Step 5: Upload to YouTube (if user has connected their channel) ─
+    if yt_access_token:
+        logger.info("Pipeline step 5/5: Uploading to YouTube")
+        youtube_video_id = _upload_with_user_tokens(
+            video_path=video_path,
+            metadata=metadata,
+            thumbnail_path=thumbnail_path,
+            access_token=yt_access_token,
+            refresh_token=yt_refresh_token,
+        )
+        if youtube_video_id:
+            result["youtube_video_id"] = youtube_video_id
+    else:
+        logger.info("Pipeline step 5/5: Skipping upload — no YouTube connection")
+
+    return result
+
+
+def _upload_with_user_tokens(
+    *,
+    video_path: str,
+    metadata: dict,
+    thumbnail_path: str | None,
+    access_token: str,
+    refresh_token: str | None,
+) -> str | None:
+    """Upload a video to YouTube using per-user OAuth tokens from the DB.
+
+    This replaces the CLI uploader's ``get_authenticated_service()`` which
+    reads from a local ``token.json`` file.
+    """
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+    from googleapiclient.errors import HttpError
+
+    project_root = str(Path(__file__).resolve().parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    import config as app_config
+
+    # Build credentials from the stored tokens
+    from backend.config import get_settings
+    settings = get_settings()
+
+    creds = Credentials(
+        token=access_token,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=settings.google_client_id,
+        client_secret=settings.google_client_secret,
+        scopes=[
+            "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.readonly",
+        ],
+    )
+
+    # Refresh if expired
+    if creds.expired and creds.refresh_token:
         try:
-            after = json.loads(history_path.read_text())
-            if len(after) > before_count:
-                entry = after[-1]
-                return {
-                    "video_id": entry.get("video_id"),
-                    "title": entry.get("title", topic),
-                    "file_path": entry.get("file_path"),
-                }
-        except Exception:
-            pass
+            creds.refresh(Request())
+            logger.info("Refreshed YouTube access token")
+        except Exception as e:
+            logger.error("Failed to refresh YouTube token: %s", e)
+            raise RuntimeError(
+                "YouTube token expired and could not be refreshed. "
+                "Please reconnect your YouTube channel in Settings."
+            ) from e
 
-    return None
+    youtube = build("youtube", "v3", credentials=creds)
+
+    body = {
+        "snippet": {
+            "title": metadata["title"],
+            "description": metadata.get("description", ""),
+            "tags": metadata.get("tags", []),
+            "categoryId": app_config.DEFAULT_VIDEO_CATEGORY,
+        },
+        "status": {
+            "privacyStatus": app_config.DEFAULT_PRIVACY,
+            "selfDeclaredMadeForKids": False,
+        },
+    }
+
+    media = MediaFileUpload(video_path, chunksize=10 * 1024 * 1024, resumable=True)
+
+    insert_request = youtube.videos().insert(
+        part=",".join(body.keys()),
+        body=body,
+        media_body=media,
+    )
+
+    logger.info("Uploading to YouTube: %s", metadata["title"])
+
+    # Resumable upload loop
+    response = None
+    retry = 0
+    max_retries = 10
+
+    while response is None:
+        try:
+            upload_status, response = insert_request.next_chunk()
+            if upload_status:
+                logger.info("Upload progress: %d%%", int(upload_status.progress() * 100))
+        except HttpError as e:
+            if e.resp.status in [500, 502, 503, 504]:
+                retry += 1
+                if retry > max_retries:
+                    raise RuntimeError(f"YouTube upload failed after {max_retries} retries")
+                wait = random.random() * (2 ** retry)
+                logger.warning("Retriable error %s, retrying in %.1fs", e.resp.status, wait)
+                time.sleep(wait)
+                continue
+            raise
+
+    video_id = response.get("id")
+    logger.info("YouTube upload complete! Video ID: %s", video_id)
+
+    # Set custom thumbnail
+    if thumbnail_path and os.path.isfile(thumbnail_path):
+        try:
+            youtube.thumbnails().set(
+                videoId=video_id,
+                media_body=MediaFileUpload(thumbnail_path, mimetype="image/jpeg"),
+            ).execute()
+            logger.info("Custom thumbnail set for video %s", video_id)
+        except HttpError as e:
+            logger.warning("Failed to set thumbnail: %s", e)
+
+    return video_id
+
+
+# ── GET /api/videos/{video_id}/status ────────────────────────────────
+
+@router.get("/{video_id}/status")
+async def video_status(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Poll the status of a video generation job."""
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    return {
+        "id": record.id,
+        "status": record.status,
+        "title": record.title,
+        "error_message": record.error_message,
+        "youtube_url": record.youtube_url,
+        "updated_at": record.updated_at.isoformat() if record.updated_at else "",
+    }
 
 
 # ── GET /api/videos/history ──────────────────────────────────────────
