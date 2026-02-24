@@ -20,12 +20,13 @@ import random
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+import traceback
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
@@ -39,6 +40,11 @@ router = APIRouter(prefix="/api/videos", tags=["Videos"])
 
 OUTPUT_DIR = Path("output")
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+# Maximum time a pipeline is allowed to run before we consider it dead.
+PIPELINE_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
+# If a record has been "generating" for longer than this, mark it failed.
+STALE_JOB_MINUTES = 15
 
 
 # ── Schemas ──────────────────────────────────────────────────────────
@@ -83,14 +89,14 @@ class VideoStats(BaseModel):
 async def generate_video(
     request: Request,
     body: GenerateRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Trigger the full-auto pipeline for a given topic.
 
-    Creates a VideoRecord in the database, kicks off the pipeline in the
-    background, and returns immediately so the HTTP request doesn't time out.
+    Creates a VideoRecord in the database, kicks off the pipeline as a
+    fire-and-forget asyncio task, and returns immediately so the HTTP
+    request doesn't time out.
     The frontend can poll GET /api/videos/{id}/status for progress.
     """
     logger.info("User %s requested video generation: '%s'", current_user.email, body.topic)
@@ -134,7 +140,9 @@ async def generate_video(
     yt_access_token = oauth_token.access_token if oauth_token else None
     yt_refresh_token = oauth_token.refresh_token if oauth_token else None
 
-    # ── Create a pending record ──────────────────────────────────────
+    # ── Create a "generating" record and commit immediately ──────────
+    # We commit *before* spawning the background task so the record is
+    # guaranteed to exist in the DB when the task tries to read it.
     record = VideoRecord(
         user_id=current_user.id,
         topic=body.topic,
@@ -142,18 +150,22 @@ async def generate_video(
         status="generating",
     )
     db.add(record)
-    await db.flush()  # get the id
+    await db.commit()
     record_id = record.id
+    logger.info("Created VideoRecord %s for user %s", record_id, current_user.email)
 
-    # ── Kick off the pipeline in the background ──────────────────────
-    background_tasks.add_task(
-        _run_pipeline_background,
-        record_id=record_id,
-        topic=body.topic,
-        user_id=current_user.id,
-        user_api_keys=user_api_keys,
-        yt_access_token=yt_access_token,
-        yt_refresh_token=yt_refresh_token,
+    # ── Kick off the pipeline as a fire-and-forget task ──────────────
+    # Using asyncio.create_task instead of BackgroundTasks so the task
+    # isn't tied to the HTTP request lifecycle.
+    asyncio.create_task(
+        _run_pipeline_background(
+            record_id=record_id,
+            topic=body.topic,
+            user_id=current_user.id,
+            user_api_keys=user_api_keys,
+            yt_access_token=yt_access_token,
+            yt_refresh_token=yt_refresh_token,
+        )
     )
 
     return GenerateResponse(
@@ -177,24 +189,34 @@ async def _run_pipeline_background(
 ) -> None:
     """Run the full auto pipeline in a background thread, then update the DB.
 
-    This function owns its own DB session (the request session is already
-    closed by the time this runs).
+    Uses its own DB session (the request session is already closed).
+    Wraps the synchronous pipeline in asyncio.to_thread with a timeout.
     """
+    logger.info("Background pipeline starting for record %s", record_id)
+
+    result: dict
     try:
-        result = await asyncio.to_thread(
-            _run_pipeline_sync,
-            topic=topic,
-            user_api_keys=user_api_keys,
-            yt_access_token=yt_access_token,
-            yt_refresh_token=yt_refresh_token,
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                _run_pipeline_sync,
+                topic=topic,
+                user_api_keys=user_api_keys,
+                yt_access_token=yt_access_token,
+                yt_refresh_token=yt_refresh_token,
+            ),
+            timeout=PIPELINE_TIMEOUT_SECONDS,
         )
+    except asyncio.TimeoutError:
+        logger.error("Pipeline timed out after %ds for record %s", PIPELINE_TIMEOUT_SECONDS, record_id)
+        result = {"error": f"Video generation timed out after {PIPELINE_TIMEOUT_SECONDS // 60} minutes."}
     except Exception as e:
-        logger.exception("Pipeline background task failed for record %s: %s", record_id, e)
+        tb = traceback.format_exc()
+        logger.error("Pipeline background task failed for record %s: %s\n%s", record_id, e, tb)
         result = {"error": str(e)}
 
     # ── Update the DB record with results ────────────────────────────
-    async with async_session_factory() as db:
-        try:
+    try:
+        async with async_session_factory() as db:
             stmt = select(VideoRecord).where(VideoRecord.id == record_id)
             row = (await db.execute(stmt)).scalar_one_or_none()
             if not row:
@@ -203,7 +225,7 @@ async def _run_pipeline_background(
 
             if "error" in result:
                 row.status = "failed"
-                row.error_message = result["error"][:2000]  # truncate
+                row.error_message = result["error"][:2000]
             elif result.get("youtube_video_id"):
                 row.status = "posted"
                 row.title = result.get("title", topic)
@@ -221,9 +243,36 @@ async def _run_pipeline_background(
             row.updated_at = datetime.now(timezone.utc)
             await db.commit()
             logger.info("Updated VideoRecord %s → status=%s", record_id, row.status)
-        except Exception:
-            await db.rollback()
-            logger.exception("Failed to update VideoRecord %s", record_id)
+    except Exception:
+        logger.exception("Failed to update VideoRecord %s after pipeline", record_id)
+
+
+# ── Stale job cleanup helper ─────────────────────────────────────────
+
+async def _cleanup_stale_jobs(user_id: str, db: AsyncSession) -> None:
+    """Mark any 'generating' jobs older than STALE_JOB_MINUTES as failed.
+
+    Called on status polls and history fetches to self-heal after crashes
+    or Railway redeployments that kill in-progress background tasks.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=STALE_JOB_MINUTES)
+    stmt = (
+        update(VideoRecord)
+        .where(
+            VideoRecord.user_id == user_id,
+            VideoRecord.status == "generating",
+            VideoRecord.updated_at < cutoff,
+        )
+        .values(
+            status="failed",
+            error_message="Generation timed out or was interrupted by a server restart. Please try again.",
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    result = await db.execute(stmt)
+    if result.rowcount:  # type: ignore[union-attr]
+        await db.commit()
+        logger.info("Cleaned up %d stale 'generating' jobs for user %s", result.rowcount, user_id)
 
 
 # Serialise pipeline runs so that the module-level key patching is thread-safe.
@@ -272,16 +321,11 @@ def _run_pipeline_locked(
         sys.path.insert(0, project_root)
 
     # ── Temporarily override env vars with user's keys ───────────────
-    # The Phase 1 modules (script_generator, voiceover, stock_footage)
-    # read API keys from env vars / module-level globals.  We patch them
-    # for the duration of this call so each user uses their own keys.
     import config as app_config  # noqa: F811 — top-level config.py
 
-    # Patch OpenAI key (used by script_generator via config.OPENAI_API_KEY)
     old_openai = app_config.OPENAI_API_KEY
     app_config.OPENAI_API_KEY = user_api_keys["openai_api_key"]
 
-    # We also need to reset the cached OpenAI client in script_generator
     import script_generator
     script_generator._client = None  # force re-init with new key
 
@@ -292,16 +336,17 @@ def _run_pipeline_locked(
         logger.info("Pipeline step 1/5: Generating script for '%s'", topic)
         script = script_generator.generate_script(topic)
         (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
+        logger.info("Pipeline step 1/5: Script generated (%d chars)", len(script))
 
         # ── Step 2: Generate metadata ────────────────────────────────
         logger.info("Pipeline step 2/5: Generating metadata")
         metadata = script_generator.generate_metadata(script, topic)
         result["title"] = metadata.get("title", topic)
+        logger.info("Pipeline step 2/5: Metadata ready — title: %s", result["title"])
 
         # ── Step 3: Generate voiceover ───────────────────────────────
         logger.info("Pipeline step 3/5: Generating voiceover")
         import voiceover as voiceover_mod
-        # Patch ElevenLabs keys
         old_el_key = voiceover_mod.ELEVENLABS_API_KEY
         old_el_voice = voiceover_mod.DEFAULT_VOICE_ID
         voiceover_mod.ELEVENLABS_API_KEY = user_api_keys["elevenlabs_api_key"]
@@ -309,6 +354,7 @@ def _run_pipeline_locked(
             voiceover_mod.DEFAULT_VOICE_ID = user_api_keys["elevenlabs_voice_id"]
 
         audio_path = voiceover_mod.generate_voiceover(script)
+        logger.info("Pipeline step 3/5: Voiceover saved → %s", audio_path)
 
         # Restore ElevenLabs keys
         voiceover_mod.ELEVENLABS_API_KEY = old_el_key
@@ -316,7 +362,6 @@ def _run_pipeline_locked(
 
         # ── Step 4: Build video ──────────────────────────────────────
         logger.info("Pipeline step 4/5: Building video")
-        # Patch Pexels key for stock footage
         import stock_footage as stock_mod
         old_pexels = stock_mod.PEXELS_API_KEY
         if user_api_keys.get("pexels_api_key"):
@@ -325,6 +370,7 @@ def _run_pipeline_locked(
         from video_builder import build_video
         video_path = build_video(audio_path=audio_path, title=metadata["title"], script=script)
         result["file_path"] = video_path
+        logger.info("Pipeline step 4/5: Video built → %s", video_path)
 
         # Restore Pexels key
         stock_mod.PEXELS_API_KEY = old_pexels
@@ -349,10 +395,13 @@ def _run_pipeline_locked(
         else:
             logger.info("Pipeline step 5/5: Skipping upload — no YouTube connection")
 
+    except Exception:
+        logger.exception("Pipeline error during locked execution")
+        raise
     finally:
         # ── Always restore original keys ─────────────────────────────
         app_config.OPENAI_API_KEY = old_openai
-        script_generator._client = None  # reset client
+        script_generator._client = None
 
     return result
 
@@ -481,6 +530,9 @@ async def video_status(
     db: AsyncSession = Depends(get_db),
 ):
     """Poll the status of a video generation job."""
+    # Clean up any stale jobs first
+    await _cleanup_stale_jobs(current_user.id, db)
+
     result = await db.execute(
         select(VideoRecord).where(
             VideoRecord.id == video_id,
@@ -509,6 +561,9 @@ async def video_history(
     db: AsyncSession = Depends(get_db),
 ):
     """Return the per-user video history from the database."""
+    # Clean up any stale jobs first
+    await _cleanup_stale_jobs(current_user.id, db)
+
     result = await db.execute(
         select(VideoRecord)
         .where(VideoRecord.user_id == current_user.id)
