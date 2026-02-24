@@ -11,7 +11,7 @@ const links = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
-export default function Sidebar({ open, onToggle }) {
+export default function Sidebar({ open, onClose }) {
   const { logout } = useAuth();
   const location = useLocation();
 
@@ -26,7 +26,7 @@ export default function Sidebar({ open, onToggle }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 lg:hidden"
-            onClick={onToggle}
+            onClick={onClose}
           />
         )}
       </AnimatePresence>
@@ -44,7 +44,7 @@ export default function Sidebar({ open, onToggle }) {
         <div className="px-6 py-7 flex items-center justify-between">
           <img src={tubevoLogo} alt="Tubevo" className="h-7" />
           <button
-            onClick={onToggle}
+            onClick={onClose}
             className="lg:hidden p-1.5 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all duration-200"
           >
             <X size={18} />
@@ -59,7 +59,6 @@ export default function Sidebar({ open, onToggle }) {
               <NavLink
                 key={to}
                 to={to}
-                onClick={onToggle}
                 className="relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200"
               >
                 {/* Active background indicator */}

@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-:root {
+@theme {
   /* Brand — warm indigo that feels approachable */
   --color-brand-50: #f0f0ff;
   --color-brand-100: #e0e1ff;
