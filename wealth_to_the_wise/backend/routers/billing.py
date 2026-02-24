@@ -33,8 +33,9 @@ router = APIRouter(prefix="/billing", tags=["Billing"])
 # For now, map plan names to placeholder price IDs.
 # Replace these with your real Stripe Price IDs.
 PLAN_PRICE_MAP: dict[str, str] = {
-    "pro": "price_pro_monthly",       # replace with real Stripe price ID
-    "agency": "price_agency_monthly",  # replace with real Stripe price ID
+    "starter": "price_1T48StEi8DhCMyZZVtmPJevL",   # $29/mo
+    "pro":     "price_1T48X6Ei8DhCMyZZyCAgEIg4",   # $79/mo
+    "agency":  "price_1T48XlEi8DhCMyZZcQIy50R6",   # $199/mo
 }
 
 
