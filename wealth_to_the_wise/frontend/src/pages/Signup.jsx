@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Spinner from '../components/Spinner';
+import tubevoLogo from '../assets/tubevo-logo-no-bg.svg';
 
 export default function Signup() {
   const { signup, login } = useAuth();
@@ -35,8 +36,8 @@ export default function Signup() {
 
       <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8">
-          <Link to="/" className="text-2xl font-bold tracking-tight text-white">
-            <span className="text-gradient">Tube</span>vo
+          <Link to="/">
+            <img src={tubevoLogo} alt="Tubevo" className="h-9 mx-auto" />
           </Link>
           <p className="mt-2 text-sm text-surface-700">Create your account</p>
         </div>

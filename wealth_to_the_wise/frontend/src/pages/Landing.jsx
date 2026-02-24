@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import {
   Sparkles, Mic, Upload, Target, CalendarClock, Zap, Check, ArrowRight,
 } from 'lucide-react';
+import tubevoLogo from '../assets/tubevo-logo-no-bg.svg';
 
 const features = [
   { icon: Sparkles, title: 'AI Script Generation', desc: 'GPT-4o writes engaging, niche-specific scripts in seconds.', iconColor: 'text-brand-400', iconBg: 'bg-brand-600/10' },
@@ -60,9 +61,7 @@ export default function Landing() {
       {/* Navbar */}
       <nav className="border-b border-surface-300/50 backdrop-blur-sm bg-surface-50/80 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="text-xl font-bold tracking-tight text-white">
-            <span className="text-brand-400">Tube</span>vo
-          </span>
+          <img src={tubevoLogo} alt="Tubevo" className="h-8" />
           <div className="flex items-center gap-4">
             <Link to="/login" className="text-sm text-surface-700 hover:text-surface-900 transition-colors">
               Log in

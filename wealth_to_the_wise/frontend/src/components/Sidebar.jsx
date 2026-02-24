@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Film, CalendarClock, Settings, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import tubevoLogo from '../assets/tubevo-logo-no-bg.svg';
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -32,9 +33,7 @@ export default function Sidebar({ open, onToggle }) {
         <div className="h-0.5 gradient-brand-accent" />
 
         <div className="px-5 py-6 flex items-center justify-between">
-          <span className="text-xl font-bold tracking-tight text-white">
-            <span className="text-gradient">Tube</span>vo
-          </span>
+          <img src={tubevoLogo} alt="Tubevo" className="h-7" />
           {/* Close button on mobile */}
           <button onClick={onToggle} className="lg:hidden p-1 text-surface-600 hover:text-white transition-colors">
             <X size={20} />
