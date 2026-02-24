@@ -28,7 +28,9 @@ logger = logging.getLogger("tubevo.voiceover")
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1"
 
 # Voice ID for ElevenLabs TTS. Set via .env: ELEVENLABS_VOICE_ID=your-voice-id
-DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")
+# Fallback: ElevenLabs "Adam" voice — a clear, professional male narrator.
+_FALLBACK_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
+DEFAULT_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "") or _FALLBACK_VOICE_ID
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
 OUTPUT_DIR = Path("output")
@@ -55,7 +57,7 @@ def generate_voiceover(
             "Get a key at https://elevenlabs.io"
         )
 
-    voice_id = voice_id or DEFAULT_VOICE_ID
+    voice_id = voice_id or DEFAULT_VOICE_ID or _FALLBACK_VOICE_ID
     output_path = output_path or str(OUTPUT_DIR / "voiceover.mp3")
 
     url = f"{ELEVENLABS_API_URL}/text-to-speech/{voice_id}"

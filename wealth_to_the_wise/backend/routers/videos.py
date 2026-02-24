@@ -18,6 +18,7 @@ import logging
 import os
 import random
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -225,6 +226,13 @@ async def _run_pipeline_background(
             logger.exception("Failed to update VideoRecord %s", record_id)
 
 
+# Serialise pipeline runs so that the module-level key patching is thread-safe.
+# Only one video generation runs at a time.  This is acceptable because the
+# pipeline is CPU/IO-heavy and Railway's single-container model doesn't
+# benefit from parallel builds.
+_pipeline_lock = threading.Lock()
+
+
 def _run_pipeline_sync(
     *,
     topic: str,
@@ -236,7 +244,27 @@ def _run_pipeline_sync(
 
     Uses per-user API keys (BYOK model) and per-user OAuth tokens
     instead of server-level env vars.
+
+    A threading lock ensures only one pipeline runs at a time so that the
+    module-level key patching doesn't collide across concurrent requests.
     """
+    with _pipeline_lock:
+        return _run_pipeline_locked(
+            topic=topic,
+            user_api_keys=user_api_keys,
+            yt_access_token=yt_access_token,
+            yt_refresh_token=yt_refresh_token,
+        )
+
+
+def _run_pipeline_locked(
+    *,
+    topic: str,
+    user_api_keys: dict,
+    yt_access_token: str | None,
+    yt_refresh_token: str | None,
+) -> dict:
+    """Inner pipeline function — runs under ``_pipeline_lock``."""
     # Ensure the top-level project dir is on sys.path so we can import
     # the Phase 1 modules (config, script_generator, etc.)
     project_root = str(Path(__file__).resolve().parent.parent.parent)

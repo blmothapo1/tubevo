@@ -530,9 +530,10 @@ function PlanTab({ plan }) {
   const [error, setError] = useState('');
 
   const plans = [
-    { key: 'free', name: 'Free', price: '$0/mo', features: ['3 videos/month', 'Basic templates', 'Email support'] },
-    { key: 'pro', name: 'Pro', price: '$29/mo', features: ['30 videos/month', 'Custom branding', 'Priority support', 'Analytics'] },
-    { key: 'agency', name: 'Agency', price: '$99/mo', features: ['Unlimited videos', 'Multi-channel', 'API access', 'Dedicated manager'] },
+    { key: 'free', name: 'Free', price: '$0/mo', features: ['1 video/month', 'Basic templates', 'Community support'] },
+    { key: 'starter', name: 'Starter', price: '$29/mo', features: ['10 videos/month', 'All voices', 'Email support', 'Stock footage'] },
+    { key: 'pro', name: 'Pro', price: '$79/mo', features: ['50 videos/month', 'Custom branding', 'Priority support', 'Analytics', 'Auto-scheduling'] },
+    { key: 'agency', name: 'Agency', price: '$199/mo', features: ['Unlimited videos', 'Multi-channel', 'API access', 'Dedicated manager', 'White label'] },
   ];
 
   async function handlePlanAction(planKey) {
@@ -584,7 +585,7 @@ function PlanTab({ plan }) {
           {error}
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {plans.map((p) => (
           <div
             key={p.key}
@@ -636,37 +637,56 @@ function PlanTab({ plan }) {
 
 /* ── API Usage ───────────────────────────────────────────────── */
 function UsageTab() {
-  const used = 12;
-  const limit = 30;
-  const pct = Math.round((used / limit) * 100);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const { data } = await api.get('/api/videos/stats');
+        setStats(data);
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner className="w-6 h-6 text-brand-500" />
+      </div>
+    );
+  }
+
+  const total = stats?.total_generated || 0;
+  const posted = stats?.total_posted || 0;
+  const failed = stats?.total_failed || 0;
+  const pending = stats?.total_pending || 0;
 
   return (
     <div className="space-y-5 max-w-md">
-      <h3 className="text-lg font-medium text-white">API Usage</h3>
+      <h3 className="text-lg font-medium text-white">Usage & Stats</h3>
       <p className="text-sm text-surface-700">
-        Track your video generation usage for the current billing period.
+        Your video generation activity. With BYOK, API costs are billed directly by each provider.
       </p>
 
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-surface-800 font-medium">
-            {used} / {limit} videos
-          </span>
-          <span className="text-xs text-surface-600">{pct}%</span>
-        </div>
-        <div className="w-full h-2.5 bg-surface-300 rounded-full overflow-hidden">
-          <div
-            className="h-full gradient-brand rounded-full transition-all duration-500"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
+      <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-2">
+        <Row label="Total videos generated" value={String(total)} />
+        <Row label="Successfully posted" value={String(posted)} />
+        <Row label="Currently generating" value={String(pending)} />
+        <Row label="Failed" value={String(failed)} />
       </div>
 
-      <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-2">
-        <Row label="Period" value="Jan 1 – Jan 31, 2025" />
-        <Row label="Videos generated" value={String(used)} />
-        <Row label="Plan limit" value={`${limit} videos/month`} />
-        <Row label="Resets in" value="12 days" />
+      <div className="bg-surface-200/50 border border-surface-300 rounded-xl p-4">
+        <p className="text-xs text-surface-600">
+          <strong className="text-surface-700">Bring Your Own Keys:</strong> Since you provide your own
+          API keys, video generation costs are billed directly to your OpenAI, ElevenLabs, and Pexels
+          accounts. A typical video costs roughly $0.05–$0.15 in total API credits.
+        </p>
       </div>
     </div>
   );

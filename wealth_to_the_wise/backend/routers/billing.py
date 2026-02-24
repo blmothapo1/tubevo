@@ -104,9 +104,8 @@ async def stripe_webhook(
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
-    # In production, set STRIPE_WEBHOOK_SECRET in your env
-    # For now, skip signature verification in dev
-    endpoint_secret = None  # TODO: add STRIPE_WEBHOOK_SECRET to config
+    settings = get_settings()
+    endpoint_secret = settings.stripe_webhook_secret or ""
 
     if endpoint_secret:
         try:
@@ -117,10 +116,11 @@ async def stripe_webhook(
     else:
         import json
         event = json.loads(payload)
-        logger.warning("⚠️  Webhook signature verification skipped (no endpoint secret configured)")
+        logger.warning("⚠️  Webhook signature verification skipped (no STRIPE_WEBHOOK_SECRET configured)")
 
     event_type = event.get("type", "")
     data = event.get("data", {}).get("object", {})
+    logger.info("Stripe webhook received: %s", event_type)
 
     if event_type == "checkout.session.completed":
         user_id = data.get("client_reference_id") or data.get("metadata", {}).get("user_id")
@@ -133,17 +133,63 @@ async def stripe_webhook(
                 user.plan = plan
                 db.add(user)
                 logger.info("User %s upgraded to %s plan.", user.email, plan)
+            else:
+                logger.warning("Webhook: user_id %s not found in DB.", user_id)
 
     elif event_type == "customer.subscription.deleted":
-        customer_email = data.get("customer_email")
-        if customer_email:
-            from sqlalchemy import select
-            result = await db.execute(select(User).where(User.email == customer_email))
-            user = result.scalar_one_or_none()
-            if user:
-                user.plan = "free"
-                db.add(user)
-                logger.info("User %s downgraded to free (subscription cancelled).", user.email)
+        # Subscription cancelled — look up user via the Stripe customer ID
+        customer_id = data.get("customer")
+        if customer_id:
+            try:
+                customer = stripe.Customer.retrieve(customer_id)
+                customer_email = customer.get("email")
+            except Exception as e:
+                logger.error("Failed to retrieve Stripe customer %s: %s", customer_id, e)
+                customer_email = None
+
+            if customer_email:
+                from sqlalchemy import select
+                result = await db.execute(select(User).where(User.email == customer_email))
+                user = result.scalar_one_or_none()
+                if user:
+                    user.plan = "free"
+                    db.add(user)
+                    logger.info("User %s downgraded to free (subscription cancelled).", user.email)
+
+    elif event_type == "customer.subscription.updated":
+        # Handle plan changes (upgrade/downgrade) via the portal
+        customer_id = data.get("customer")
+        status = data.get("status")
+        if customer_id and status == "active":
+            # Determine the new plan from the price ID
+            items = data.get("items", {}).get("data", [])
+            price_id = items[0]["price"]["id"] if items else None
+            if price_id:
+                # Reverse-lookup the plan name from the price ID
+                plan_name = None
+                for pname, pid in PLAN_PRICE_MAP.items():
+                    if pid == price_id:
+                        plan_name = pname
+                        break
+                if plan_name:
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.get("email")
+                    except Exception:
+                        customer_email = None
+                    if customer_email:
+                        from sqlalchemy import select
+                        result = await db.execute(select(User).where(User.email == customer_email))
+                        user = result.scalar_one_or_none()
+                        if user:
+                            user.plan = plan_name
+                            db.add(user)
+                            logger.info("User %s changed plan to %s.", user.email, plan_name)
+
+    elif event_type == "invoice.payment_failed":
+        customer_id = data.get("customer")
+        if customer_id:
+            logger.warning("Payment failed for Stripe customer %s.", customer_id)
 
     return JSONResponse(content={"received": True})
 

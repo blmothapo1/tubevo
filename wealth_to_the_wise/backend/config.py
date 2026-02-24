@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     # ── Stripe ───────────────────────────────────────────────────────
     stripe_publishable_key: str = Field(default="", repr=False)
     stripe_secret_key: str = Field(default="", repr=False)
+    stripe_webhook_secret: str = Field(default="", repr=False)
 
     # ── YouTube / Google OAuth (Phase 2 per-user) ────────────────────
     google_client_id: str = Field(default="", repr=False)
