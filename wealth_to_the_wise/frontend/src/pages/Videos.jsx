@@ -130,6 +130,8 @@ export default function Videos() {
       const detail = err.response?.data?.detail;
       if (err.response?.status === 429) {
         setMessage({ type: 'error', text: 'Rate limit reached. Try again later.' });
+      } else if (err.response?.status === 403) {
+        setMessage({ type: 'error', text: detail || 'You have reached your plan limit this month.' });
       } else {
         setMessage({ type: 'error', text: detail || 'Generation failed.' });
       }

@@ -666,6 +666,10 @@ function UsageTab() {
   const posted = stats?.total_posted || 0;
   const failed = stats?.total_failed || 0;
   const pending = stats?.total_pending || 0;
+  const monthlyUsed = stats?.monthly_used || 0;
+  const monthlyLimit = stats?.monthly_limit || 1;
+  const plan = stats?.plan || 'free';
+  const usagePct = Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100));
 
   return (
     <div className="space-y-5 max-w-md">
@@ -673,6 +677,25 @@ function UsageTab() {
       <p className="text-sm text-surface-700">
         Your video generation activity. With BYOK, API costs are billed directly by each provider.
       </p>
+
+      {/* Monthly quota progress */}
+      <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-surface-700">Monthly Quota ({plan.charAt(0).toUpperCase() + plan.slice(1)})</span>
+          <span className="text-xs text-surface-800 font-medium">{monthlyUsed} / {monthlyLimit >= 999_999 ? '∞' : monthlyLimit}</span>
+        </div>
+        <div className="w-full bg-surface-400 rounded-full h-2">
+          <div
+            className={`h-2 rounded-full transition-all ${usagePct >= 90 ? 'bg-red-500' : usagePct >= 70 ? 'bg-amber-500' : 'bg-brand-500'}`}
+            style={{ width: `${monthlyLimit >= 999_999 ? 5 : usagePct}%` }}
+          />
+        </div>
+        {usagePct >= 90 && monthlyLimit < 999_999 && (
+          <p className="text-xs text-amber-400">
+            You're approaching your monthly limit. Consider upgrading your plan.
+          </p>
+        )}
+      </div>
 
       <div className="bg-surface-200 border border-surface-300 rounded-xl p-4 space-y-2">
         <Row label="Total videos generated" value={String(total)} />

@@ -90,6 +90,11 @@ export default function Dashboard() {
     { label: 'In Progress', value: stats?.total_pending ?? 0, icon: CalendarClock, color: 'text-amber-400', border: 'border-l-amber-500' },
   ];
 
+  const monthlyUsed = stats?.monthly_used ?? 0;
+  const monthlyLimit = stats?.monthly_limit ?? 1;
+  const plan = stats?.plan ?? 'free';
+  const usagePct = Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100));
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       {/* Header */}
@@ -137,6 +142,24 @@ export default function Dashboard() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Monthly Quota */}
+      <div className="bg-surface-100 border border-surface-300 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-surface-600 uppercase tracking-wider">
+            Monthly Quota ({plan.charAt(0).toUpperCase() + plan.slice(1)} Plan)
+          </span>
+          <span className="text-sm font-semibold text-white">
+            {monthlyUsed} / {monthlyLimit >= 999_999 ? '∞' : monthlyLimit}
+          </span>
+        </div>
+        <div className="w-full bg-surface-400 rounded-full h-2">
+          <div
+            className={`h-2 rounded-full transition-all ${usagePct >= 90 ? 'bg-red-500' : usagePct >= 70 ? 'bg-amber-500' : 'bg-brand-500'}`}
+            style={{ width: `${monthlyLimit >= 999_999 ? 3 : usagePct}%` }}
+          />
+        </div>
       </div>
 
       {/* Automation Status Banner */}

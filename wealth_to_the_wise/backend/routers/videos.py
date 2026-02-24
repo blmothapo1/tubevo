@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
 from backend.database import async_session_factory, get_db
+from backend.encryption import decrypt
 from backend.models import OAuthToken, User, UserApiKeys, VideoRecord
 from backend.rate_limit import limiter
 
@@ -45,6 +46,14 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 PIPELINE_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
 # If a record has been "generating" for longer than this, mark it failed.
 STALE_JOB_MINUTES = 15
+
+# ── Plan-based monthly video limits ─────────────────────────────────
+PLAN_MONTHLY_LIMITS: dict[str, int] = {
+    "free": 1,
+    "starter": 10,
+    "pro": 50,
+    "agency": 999_999,   # effectively unlimited
+}
 
 
 # ── Schemas ──────────────────────────────────────────────────────────
@@ -80,6 +89,9 @@ class VideoStats(BaseModel):
     total_posted: int
     total_failed: int
     total_pending: int
+    monthly_used: int = 0
+    monthly_limit: int = 1
+    plan: str = "free"
 
 
 # ── POST /api/videos/generate ────────────────────────────────────────
@@ -107,24 +119,32 @@ async def generate_video(
     )
     user_keys = keys_result.scalar_one_or_none()
 
-    if not user_keys or not user_keys.openai_api_key:
+    # Decrypt stored keys (encrypted at rest via Fernet)
+    openai_key = decrypt(user_keys.openai_api_key) if user_keys and user_keys.openai_api_key else ""
+    elevenlabs_key = decrypt(user_keys.elevenlabs_api_key) if user_keys and user_keys.elevenlabs_api_key else ""
+    pexels_key = decrypt(user_keys.pexels_api_key) if user_keys and user_keys.pexels_api_key else ""
+
+    if not openai_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Please add your OpenAI API key in Settings → API Keys before generating videos.",
         )
-    if not user_keys.elevenlabs_api_key:
+    if not elevenlabs_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Please add your ElevenLabs API key in Settings → API Keys before generating videos.",
         )
 
-    # Pack the user's keys for the pipeline
+    # Pack the user's decrypted keys for the pipeline
     user_api_keys = {
-        "openai_api_key": user_keys.openai_api_key,
-        "elevenlabs_api_key": user_keys.elevenlabs_api_key,
-        "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "",
-        "pexels_api_key": user_keys.pexels_api_key or "",
+        "openai_api_key": openai_key,
+        "elevenlabs_api_key": elevenlabs_key,
+        "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
+        "pexels_api_key": pexels_key,
     }
+
+    # ── Enforce plan-based monthly video limits ──────────────────────
+    await _enforce_plan_limit(current_user, db)
 
     # ── Fetch the user's YouTube OAuth tokens (needed for upload) ────
     result = await db.execute(
@@ -245,6 +265,37 @@ async def _run_pipeline_background(
             logger.info("Updated VideoRecord %s → status=%s", record_id, row.status)
     except Exception:
         logger.exception("Failed to update VideoRecord %s after pipeline", record_id)
+
+
+# ── Plan-based limit enforcement ─────────────────────────────────────
+
+async def _enforce_plan_limit(user: User, db: AsyncSession) -> None:
+    """Raise HTTP 403 if the user has exhausted their monthly video quota."""
+    plan = user.plan or "free"
+    limit = PLAN_MONTHLY_LIMITS.get(plan, PLAN_MONTHLY_LIMITS["free"])
+
+    # Count videos created this calendar month (regardless of status)
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    count_stmt = (
+        select(func.count())
+        .select_from(VideoRecord)
+        .where(
+            VideoRecord.user_id == user.id,
+            VideoRecord.created_at >= month_start,
+        )
+    )
+    count = (await db.execute(count_stmt)).scalar() or 0
+
+    if count >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"You've reached your {plan.title()} plan limit of {limit} video(s) this month. "
+                "Upgrade your plan in Settings → Plan to generate more."
+            ),
+        )
 
 
 # ── Stale job cleanup helper ─────────────────────────────────────────
@@ -609,9 +660,27 @@ async def video_stats(
         base.where(VideoRecord.status.in_(["pending", "generating"]))
     )).scalar() or 0
 
+    # Monthly usage for plan limit display
+    plan = current_user.plan or "free"
+    limit = PLAN_MONTHLY_LIMITS.get(plan, PLAN_MONTHLY_LIMITS["free"])
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_stmt = (
+        select(func.count())
+        .select_from(VideoRecord)
+        .where(
+            VideoRecord.user_id == current_user.id,
+            VideoRecord.created_at >= month_start,
+        )
+    )
+    monthly_used = (await db.execute(monthly_stmt)).scalar() or 0
+
     return VideoStats(
         total_generated=total,
         total_posted=posted,
         total_failed=failed,
         total_pending=pending,
+        monthly_used=monthly_used,
+        monthly_limit=limit,
+        plan=plan,
     )

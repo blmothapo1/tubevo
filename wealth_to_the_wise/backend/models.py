@@ -49,6 +49,9 @@ class User(Base):
 
     # ── Billing / plan (Item 6 will expand) ──────────────────────────
     plan: Mapped[str] = mapped_column(String(20), default="free")
+    stripe_customer_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, unique=True, index=True,
+    )
 
     # ── Password-reset token ─────────────────────────────────────────
     reset_token: Mapped[str | None] = mapped_column(String(64), nullable=True)

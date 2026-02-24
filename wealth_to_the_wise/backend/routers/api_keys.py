@@ -4,7 +4,7 @@ User API Keys router — /api/keys
 
 BYOK (Bring Your Own Keys) model: users supply their own OpenAI,
 ElevenLabs, and Pexels API keys.  Keys are stored per-user in the DB
-and used by the video pipeline at generation time.
+**encrypted at rest** and used by the video pipeline at generation time.
 
 Endpoints
 ---------
@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
 from backend.database import get_db
+from backend.encryption import decrypt, encrypt
 from backend.models import User, UserApiKeys
 from backend.rate_limit import limiter
 from backend.schemas import (
@@ -36,13 +37,23 @@ logger = logging.getLogger("tubevo.backend.api_keys")
 router = APIRouter(prefix="/api/keys", tags=["API Keys"])
 
 
-def _mask_key(key: str | None) -> str | None:
-    """Return last 4 characters of a key for display, or None."""
-    if not key:
+def _mask_key(encrypted_key: str | None) -> str | None:
+    """Decrypt a stored key, then return only the last 4 characters for display."""
+    if not encrypted_key:
         return None
-    if len(key) <= 4:
+    plaintext = decrypt(encrypted_key)
+    if not plaintext:
+        return None
+    if len(plaintext) <= 4:
         return "••••"
-    return f"••••{key[-4:]}"
+    return f"••••{plaintext[-4:]}"
+
+
+def _has_key(encrypted_key: str | None) -> bool:
+    """Return True if the stored (encrypted) value decrypts to a non-empty string."""
+    if not encrypted_key:
+        return False
+    return bool(decrypt(encrypted_key))
 
 
 # ── GET /api/keys ────────────────────────────────────────────────────
@@ -66,9 +77,9 @@ async def get_api_keys(
         )
 
     return UserApiKeysResponse(
-        has_openai_key=bool(keys.openai_api_key),
-        has_elevenlabs_key=bool(keys.elevenlabs_api_key),
-        has_pexels_key=bool(keys.pexels_api_key),
+        has_openai_key=_has_key(keys.openai_api_key),
+        has_elevenlabs_key=_has_key(keys.elevenlabs_api_key),
+        has_pexels_key=_has_key(keys.pexels_api_key),
         elevenlabs_voice_id=keys.elevenlabs_voice_id,
         openai_key_hint=_mask_key(keys.openai_api_key),
         elevenlabs_key_hint=_mask_key(keys.elevenlabs_api_key),
@@ -88,6 +99,7 @@ async def update_api_keys(
 ) -> UserApiKeysResponse:
     """Create or update the user's API keys.
 
+    Keys are encrypted with Fernet before storage.
     Only non-None fields in the request body are updated.
     Send an empty string to clear a key.
     """
@@ -100,25 +112,25 @@ async def update_api_keys(
         keys = UserApiKeys(user_id=current_user.id)
         db.add(keys)
 
-    # Update only provided fields
+    # Update only provided fields — encrypt before storing
     if body.openai_api_key is not None:
-        keys.openai_api_key = body.openai_api_key or None
+        keys.openai_api_key = encrypt(body.openai_api_key) if body.openai_api_key else None
     if body.elevenlabs_api_key is not None:
-        keys.elevenlabs_api_key = body.elevenlabs_api_key or None
+        keys.elevenlabs_api_key = encrypt(body.elevenlabs_api_key) if body.elevenlabs_api_key else None
     if body.elevenlabs_voice_id is not None:
-        keys.elevenlabs_voice_id = body.elevenlabs_voice_id or None
+        keys.elevenlabs_voice_id = body.elevenlabs_voice_id or None  # voice_id is not secret
     if body.pexels_api_key is not None:
-        keys.pexels_api_key = body.pexels_api_key or None
+        keys.pexels_api_key = encrypt(body.pexels_api_key) if body.pexels_api_key else None
 
     await db.flush()
     await db.refresh(keys)
 
-    logger.info("User %s updated API keys.", current_user.email)
+    logger.info("User %s updated API keys (encrypted at rest).", current_user.email)
 
     return UserApiKeysResponse(
-        has_openai_key=bool(keys.openai_api_key),
-        has_elevenlabs_key=bool(keys.elevenlabs_api_key),
-        has_pexels_key=bool(keys.pexels_api_key),
+        has_openai_key=_has_key(keys.openai_api_key),
+        has_elevenlabs_key=_has_key(keys.elevenlabs_api_key),
+        has_pexels_key=_has_key(keys.pexels_api_key),
         elevenlabs_voice_id=keys.elevenlabs_voice_id,
         openai_key_hint=_mask_key(keys.openai_api_key),
         elevenlabs_key_hint=_mask_key(keys.elevenlabs_api_key),

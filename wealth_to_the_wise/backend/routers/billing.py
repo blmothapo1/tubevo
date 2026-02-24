@@ -125,42 +125,39 @@ async def stripe_webhook(
     if event_type == "checkout.session.completed":
         user_id = data.get("client_reference_id") or data.get("metadata", {}).get("user_id")
         plan = data.get("metadata", {}).get("plan", "pro")
+        customer_id = data.get("customer")
         if user_id:
             from sqlalchemy import select
             result = await db.execute(select(User).where(User.id == user_id))
             user = result.scalar_one_or_none()
             if user:
                 user.plan = plan
+                # Store the Stripe customer ID for future webhook lookups
+                if customer_id:
+                    user.stripe_customer_id = customer_id
                 db.add(user)
-                logger.info("User %s upgraded to %s plan.", user.email, plan)
+                await db.commit()
+                logger.info("User %s upgraded to %s plan (stripe_customer=%s).", user.email, plan, customer_id)
             else:
                 logger.warning("Webhook: user_id %s not found in DB.", user_id)
 
     elif event_type == "customer.subscription.deleted":
-        # Subscription cancelled — look up user via the Stripe customer ID
+        # Subscription cancelled — look up user via stored Stripe customer ID
         customer_id = data.get("customer")
-        if customer_id:
-            try:
-                customer = stripe.Customer.retrieve(customer_id)
-                customer_email = customer.get("email")
-            except Exception as e:
-                logger.error("Failed to retrieve Stripe customer %s: %s", customer_id, e)
-                customer_email = None
-
-            if customer_email:
-                from sqlalchemy import select
-                result = await db.execute(select(User).where(User.email == customer_email))
-                user = result.scalar_one_or_none()
-                if user:
-                    user.plan = "free"
-                    db.add(user)
-                    logger.info("User %s downgraded to free (subscription cancelled).", user.email)
+        user = await _find_user_by_customer_id(db, customer_id)
+        if user:
+            user.plan = "free"
+            db.add(user)
+            await db.commit()
+            logger.info("User %s downgraded to free (subscription cancelled).", user.email)
+        else:
+            logger.warning("Webhook subscription.deleted: no user found for customer %s", customer_id)
 
     elif event_type == "customer.subscription.updated":
         # Handle plan changes (upgrade/downgrade) via the portal
         customer_id = data.get("customer")
-        status = data.get("status")
-        if customer_id and status == "active":
+        sub_status = data.get("status")
+        if customer_id and sub_status == "active":
             # Determine the new plan from the price ID
             items = data.get("items", {}).get("data", [])
             price_id = items[0]["price"]["id"] if items else None
@@ -172,19 +169,12 @@ async def stripe_webhook(
                         plan_name = pname
                         break
                 if plan_name:
-                    try:
-                        customer = stripe.Customer.retrieve(customer_id)
-                        customer_email = customer.get("email")
-                    except Exception:
-                        customer_email = None
-                    if customer_email:
-                        from sqlalchemy import select
-                        result = await db.execute(select(User).where(User.email == customer_email))
-                        user = result.scalar_one_or_none()
-                        if user:
-                            user.plan = plan_name
-                            db.add(user)
-                            logger.info("User %s changed plan to %s.", user.email, plan_name)
+                    user = await _find_user_by_customer_id(db, customer_id)
+                    if user:
+                        user.plan = plan_name
+                        db.add(user)
+                        await db.commit()
+                        logger.info("User %s changed plan to %s.", user.email, plan_name)
 
     elif event_type == "invoice.payment_failed":
         customer_id = data.get("customer")
@@ -192,6 +182,46 @@ async def stripe_webhook(
             logger.warning("Payment failed for Stripe customer %s.", customer_id)
 
     return JSONResponse(content={"received": True})
+
+
+async def _find_user_by_customer_id(db: AsyncSession, customer_id: str | None) -> User | None:
+    """Look up a user by their stored Stripe customer ID.
+
+    Falls back to email lookup via the Stripe API if the customer ID
+    isn't stored yet (backwards compat for pre-migration users).
+    """
+    if not customer_id:
+        return None
+
+    from sqlalchemy import select
+
+    # Primary lookup: by stored stripe_customer_id
+    result = await db.execute(
+        select(User).where(User.stripe_customer_id == customer_id)
+    )
+    user = result.scalar_one_or_none()
+    if user:
+        return user
+
+    # Fallback: resolve email via Stripe API, then look up by email
+    try:
+        customer = stripe.Customer.retrieve(customer_id)
+        customer_email = customer.get("email")
+    except Exception as e:
+        logger.error("Failed to retrieve Stripe customer %s: %s", customer_id, e)
+        return None
+
+    if not customer_email:
+        return None
+
+    result = await db.execute(select(User).where(User.email == customer_email))
+    user = result.scalar_one_or_none()
+    if user:
+        # Backfill the stripe_customer_id for future lookups
+        user.stripe_customer_id = customer_id
+        db.add(user)
+        logger.info("Backfilled stripe_customer_id for user %s", user.email)
+    return user
 
 
 # ── GET /billing/portal ──────────────────────────────────────────────
@@ -204,13 +234,16 @@ async def customer_portal(
     _get_stripe()
     settings = get_settings()
 
-    # Find the Stripe customer by email
-    customers = stripe.Customer.list(email=current_user.email, limit=1)
-    if not customers.data:
-        raise HTTPException(status_code=404, detail="No billing account found. Please subscribe first.")
+    # Use stored customer ID if available, otherwise search by email
+    customer_id = current_user.stripe_customer_id
+    if not customer_id:
+        customers = stripe.Customer.list(email=current_user.email, limit=1)
+        if not customers.data:
+            raise HTTPException(status_code=404, detail="No billing account found. Please subscribe first.")
+        customer_id = customers.data[0].id
 
     session = stripe.billing_portal.Session.create(
-        customer=customers.data[0].id,
+        customer=customer_id,
         return_url=f"{settings.cors_origins.split(',')[0].strip()}/settings",
     )
 
