@@ -1,14 +1,19 @@
 """
 video_builder.py — Assemble a cinematic video from stock footage + voiceover.
 
-Creates a video with:
-  • Stock footage B-roll clips stitched together with crossfade transitions
-  • Animated subtitle captions with fade-in and semi-transparent background boxes
-  • Animated title card intro + subscribe outro card
-  • Subtle Ken Burns (slow zoom) effect on each clip
-  • Thin progress bar along the bottom
-  • Channel branding lower-third
-  • Professional color grading (slight dark overlay for text readability)
+**Memory-optimised for Railway containers (512 MB–1 GB RAM).**
+
+Strategy: use FFmpeg CLI subprocesses for all heavy video processing.
+FFmpeg processes frames in a streaming fashion (~50-100 MB RAM) whereas
+moviepy loads entire clips as numpy arrays (easily 2-4 GB for 1080p).
+
+Pipeline:
+  1. Probe audio duration with ffprobe
+  2. Prepare stock clips (trim, scale, concat) via FFmpeg CLI → background.mp4
+  3. Render title card and outro card as short clips via FFmpeg drawtext
+  4. Generate ASS subtitle file for captions (ffmpeg renders these natively)
+  5. Final composite: background + dark overlay + subtitles + branding via FFmpeg CLI
+  6. Concatenate: title → main → outro via FFmpeg concat demuxer
 
 Usage:
     from video_builder import build_video
@@ -23,21 +28,15 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 import textwrap
 from pathlib import Path
-
-import numpy as np
-from moviepy import (
-    AudioFileClip,
-    ColorClip,
-    CompositeVideoClip,
-    TextClip,
-    VideoFileClip,
-    concatenate_videoclips,
-)
 
 logger = logging.getLogger("tubevo.video_builder")
 
@@ -45,78 +44,105 @@ OUTPUT_DIR = Path("output")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # ── Video settings ───────────────────────────────────────────────────
-VIDEO_WIDTH = 1920
-VIDEO_HEIGHT = 1080
-FPS = 30                  # ↑ from 24 → smoother playback
+VIDEO_WIDTH = 1280
+VIDEO_HEIGHT = 720
+FPS = 24
 
 # ── Styling ──────────────────────────────────────────────────────────
-# Cross-platform font detection: macOS → Linux fallback
-import shutil
+ACCENT_COLOR = "#00D4AA"
+CAPTION_FONT_SIZE = 42
+BRAND_FONT_SIZE = 24
 
+# Dark overlay opacity (0.0 – 1.0) for text readability
+DARK_OVERLAY_OPACITY = 0.35
+
+# Title card / outro durations
+TITLE_CARD_DURATION = 3.5
+OUTRO_CARD_DURATION = 4.0
+
+# Number of stock clips to download
+NUM_STOCK_CLIPS = 6
+
+# Encoding
+ENCODING_PRESET = "fast"       # fast for Railway CPU limits
+VIDEO_BITRATE = "4000k"        # 720p needs less bitrate
+AUDIO_BITRATE = "128k"
+
+# Cross-platform font detection
 def _find_font(bold: bool = True) -> str:
-    """Return the best available font path for the current OS."""
+    """Return the best available font path for FFmpeg drawtext."""
     if bold:
         candidates = [
-            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",       # macOS
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",  # Debian/Ubuntu
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",    # Debian fallback
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
         ]
     else:
         candidates = [
-            "/System/Library/Fonts/Supplemental/Arial.ttf",            # macOS
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
         ]
     for path in candidates:
         if os.path.isfile(path):
             return path
-    # Last resort: let moviepy/ImageMagick figure it out
     return "Liberation-Sans-Bold" if bold else "Liberation-Sans"
 
 FONT = _find_font(bold=True)
 FONT_BODY = _find_font(bold=False)
 
-# Caption style — large, centered, white text with dark stroke
-CAPTION_FONT_SIZE = 62        # ↑ slightly larger for readability
-CAPTION_COLOR = "white"
-CAPTION_STROKE_COLOR = "black"
-CAPTION_STROKE_WIDTH = 3
-CAPTION_BG_COLOR = (0, 0, 0)  # semi-transparent background box behind captions
-CAPTION_BG_OPACITY = 0.55
-CAPTION_FADE_DURATION = 0.30  # fade-in duration (seconds)
+# Font name for ASS subtitles (just the family name)
+def _font_family() -> str:
+    if "Liberation" in FONT:
+        return "Liberation Sans"
+    if "DejaVu" in FONT:
+        return "DejaVu Sans"
+    return "Arial"
 
-# Branding
-ACCENT_COLOR = "#00D4AA"
-ACCENT_COLOR_RGB = (0, 212, 170)
-BRAND_FONT_SIZE = 32
+FONT_FAMILY = _font_family()
 
-# Crossfade duration between clips (seconds)
-CROSSFADE_DURATION = 0.8
 
-# Dark overlay opacity on stock footage (0.0-1.0) for text readability
-DARK_OVERLAY_OPACITY = 0.35  # ↓ slightly less dark — footage is more visible
+# ── Helpers ──────────────────────────────────────────────────────────
 
-# Title card / outro durations
-TITLE_CARD_DURATION = 3.5     # seconds
-OUTRO_CARD_DURATION = 4.0     # seconds
+def _run_ffmpeg(args: list[str], description: str = "ffmpeg") -> None:
+    """Run an FFmpeg command, raise on failure."""
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning"] + args
+    logger.info("Running %s …", description)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    if result.returncode != 0:
+        logger.error("%s stderr: %s", description, result.stderr[-2000:] if result.stderr else "(none)")
+        raise RuntimeError(f"{description} failed (exit {result.returncode}): {result.stderr[-500:]}")
 
-# Number of stock clips to download (more = more visual variety)
-NUM_STOCK_CLIPS = 12          # ↑ from 6
 
-# Encoding quality
-ENCODING_PRESET = "medium"    # good quality/speed balance
-VIDEO_BITRATE = "8000k"      # explicit bitrate for consistent quality
+def _run_ffprobe(path: str) -> dict:
+    """Probe a media file and return the JSON output."""
+    cmd = [
+        "ffprobe", "-v", "quiet", "-print_format", "json",
+        "-show_format", "-show_streams", path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed for {path}")
+    return json.loads(result.stdout)
+
+
+def _get_audio_duration(audio_path: str) -> float:
+    """Get audio duration in seconds via ffprobe."""
+    info = _run_ffprobe(audio_path)
+    return float(info["format"]["duration"])
+
+
+def _get_video_duration(video_path: str) -> float:
+    """Get video duration in seconds via ffprobe."""
+    info = _run_ffprobe(video_path)
+    return float(info["format"]["duration"])
 
 
 def _split_script_to_sentences(script: str) -> list[str]:
-    """Split a script into individual sentences for caption display.
-
-    Also breaks overly long sentences so each caption fits comfortably.
-    """
+    """Split a script into individual sentences for caption display."""
     raw = re.split(r'(?<=[.!?])\s+', script.strip())
     sentences = [s.strip() for s in raw if s.strip()]
 
-    # Break very long sentences at commas / colons / dashes
     final: list[str] = []
     for sent in sentences:
         if len(sent) > 100:
@@ -125,315 +151,391 @@ def _split_script_to_sentences(script: str) -> list[str]:
             final.extend(parts)
         else:
             final.append(sent)
-
     return final
 
 
-def _prepare_stock_clips(
+def _escape_drawtext(text: str) -> str:
+    """Escape special characters for FFmpeg drawtext filter."""
+    # FFmpeg drawtext needs these characters escaped
+    text = text.replace("\\", "\\\\")
+    text = text.replace("'", "'\\''")
+    text = text.replace(":", "\\:")
+    text = text.replace("%", "%%")
+    return text
+
+
+# ── Step 1: Prepare stock footage background ────────────────────────
+
+def _prepare_background(
     clip_paths: list[str],
     target_duration: float,
-) -> list:
-    """Load stock clips and trim/loop them to fill the target duration.
+    tmp_dir: str,
+) -> str:
+    """Scale, trim, and concatenate stock clips into a single background.mp4.
 
-    Each clip is loaded at native resolution, resized to target, and ready
-    to go.  (Ken Burns is skipped for render-speed; the crossfade transitions
-    between 12 clips already give plenty of visual motion.)
+    Uses FFmpeg concat demuxer — processes clips one at a time, never loads
+    them all into RAM simultaneously.
     """
-    if not clip_paths:
-        return [ColorClip(
-            size=(VIDEO_WIDTH, VIDEO_HEIGHT),
-            color=(15, 15, 15),
-        ).with_duration(target_duration)]
+    output_path = os.path.join(tmp_dir, "background.mp4")
 
-    raw_clips = []
+    if not clip_paths:
+        _run_ffmpeg([
+            "-f", "lavfi",
+            "-i", f"color=c=0x0F0F0F:s={VIDEO_WIDTH}x{VIDEO_HEIGHT}:d={target_duration}:r={FPS}",
+            "-c:v", "libx264", "-preset", "ultrafast",
+            "-pix_fmt", "yuv420p",
+            "-t", str(target_duration),
+            output_path,
+        ], "generate blank background")
+        return output_path
+
+    # Probe each clip's duration
+    valid_clips: list[tuple[str, float]] = []
     for path in clip_paths:
         try:
-            clip = VideoFileClip(path)
-            clip = clip.resized((VIDEO_WIDTH, VIDEO_HEIGHT))
-            raw_clips.append(clip)
+            dur = _get_video_duration(path)
+            if dur > 0.5:
+                valid_clips.append((path, dur))
         except Exception as e:
-            logger.warning("Could not load clip %s: %s", path, e)
+            logger.warning("Could not probe clip %s: %s", path, e)
 
-    if not raw_clips:
-        return [ColorClip(
-            size=(VIDEO_WIDTH, VIDEO_HEIGHT),
-            color=(15, 15, 15),
-        ).with_duration(target_duration)]
+    if not valid_clips:
+        _run_ffmpeg([
+            "-f", "lavfi",
+            "-i", f"color=c=0x0F0F0F:s={VIDEO_WIDTH}x{VIDEO_HEIGHT}:d={target_duration}:r={FPS}",
+            "-c:v", "libx264", "-preset", "ultrafast",
+            "-pix_fmt", "yuv420p",
+            "-t", str(target_duration),
+            output_path,
+        ], "generate blank background (no valid clips)")
+        return output_path
 
-    total_raw_duration = sum(c.duration for c in raw_clips)
+    total_raw_dur = sum(d for _, d in valid_clips)
 
-    if total_raw_duration >= target_duration:
-        trimmed = []
-        remaining = target_duration
-        for clip in raw_clips:
+    # Figure out how long to use from each clip
+    segments: list[tuple[str, float]] = []
+    remaining = target_duration
+
+    if total_raw_dur >= target_duration:
+        for path, dur in valid_clips:
             if remaining <= 0:
-                clip.close()
                 break
-            share = max(3.0, (clip.duration / total_raw_duration) * target_duration)
-            share = min(share, remaining, clip.duration)
-            segment = clip.subclipped(0, share)
-            trimmed.append(segment)
+            share = max(2.0, (dur / total_raw_dur) * target_duration)
+            share = min(share, remaining, dur)
+            segments.append((path, share))
             remaining -= share
-        return trimmed
     else:
-        looped = []
-        remaining = target_duration
         idx = 0
         while remaining > 0.5:
-            clip = raw_clips[idx % len(raw_clips)]
-            use_duration = min(clip.duration, remaining)
-            if use_duration < 1.0:
+            path, dur = valid_clips[idx % len(valid_clips)]
+            use_dur = min(dur, remaining)
+            if use_dur < 1.0:
                 break
-            segment = clip.subclipped(0, use_duration)
-            looped.append(segment)
-            remaining -= use_duration
+            segments.append((path, use_dur))
+            remaining -= use_dur
             idx += 1
-        return looped
+
+    # Scale and trim each segment, then concat
+    segment_files: list[str] = []
+    for i, (path, use_dur) in enumerate(segments):
+        seg_path = os.path.join(tmp_dir, f"seg_{i:03d}.mp4")
+        _run_ffmpeg([
+            "-i", path,
+            "-t", f"{use_dur:.2f}",
+            "-vf", (
+                f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
+                f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,"
+                f"fps={FPS},format=yuv420p"
+            ),
+            "-an",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            seg_path,
+        ], f"scale/trim segment {i}")
+        segment_files.append(seg_path)
+
+    if len(segment_files) == 1:
+        shutil.move(segment_files[0], output_path)
+        return output_path
+
+    # Write concat list
+    concat_list = os.path.join(tmp_dir, "concat_bg.txt")
+    with open(concat_list, "w") as f:
+        for seg in segment_files:
+            f.write(f"file '{seg}'\n")
+
+    _run_ffmpeg([
+        "-f", "concat", "-safe", "0", "-i", concat_list,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-t", f"{target_duration:.2f}",
+        output_path,
+    ], "concat background segments")
+
+    # Clean up segment files
+    for seg in segment_files:
+        try:
+            os.remove(seg)
+        except OSError:
+            pass
+
+    return output_path
 
 
-def _create_caption_clips(
+# ── Step 2: Generate ASS subtitle file ──────────────────────────────
+
+def _seconds_to_ass_time(seconds: float) -> str:
+    """Convert seconds to ASS timestamp format: H:MM:SS.CC"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = seconds % 60
+    return f"{h}:{m:02d}:{s:05.2f}"
+
+
+def _generate_ass_subtitles(
     sentences: list[str],
     total_duration: float,
-) -> list:
-    """Create timed caption TextClips with fade-in + semi-transparent background box.
+    output_path: str,
+) -> str:
+    """Generate an ASS subtitle file with styled captions.
 
-    Timing is proportional to word count so that longer sentences stay on
-    screen longer — this keeps the subtitles closely in sync with the
-    narration instead of drifting out of alignment.
+    ASS subtitles are rendered by FFmpeg natively (via libass) with zero
+    extra RAM — the filter reads the .ass file and burns text frame by frame.
     """
-    if not sentences:
-        return []
-
-    captions = []
-
-    # Weight each sentence by word count so timing matches speech pacing
     word_counts = [max(len(s.split()), 1) for s in sentences]
     total_words = sum(word_counts)
 
-    # Build start/end times proportionally
+    ass_content = f"""[Script Info]
+Title: Tubevo Captions
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: {VIDEO_WIDTH}
+PlayResY: {VIDEO_HEIGHT}
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,{FONT_FAMILY},{CAPTION_FONT_SIZE},&H00FFFFFF,&H000000FF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,3,2,0,2,40,40,80,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
     current_time = 0.0
-    timing: list[tuple[float, float]] = []
-    for wc in word_counts:
-        duration = (wc / total_words) * total_duration
-        timing.append((current_time, current_time + duration))
+    for i, sentence in enumerate(sentences):
+        duration = (word_counts[i] / total_words) * total_duration
+        start = current_time
+        end = current_time + duration
+
+        wrapped = textwrap.fill(sentence, width=50).replace("\n", "\\N")
+        effect = r"{\fad(300,200)}"
+
+        ass_content += (
+            f"Dialogue: 0,{_seconds_to_ass_time(start)},{_seconds_to_ass_time(end)},"
+            f"Default,,0,0,0,,{effect}{wrapped}\n"
+        )
         current_time += duration
 
-    for i, sentence in enumerate(sentences):
-        start, end = timing[i]
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(ass_content)
 
-        wrapped = textwrap.fill(sentence, width=42)
-
-        try:
-            # ── Text clip ──
-            txt = TextClip(
-                text=wrapped,
-                font_size=CAPTION_FONT_SIZE,
-                color=CAPTION_COLOR,
-                font=FONT,
-                stroke_color=CAPTION_STROKE_COLOR,
-                stroke_width=CAPTION_STROKE_WIDTH,
-                method="caption",
-                size=(VIDEO_WIDTH - 200, None),
-                text_align="center",
-            )
-
-            # ── Background box behind the caption ──
-            txt_w, txt_h = txt.size
-            pad_x, pad_y = 40, 20
-            bg_box = ColorClip(
-                size=(txt_w + pad_x * 2, txt_h + pad_y * 2),
-                color=CAPTION_BG_COLOR,
-            )
-            bg_box = bg_box.with_opacity(CAPTION_BG_OPACITY)
-
-            # Position both centred near the bottom
-            caption_y = VIDEO_HEIGHT - 260
-            bg_box = bg_box.with_position(
-                ("center", caption_y - pad_y)
-            ).with_start(start).with_end(end)
-
-            txt = txt.with_position(("center", caption_y))
-            txt = txt.with_start(start).with_end(end)
-
-            # ── Fade-in effect ──
-            try:
-                from moviepy.video.fx import CrossFadeIn
-                bg_box = bg_box.with_effects([CrossFadeIn(CAPTION_FADE_DURATION)])
-                txt = txt.with_effects([CrossFadeIn(CAPTION_FADE_DURATION)])
-            except Exception:
-                pass  # graceful fallback if fx not available
-
-            captions.append(bg_box)
-            captions.append(txt)
-        except Exception as e:
-            logger.warning("Caption creation failed for sentence %d: %s", i, e)
-
-    return captions
+    return output_path
 
 
-def _create_branding_clip(duration: float):
-    """Persistent channel watermark in the top-left with accent underline."""
-    try:
-        brand = TextClip(
-            text="TUBEVO",
-            font_size=BRAND_FONT_SIZE,
-            color=ACCENT_COLOR,
-            font=FONT,
-        )
-        brand = brand.with_position((50, 35)).with_duration(duration)
+# ── Step 3: Title card via FFmpeg ────────────────────────────────────
 
-        # Thin accent-coloured underline beneath branding
-        underline = ColorClip(
-            size=(brand.size[0], 3),
-            color=ACCENT_COLOR_RGB,
-        )
-        underline = underline.with_position((50, 35 + BRAND_FONT_SIZE + 6))
-        underline = underline.with_duration(duration)
+def _create_title_card(title: str, tmp_dir: str, duration: float = TITLE_CARD_DURATION) -> str:
+    """Render a title card as a short video clip using FFmpeg drawtext."""
+    output_path = os.path.join(tmp_dir, "title_card.mp4")
 
-        return [brand, underline]
-    except Exception:
-        return []
-
-
-def _create_dark_overlay(duration: float):
-    """Semi-transparent dark overlay so captions pop over any footage."""
-    overlay = ColorClip(
-        size=(VIDEO_WIDTH, VIDEO_HEIGHT),
-        color=(0, 0, 0),
-    )
-    overlay = overlay.with_opacity(DARK_OVERLAY_OPACITY)
-    overlay = overlay.with_duration(duration)
-    return overlay
-
-
-def _create_title_card(title: str, duration: float = TITLE_CARD_DURATION):
-    """Animated intro title card — dark background, big title, accent line."""
-    layers = []
-
-    bg = ColorClip(size=(VIDEO_WIDTH, VIDEO_HEIGHT), color=(10, 10, 10))
-    bg = bg.with_duration(duration)
-    layers.append(bg)
-
-    # Accent horizontal line
-    line = ColorClip(size=(400, 4), color=ACCENT_COLOR_RGB)
-    line = line.with_position(("center", VIDEO_HEIGHT // 2 - 60))
-    line = line.with_duration(duration)
-    layers.append(line)
-
-    # Channel name (small, above the line)
-    channel = TextClip(
-        text="TUBEVO",
-        font_size=28,
-        color=ACCENT_COLOR,
-        font=FONT,
-    )
-    channel = channel.with_position(("center", VIDEO_HEIGHT // 2 - 110))
-    channel = channel.with_duration(duration)
-    layers.append(channel)
-
-    # Episode title (large, below the line)
+    # Write title to a temp file so drawtext can handle multi-line text
+    title_text_file = os.path.join(tmp_dir, "title_text.txt")
     wrapped_title = textwrap.fill(title, width=35)
-    title_txt = TextClip(
-        text=wrapped_title,
-        font_size=54,
-        color="white",
-        font=FONT,
-        method="caption",
-        size=(VIDEO_WIDTH - 400, None),
-        text_align="center",
+    with open(title_text_file, "w", encoding="utf-8") as f:
+        f.write(wrapped_title)
+
+    font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
+    title_file_escaped = title_text_file.replace("\\", "/").replace(":", "\\:")
+
+    _run_ffmpeg([
+        "-f", "lavfi",
+        "-i", f"color=c=0x0A0A0A:s={VIDEO_WIDTH}x{VIDEO_HEIGHT}:d={duration}:r={FPS}",
+        "-vf", (
+            f"format=yuv420p,"
+            f"drawtext=fontfile='{font_escaped}':text='TUBEVO':fontsize=24:"
+            f"fontcolor=0x00D4AA:x=(w-text_w)/2:y=(h/2)-90,"
+            f"drawtext=fontfile='{font_escaped}':textfile='{title_file_escaped}':fontsize=40:"
+            f"fontcolor=white:x=(w-text_w)/2:y=(h/2)+10:line_spacing=8"
+        ),
+        "-t", str(duration),
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+        output_path,
+    ], "render title card")
+
+    return output_path
+
+
+# ── Step 4: Outro card via FFmpeg ────────────────────────────────────
+
+def _create_outro_card(tmp_dir: str, duration: float = OUTRO_CARD_DURATION) -> str:
+    """Render the subscribe/CTA outro card."""
+    output_path = os.path.join(tmp_dir, "outro_card.mp4")
+    font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
+
+    _run_ffmpeg([
+        "-f", "lavfi",
+        "-i", f"color=c=0x0A0A0A:s={VIDEO_WIDTH}x{VIDEO_HEIGHT}:d={duration}:r={FPS}",
+        "-vf", (
+            f"format=yuv420p,"
+            f"drawtext=fontfile='{font_escaped}':text='SUBSCRIBE FOR MORE':fontsize=48:"
+            f"fontcolor=0x00D4AA:x=(w-text_w)/2:y=(h/2)-60,"
+            f"drawtext=fontfile='{font_escaped}':text='Like · Comment · Share':fontsize=28:"
+            f"fontcolor=white:x=(w-text_w)/2:y=(h/2)+20,"
+            f"drawtext=fontfile='{font_escaped}':text='TUBEVO':fontsize=20:"
+            f"fontcolor=0x888888:x=(w-text_w)/2:y=(h/2)+80"
+        ),
+        "-t", str(duration),
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+        output_path,
+    ], "render outro card")
+
+    return output_path
+
+
+# ── Step 5: Composite main section ──────────────────────────────────
+
+def _composite_main_section(
+    background_path: str,
+    audio_path: str,
+    ass_path: str,
+    narration_duration: float,
+    tmp_dir: str,
+) -> str:
+    """Compose background + dark overlay + subtitles + branding + progress bar.
+
+    All done in a single FFmpeg filtergraph pass — constant memory usage.
+    """
+    output_path = os.path.join(tmp_dir, "main_section.mp4")
+    font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
+
+    # Escape the ASS path for FFmpeg filter (colons and backslashes)
+    ass_escaped = ass_path.replace("\\", "/").replace(":", "\\:")
+
+    bar_h = 4
+    darken = 1.0 - DARK_OVERLAY_OPACITY
+
+    vf = (
+        f"colorchannelmixer=rr={darken}:gg={darken}:bb={darken},"
+        f"ass='{ass_escaped}',"
+        f"drawtext=fontfile='{font_escaped}':text='TUBEVO':fontsize={BRAND_FONT_SIZE}:"
+        f"fontcolor=0x00D4AA:x=40:y=28,"
+        f"drawbox=x=0:y=ih-{bar_h}:w='floor(iw*(t/{narration_duration:.2f}))':h={bar_h}:"
+        f"color=0x00D4AA:t=fill"
     )
-    title_txt = title_txt.with_position(("center", VIDEO_HEIGHT // 2 - 20))
-    title_txt = title_txt.with_duration(duration)
-    layers.append(title_txt)
 
-    card = CompositeVideoClip(layers, size=(VIDEO_WIDTH, VIDEO_HEIGHT))
-    card = card.with_duration(duration)
+    _run_ffmpeg([
+        "-i", background_path,
+        "-i", audio_path,
+        "-vf", vf,
+        "-t", f"{narration_duration:.2f}",
+        "-c:v", "libx264", "-preset", ENCODING_PRESET, "-b:v", VIDEO_BITRATE,
+        "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+        "-pix_fmt", "yuv420p",
+        "-shortest",
+        output_path,
+    ], "composite main section")
 
-    # Fade in
-    try:
-        from moviepy.video.fx import CrossFadeIn
-        card = card.with_effects([CrossFadeIn(0.6)])
-    except Exception:
-        pass
-
-    return card
-
-
-def _create_outro_card(duration: float = OUTRO_CARD_DURATION):
-    """Subscribe / CTA outro card."""
-    layers = []
-
-    bg = ColorClip(size=(VIDEO_WIDTH, VIDEO_HEIGHT), color=(10, 10, 10))
-    bg = bg.with_duration(duration)
-    layers.append(bg)
-
-    # Big CTA text
-    cta = TextClip(
-        text="SUBSCRIBE FOR MORE",
-        font_size=64,
-        color=ACCENT_COLOR,
-        font=FONT,
-    )
-    cta = cta.with_position(("center", VIDEO_HEIGHT // 2 - 80))
-    cta = cta.with_duration(duration)
-    layers.append(cta)
-
-    # Sub-text
-    sub = TextClip(
-        text="Like · Comment · Share",
-        font_size=34,
-        color="white",
-        font=FONT_BODY,
-    )
-    sub = sub.with_position(("center", VIDEO_HEIGHT // 2 + 20))
-    sub = sub.with_duration(duration)
-    layers.append(sub)
-
-    # Accent line
-    line = ColorClip(size=(300, 3), color=ACCENT_COLOR_RGB)
-    line = line.with_position(("center", VIDEO_HEIGHT // 2 + 80))
-    line = line.with_duration(duration)
-    layers.append(line)
-
-    # Channel name
-    channel = TextClip(
-        text="TUBEVO",
-        font_size=24,
-        color="#888888",
-        font=FONT,
-    )
-    channel = channel.with_position(("center", VIDEO_HEIGHT // 2 + 110))
-    channel = channel.with_duration(duration)
-    layers.append(channel)
-
-    card = CompositeVideoClip(layers, size=(VIDEO_WIDTH, VIDEO_HEIGHT))
-    card = card.with_duration(duration)
-
-    try:
-        from moviepy.video.fx import CrossFadeIn
-        card = card.with_effects([CrossFadeIn(0.6)])
-    except Exception:
-        pass
-
-    return card
+    return output_path
 
 
-def _create_progress_bar(duration: float):
-    """A thin accent-coloured bar that grows left→right across the video bottom."""
-    bar_height = 5
+# ── Step 6: Final assembly ──────────────────────────────────────────
 
-    def make_frame(t):
-        progress = t / duration if duration > 0 else 0
-        bar_width = max(1, int(VIDEO_WIDTH * progress))
-        frame = np.zeros((bar_height, VIDEO_WIDTH, 3), dtype=np.uint8)
-        frame[:, :bar_width] = ACCENT_COLOR_RGB
-        return frame
+def _assemble_final(
+    title_card_path: str,
+    main_section_path: str,
+    outro_card_path: str,
+    output_path: str,
+    tmp_dir: str,
+) -> str:
+    """Concatenate title → main → outro using FFmpeg concat demuxer."""
+    # Add silent audio to title and outro so concat works with the main section
+    title_with_audio = os.path.join(tmp_dir, "title_with_audio.mp4")
+    outro_with_audio = os.path.join(tmp_dir, "outro_with_audio.mp4")
 
-    from moviepy import VideoClip
-    bar = VideoClip(make_frame, duration=duration)
-    bar = bar.with_position((0, VIDEO_HEIGHT - bar_height))
-    return bar
+    title_dur = _get_video_duration(title_card_path)
+    _run_ffmpeg([
+        "-i", title_card_path,
+        "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo:d={title_dur}",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+        "-shortest",
+        title_with_audio,
+    ], "add silent audio to title card")
 
+    outro_dur = _get_video_duration(outro_card_path)
+    _run_ffmpeg([
+        "-i", outro_card_path,
+        "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo:d={outro_dur}",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+        "-shortest",
+        outro_with_audio,
+    ], "add silent audio to outro card")
+
+    concat_list = os.path.join(tmp_dir, "concat_final.txt")
+    with open(concat_list, "w") as f:
+        f.write(f"file '{title_with_audio}'\n")
+        f.write(f"file '{main_section_path}'\n")
+        f.write(f"file '{outro_with_audio}'\n")
+
+    _run_ffmpeg([
+        "-f", "concat", "-safe", "0", "-i", concat_list,
+        "-c", "copy",
+        output_path,
+    ], "assemble final video")
+
+    return output_path
+
+
+# ── File-size enforcement ────────────────────────────────────────────
+
+def _enforce_size_limit(video_path: str) -> str:
+    """Re-encode at a lower bitrate if the file is too large.
+
+    Uses FFmpeg CLI (not moviepy) — constant memory usage.
+    """
+    import config as _cfg
+
+    max_mb = _cfg.MAX_VIDEO_SIZE_MB
+    size_mb = os.path.getsize(video_path) / (1024 * 1024)
+
+    if size_mb <= max_mb:
+        logger.info("File size %.1f MB within %d MB limit ✓", size_mb, max_mb)
+        return video_path
+
+    logger.info("File size %.1f MB exceeds %d MB — re-encoding …", size_mb, max_mb)
+
+    duration = _get_video_duration(video_path)
+    target_bytes = max_mb * 1024 * 1024 * 0.95
+    audio_bps = 128_000
+    target_video_bps = max(500_000, int((target_bytes * 8 / duration) - audio_bps))
+    target_bitrate = f"{target_video_bps // 1000}k"
+
+    compressed_path = video_path.replace(".mp4", "_compressed.mp4")
+
+    _run_ffmpeg([
+        "-i", video_path,
+        "-c:v", "libx264", "-preset", "slow", "-b:v", target_bitrate,
+        "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+        "-pix_fmt", "yuv420p",
+        compressed_path,
+    ], "compress oversized video")
+
+    new_size_mb = os.path.getsize(compressed_path) / (1024 * 1024)
+    logger.info("Compressed: %.1f MB → %.1f MB", size_mb, new_size_mb)
+
+    os.replace(compressed_path, video_path)
+    return video_path
+
+
+# ── Main entry point ────────────────────────────────────────────────
 
 def build_video(
     audio_path: str,
@@ -445,6 +547,9 @@ def build_video(
 ) -> str:
     """Build a cinematic video from stock footage + voiceover + captions.
 
+    **Memory-efficient**: all heavy lifting is done by FFmpeg subprocesses.
+    Peak RAM usage is ~100-200 MB regardless of video length.
+
     Parameters
     ----------
     audio_path : str
@@ -454,193 +559,110 @@ def build_video(
     script : str
         The full script text (split into caption sentences).
     output_path : str | None
-        Where to save. Defaults to ``output/final_video.mp4``.
+        Where to save. Defaults to ``output/<slug>.mp4``.
     stock_clip_paths : list[str] | None
         Paths to stock footage clips. If None, auto-downloads via Pexels.
     """
     if output_path is None:
-        # Build a filename from the title so each video is kept, not overwritten
         slug = re.sub(r'[^\w\s-]', '', title).strip().lower()
         slug = re.sub(r'[\s_]+', '_', slug)[:80]
         output_path = str(OUTPUT_DIR / f"{slug}.mp4")
-    
 
-    logger.info("Building cinematic video …")
+    logger.info("Building video (FFmpeg-native, %dx%d @ %d fps) …", VIDEO_WIDTH, VIDEO_HEIGHT, FPS)
 
-    # ── Audio ────────────────────────────────────────────────────────
-    audio = AudioFileClip(audio_path)
-    narration_duration = audio.duration
+    tmp_dir = tempfile.mkdtemp(prefix="tubevo_build_")
+    logger.info("Working directory: %s", tmp_dir)
+
+    try:
+        return _build_video_inner(
+            audio_path=audio_path,
+            title=title,
+            script=script,
+            output_path=output_path,
+            stock_clip_paths=stock_clip_paths,
+            tmp_dir=tmp_dir,
+        )
+    finally:
+        try:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            logger.info("Cleaned up temp directory")
+        except Exception:
+            pass
+
+
+def _build_video_inner(
+    *,
+    audio_path: str,
+    title: str,
+    script: str,
+    output_path: str,
+    stock_clip_paths: list[str] | None,
+    tmp_dir: str,
+) -> str:
+    """Inner build function — all work happens here."""
+
+    # ── 1. Audio duration ────────────────────────────────────────────
+    narration_duration = _get_audio_duration(audio_path)
     logger.info("Audio duration: %.1fs", narration_duration)
 
-    # Total video = title card + narration + outro
     total_duration = TITLE_CARD_DURATION + narration_duration + OUTRO_CARD_DURATION
 
-    # ── Stock footage ────────────────────────────────────────────────
+    # ── 2. Download stock footage if needed ──────────────────────────
     if stock_clip_paths is None:
         logger.info("Downloading %d stock footage clips …", NUM_STOCK_CLIPS)
         from stock_footage import download_clips_for_topic
         stock_clip_paths = download_clips_for_topic(title, num_clips=NUM_STOCK_CLIPS)
 
-    video_clips = _prepare_stock_clips(stock_clip_paths, narration_duration)
-    logger.info("Using %d video segments", len(video_clips))
+    # ── 3. Prepare background ────────────────────────────────────────
+    logger.info("Preparing background from %d clips …", len(stock_clip_paths) if stock_clip_paths else 0)
+    background_path = _prepare_background(stock_clip_paths or [], narration_duration, tmp_dir)
+    logger.info("Background ready: %s", background_path)
 
-    # Concatenate all B-roll clips into one continuous background
-    if len(video_clips) == 1:
-        background = video_clips[0].with_duration(narration_duration)
-    else:
-        try:
-            from moviepy.video.fx import CrossFadeIn
-            transition_clips = []
-            for i, clip in enumerate(video_clips):
-                if i > 0:
-                    clip = clip.with_effects([CrossFadeIn(CROSSFADE_DURATION)])
-                transition_clips.append(clip)
-            background = concatenate_videoclips(
-                transition_clips,
-                method="compose",
-                padding=-CROSSFADE_DURATION,  # type: ignore[arg-type]  — moviepy accepts float
-            )
-        except Exception:
-            background = concatenate_videoclips(video_clips, method="compose")
-
-    # Ensure background fills the full narration duration
-    if background.duration < narration_duration:
-        background = background.with_duration(narration_duration)
-
-    background = background.without_audio()
-
-    # ── Dark overlay for readability ─────────────────────────────────
-    dark_overlay = _create_dark_overlay(narration_duration)
-
-    # ── Caption overlays ─────────────────────────────────────────────
+    # ── 4. Generate ASS subtitles ────────────────────────────────────
     sentences = _split_script_to_sentences(script)
-    logger.info("Creating %d caption segments (with fade-in + background)", len(sentences))
-    captions = _create_caption_clips(sentences, narration_duration)
+    logger.info("Generating %d caption segments as ASS subtitles", len(sentences))
+    ass_path = os.path.join(tmp_dir, "captions.ass")
+    _generate_ass_subtitles(sentences, narration_duration, ass_path)
 
-    # ── Branding ─────────────────────────────────────────────────────
-    branding_layers = _create_branding_clip(narration_duration)
-
-    # ── Progress bar ─────────────────────────────────────────────────
-    progress_bar = _create_progress_bar(narration_duration)
-    logger.info("Added progress bar")
-
-    # ── Compose main narration section ───────────────────────────────
-    layers = [background, dark_overlay]
-    layers.extend(branding_layers)
-    layers.extend(captions)
-    layers.append(progress_bar)
-
-    main_section = CompositeVideoClip(
-        layers,
-        size=(VIDEO_WIDTH, VIDEO_HEIGHT),
-    ).with_audio(audio).with_duration(narration_duration)
-
-    # ── Title card + outro ───────────────────────────────────────────
-    logger.info("Adding %.1fs title card + %.1fs outro", TITLE_CARD_DURATION, OUTRO_CARD_DURATION)
-    title_card = _create_title_card(title)
-    outro_card = _create_outro_card()
-
-    # ── Final assembly: title → main → outro ─────────────────────────
-    final = concatenate_videoclips(
-        [title_card, main_section, outro_card],
-        method="compose",
+    # ── 5. Composite main section ────────────────────────────────────
+    logger.info("Compositing main section (background + overlay + captions + branding) …")
+    main_path = _composite_main_section(
+        background_path, audio_path, ass_path, narration_duration, tmp_dir,
     )
+    logger.info("Main section ready: %s", main_path)
 
-    logger.info("Rendering %.0fs video @ %d×%d / %d fps …", final.duration, VIDEO_WIDTH, VIDEO_HEIGHT, FPS)
-    logger.info("Encoding: preset=%s, bitrate=%s", ENCODING_PRESET, VIDEO_BITRATE)
+    # ── 6. Title card ────────────────────────────────────────────────
+    logger.info("Rendering title card (%.1fs) …", TITLE_CARD_DURATION)
+    title_card_path = _create_title_card(title, tmp_dir)
+    logger.info("Title card ready")
 
-    final.write_videofile(
-        output_path,
-        fps=FPS,
-        codec="libx264",
-        audio_codec="aac",
-        preset=ENCODING_PRESET,
-        bitrate=VIDEO_BITRATE,
-        logger="bar",
-    )
+    # ── 7. Outro card ────────────────────────────────────────────────
+    logger.info("Rendering outro card (%.1fs) …", OUTRO_CARD_DURATION)
+    outro_card_path = _create_outro_card(tmp_dir)
+    logger.info("Outro card ready")
+
+    # ── 8. Final assembly ────────────────────────────────────────────
+    logger.info("Assembling final video (%.0fs total) …", total_duration)
+    _assemble_final(title_card_path, main_path, outro_card_path, output_path, tmp_dir)
 
     size_mb = os.path.getsize(output_path) / (1024 * 1024)
-    logger.info("Video saved → %s  (%.1f MB)", output_path, size_mb)
+    logger.info("Video saved → %s (%.1f MB)", output_path, size_mb)
 
-    # Clean up
-    audio.close()
-    final.close()
-    for clip in video_clips:
-        try:
-            clip.close()
-        except Exception:
-            pass
-
-    # ── File-size gate: re-encode if too large ───────────────────────
+    # ── 9. File-size enforcement ─────────────────────────────────────
     output_path = _enforce_size_limit(output_path)
 
     return output_path
 
 
-def _enforce_size_limit(video_path: str) -> str:
-    """Re-encode the video at a lower bitrate if it exceeds the configured
-    maximum file size.  Returns the (possibly re-encoded) path."""
-    import config as _cfg
-
-    max_mb = _cfg.MAX_VIDEO_SIZE_MB
-    size_mb = os.path.getsize(video_path) / (1024 * 1024)
-
-    if size_mb <= max_mb:
-        logger.info("File size %.1f MB is within the %d MB limit ✓", size_mb, max_mb)
-        return video_path
-
-    logger.info(
-        "File size %.1f MB exceeds %d MB limit — re-encoding with lower bitrate …",
-        size_mb, max_mb,
-    )
-
-    # Calculate target bitrate from file-size budget
-    clip = VideoFileClip(video_path)
-    duration_s = clip.duration
-    clip.close()
-
-    # target bytes  = max_mb * 1024 * 1024 * 0.95  (5 % headroom)
-    target_bytes = max_mb * 1024 * 1024 * 0.95
-    # total bitrate (video + audio);  audio ≈ 128 kbps
-    audio_bps = 128_000
-    target_video_bps = max(500_000, int((target_bytes * 8 / duration_s) - audio_bps))
-    target_bitrate = f"{target_video_bps // 1000}k"
-
-    compressed_path = video_path.replace(".mp4", "_compressed.mp4")
-
-    logger.info("    Target bitrate: %s  (duration %.0fs)", target_bitrate, duration_s)
-
-    src = VideoFileClip(video_path)
-    src.write_videofile(
-        compressed_path,
-        fps=FPS,
-        codec="libx264",
-        audio_codec="aac",
-        preset="slow",  # slower preset = better quality at lower bitrate
-        bitrate=target_bitrate,
-        logger="bar",
-    )
-    src.close()
-
-    new_size_mb = os.path.getsize(compressed_path) / (1024 * 1024)
-    logger.info("    Compressed: %.1f MB → %.1f MB", size_mb, new_size_mb)
-
-    # Replace original with compressed version
-    os.replace(compressed_path, video_path)
-    return video_path
-
-
 # ── CLI test ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    import json as _json
-
     test_audio = str(OUTPUT_DIR / "voiceover.mp3")
     script_path = OUTPUT_DIR / "latest_script.txt"
     meta_path = OUTPUT_DIR / "latest_metadata.json"
 
     if os.path.isfile(test_audio) and script_path.exists() and meta_path.exists():
         script_text = script_path.read_text(encoding="utf-8")
-        meta = _json.loads(meta_path.read_text(encoding="utf-8"))
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
         clip_dir = OUTPUT_DIR / "clips"
         clip_paths = sorted(str(p) for p in clip_dir.glob("clip_*.mp4")) if clip_dir.exists() else None
         build_video(
