@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Spinner from '../components/Spinner';
+import appleLogo from '../assets/apple-logo.svg';
 
 export default function Signup() {
   const { signup, login } = useAuth();
@@ -11,6 +12,13 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  function openAppleLogin() {
+    const clientId = import.meta.env.VITE_APPLE_CLIENT_ID;
+    const redirectUri = window.location.origin + '/apple-callback';
+    const url = `https://appleid.apple.com/auth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=name%20email&response_mode=query`;
+    window.location.href = url;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -92,6 +100,15 @@ export default function Signup() {
             {loading ? <Spinner className="w-4 h-4" /> : 'Create account'}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={openAppleLogin}
+          className="w-full flex items-center justify-center gap-2 bg-black text-white font-medium text-sm py-2.5 rounded-lg mt-4 hover:bg-gray-900 transition"
+        >
+          <img src={appleLogo} alt="Apple" className="w-5 h-5" />
+          Sign up with Apple
+        </button>
 
         <p className="text-center text-sm text-surface-600 mt-5">
           Already have an account?{' '}

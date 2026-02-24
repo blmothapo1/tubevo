@@ -9,6 +9,7 @@ import Videos from './pages/Videos';
 import Schedule from './pages/Schedule';
 import Settings from './pages/Settings';
 import GoogleCallback from './pages/GoogleCallback';
+import AppleCallback from './pages/AppleCallback';
 
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -29,6 +30,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/apple-callback" element={<AppleCallback />} />
 
         {/* Protected routes */}
         <Route
