@@ -267,8 +267,12 @@ async def _run_pipeline_background(
         result = {"error": f"Video generation timed out after {PIPELINE_TIMEOUT_SECONDS // 60} minutes."}
     except Exception as e:
         tb = traceback.format_exc()
-        logger.error("Pipeline background task failed for record %s: %s\n%s", record_id, e, tb)
-        result = {"error": str(e)}
+        # Phase 8: mask any API keys that might appear in tracebacks
+        from config import mask_secrets
+        safe_tb = mask_secrets(tb)
+        safe_msg = mask_secrets(str(e))
+        logger.error("Pipeline background task failed for record %s: %s\n%s", record_id, safe_msg, safe_tb)
+        result = {"error": safe_msg}
 
     # ── Update the DB record with results ────────────────────────────
     try:
@@ -281,7 +285,9 @@ async def _run_pipeline_background(
 
             if "error" in result:
                 row.status = "failed"
-                row.error_message = result["error"][:2000]
+                # Phase 8: sanitise error message before DB storage
+                from config import mask_secrets as _mask
+                row.error_message = _mask(result["error"])[:2000]
             elif result.get("youtube_video_id"):
                 row.status = "posted"
                 row.title = result.get("title", topic)
@@ -624,6 +630,7 @@ def _run_pipeline_locked(
             _report("Complete", 100)
 
     except Exception:
+        # Phase 8: mask keys in the traceback logged here
         logger.exception("Pipeline error during locked execution")
         raise
     finally:
@@ -717,6 +724,7 @@ def _upload_with_user_tokens(
     logger.info("Uploading to YouTube: %s", metadata["title"])
 
     # Resumable upload loop
+    # Phase 8: Extended retry — handles 5xx, 403 rate limit, and network errors
     response = None
     retry = 0
     max_retries = 10
@@ -732,10 +740,34 @@ def _upload_with_user_tokens(
                 if retry > max_retries:
                     raise RuntimeError(f"YouTube upload failed after {max_retries} retries")
                 wait = random.random() * (2 ** retry)
-                logger.warning("Retriable error %s, retrying in %.1fs", e.resp.status, wait)
+                logger.warning("Retriable YouTube error %s, retrying in %.1fs", e.resp.status, wait)
                 time.sleep(wait)
                 continue
+            # Phase 8: Retry on 403 rate-limit / userRateLimitExceeded
+            if e.resp.status == 403:
+                err_content = str(e.content).lower() if hasattr(e, "content") else str(e).lower()
+                if "ratelimit" in err_content or "rate" in err_content or "userRateLimitExceeded".lower() in err_content:
+                    retry += 1
+                    if retry > max_retries:
+                        raise RuntimeError(f"YouTube upload rate-limited after {max_retries} retries")
+                    wait = min(random.random() * (2 ** retry), 60.0)
+                    logger.warning("YouTube rate limit (403), retrying in %.1fs", wait)
+                    time.sleep(wait)
+                    continue
             raise
+        except (ConnectionError, TimeoutError, OSError) as net_err:
+            # Phase 8: Retry on transient network errors
+            retry += 1
+            if retry > max_retries:
+                raise RuntimeError(
+                    f"YouTube upload failed after {max_retries} retries due to network error"
+                ) from net_err
+            wait = min(random.random() * (2 ** retry), 60.0)
+            logger.warning(
+                "YouTube upload network error (attempt %d/%d): %s — retrying in %.1fs",
+                retry, max_retries, type(net_err).__name__, wait,
+            )
+            time.sleep(wait)
 
     video_id = response.get("id")
     logger.info("YouTube upload complete! Video ID: %s", video_id)

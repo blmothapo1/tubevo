@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 import requests
 from pathlib import Path
 
@@ -35,6 +36,12 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
 OUTPUT_DIR = Path("output")
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+# ── Phase 8: Retry configuration ────────────────────────────────────
+_MAX_RETRIES = 5
+_BASE_DELAY = 3.0        # seconds — first retry waits ~3s
+_MAX_DELAY = 60.0         # cap at 60s
+_RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 def generate_voiceover(
@@ -97,19 +104,67 @@ def generate_voiceover(
 
     logger.info("Generating voiceover (%d chars) …", len(script))
 
-    response = requests.post(url, json=payload, headers=headers, timeout=120)
+    # ── Phase 8: Retry loop with exponential backoff ─────────────
+    last_exc: Exception | None = None
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=120)
 
-    if response.status_code != 200:
-        raise RuntimeError(
-            f"ElevenLabs API error {response.status_code}: {response.text}"
-        )
+            if response.status_code == 200:
+                # Success — write file and return
+                with open(output_path, "wb") as f:
+                    f.write(response.content)
+                size_mb = os.path.getsize(output_path) / (1024 * 1024)
+                logger.info("Voiceover saved → %s  (%.1f MB)", output_path, size_mb)
+                return output_path
 
-    with open(output_path, "wb") as f:
-        f.write(response.content)
+            # Check if this is a retriable status code
+            if response.status_code in _RETRIABLE_STATUS_CODES:
+                # For 429, check if it's a hard quota limit vs. transient rate limit
+                if response.status_code == 429:
+                    err_body = response.text.lower()
+                    if any(kw in err_body for kw in ("quota", "limit exceeded", "characters", "credits")):
+                        raise RuntimeError(
+                            "ElevenLabs quota exhausted. Your plan's character or "
+                            "credit limit has been reached. Check your usage at "
+                            "https://elevenlabs.io/subscription"
+                        )
 
-    size_mb = os.path.getsize(output_path) / (1024 * 1024)
-    logger.info("Voiceover saved → %s  (%.1f MB)", output_path, size_mb)
-    return output_path
+                delay = min(_BASE_DELAY * (2 ** (attempt - 1)), _MAX_DELAY)
+                logger.warning(
+                    "ElevenLabs API error %d (attempt %d/%d) — retrying in %.1fs",
+                    response.status_code, attempt, _MAX_RETRIES, delay,
+                )
+                last_exc = RuntimeError(
+                    f"ElevenLabs API error {response.status_code}: "
+                    f"{config.mask_secrets(response.text[:500])}"
+                )
+                time.sleep(delay)
+                continue
+
+            # Non-retriable HTTP error — fail immediately with masked message
+            raise RuntimeError(
+                f"ElevenLabs API error {response.status_code}: "
+                f"{config.mask_secrets(response.text[:500])}"
+            )
+
+        except requests.exceptions.RequestException as exc:
+            # Network-level errors (timeout, connection reset, DNS failure)
+            last_exc = exc
+            if attempt >= _MAX_RETRIES:
+                break
+            delay = min(_BASE_DELAY * (2 ** (attempt - 1)), _MAX_DELAY)
+            logger.warning(
+                "ElevenLabs network error (attempt %d/%d): %s — retrying in %.1fs",
+                attempt, _MAX_RETRIES, type(exc).__name__, delay,
+            )
+            time.sleep(delay)
+
+    # All retries exhausted
+    raise RuntimeError(
+        f"ElevenLabs API call failed after {_MAX_RETRIES} retries: "
+        f"{config.mask_secrets(str(last_exc))}"
+    ) from last_exc
 
 
 def list_voices() -> list[dict]:

@@ -12,12 +12,19 @@ Usage:
 from __future__ import annotations
 
 import logging
+import time
 
-from openai import OpenAI
+from openai import OpenAI, RateLimitError, APIError, APIConnectionError, APITimeoutError
 
 import config
 
 logger = logging.getLogger("tubevo.script_generator")
+
+# ── Phase 8: Retry configuration ────────────────────────────────────
+_MAX_RETRIES = 5
+_BASE_DELAY = 2.0        # seconds — first retry waits ~2s
+_MAX_DELAY = 60.0         # cap at 60s
+_RETRIABLE_EXCEPTIONS = (RateLimitError, APIError, APIConnectionError, APITimeoutError)
 
 # ── OpenAI client (initialised once) ────────────────────────────────
 _client: OpenAI | None = None
@@ -34,6 +41,50 @@ def _get_client() -> OpenAI:
             )
         _client = OpenAI(api_key=config.OPENAI_API_KEY)
     return _client
+
+
+# ── Phase 8: Retry wrapper for OpenAI calls ─────────────────────────
+
+def _call_openai_with_retry(*, model: str, messages: list, max_tokens: int, temperature: float) -> str:
+    """Call OpenAI chat completions with exponential-backoff retry.
+
+    Retries on RateLimitError, APIError, APIConnectionError, APITimeoutError.
+    Non-retriable errors (auth, bad request) are raised immediately.
+    """
+    client = _get_client()
+    last_exc: Exception | None = None
+
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            return response.choices[0].message.content or ""
+        except _RETRIABLE_EXCEPTIONS as exc:
+            last_exc = exc
+            # For RateLimitError, check if it's a quota-exhausted error (non-retriable)
+            if isinstance(exc, RateLimitError):
+                err_msg = str(exc).lower()
+                if "quota" in err_msg or "billing" in err_msg or "exceeded" in err_msg:
+                    raise RuntimeError(
+                        "OpenAI API quota exhausted. Please check your billing at "
+                        "https://platform.openai.com/account/billing"
+                    ) from exc
+
+            delay = min(_BASE_DELAY * (2 ** (attempt - 1)), _MAX_DELAY)
+            logger.warning(
+                "OpenAI API error (attempt %d/%d): %s — retrying in %.1fs",
+                attempt, _MAX_RETRIES, type(exc).__name__, delay,
+            )
+            time.sleep(delay)
+
+    # All retries exhausted
+    raise RuntimeError(
+        f"OpenAI API call failed after {_MAX_RETRIES} retries: {config.mask_secrets(str(last_exc))}"
+    ) from last_exc
 
 
 # ── Script generation ───────────────────────────────────────────────
@@ -79,7 +130,8 @@ def generate_script(
     # Phase 7: use provided temperature or fall back to original 0.8
     effective_temp = temperature if temperature is not None else 0.8
 
-    response = _get_client().chat.completions.create(
+    # Phase 8: use retry wrapper instead of bare API call
+    content = _call_openai_with_retry(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": system_prompt},
@@ -89,7 +141,6 @@ def generate_script(
         temperature=effective_temp,
     )
 
-    content = response.choices[0].message.content or ""
     logger.info("Script generated (temp=%.2f, avoidance=%d chars)", effective_temp, len(avoidance_prompt))
     return content.strip()
 
@@ -131,7 +182,8 @@ def generate_metadata(
     # Phase 7: use provided temperature or fall back to original 0.6
     effective_temp = temperature if temperature is not None else 0.6
 
-    response = _get_client().chat.completions.create(
+    # Phase 8: use retry wrapper instead of bare API call
+    raw = _call_openai_with_retry(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": system_prompt},
@@ -139,11 +191,10 @@ def generate_metadata(
         ],
         max_tokens=600,
         temperature=effective_temp,
-    )
+    ).strip()
 
     import json
 
-    raw = (response.choices[0].message.content or "").strip()
     # Strip markdown fences if the model wraps them anyway
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1]

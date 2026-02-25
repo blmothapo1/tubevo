@@ -192,8 +192,9 @@ def _generate_queries_with_ai(
     Falls back to keyword extraction if OpenAI is unavailable.
     """
     try:
-        from openai import OpenAI
+        from openai import OpenAI, RateLimitError, APIError, APIConnectionError, APITimeoutError
         import config
+        import time as _time
         
         api_key = openai_api_key or config.OPENAI_API_KEY
         if not api_key:
@@ -211,39 +212,59 @@ def _generate_queries_with_ai(
         
         # Use a random seed to prevent identical queries across generations
         seed_note = f"Randomization seed: {random.randint(1000, 9999)}"
-        
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You generate Pexels stock video search queries for a YouTube video.\n\n"
-                        "RULES:\n"
-                        "- For each scene section, generate exactly 2-3 short (2-4 word) search queries\n"
-                        "- Queries must be SPECIFIC to that scene's content — not generic\n"
-                        "- NO duplicate queries across ANY sections\n"
-                        "- Mix of: concrete subjects (e.g. 'person saving money'), "
-                        "abstract/mood shots (e.g. 'sunrise golden hour'), "
-                        "and lifestyle B-roll (e.g. 'cooking healthy meal')\n"
-                        "- Queries should find VIDEOS, not images — prefer action-oriented terms\n"
-                        "- Do NOT use the exact topic title as a query\n"
-                        f"- {seed_note}\n\n"
-                        "Return ONLY a JSON array of objects with keys: label, queries\n"
-                        "Example: [{\"label\": \"intro\", \"queries\": [\"city skyline morning\", \"person waking up\"]}]"
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"VIDEO TOPIC: {topic}\n\n"
-                        f"SCENES:\n{json.dumps(section_summaries, indent=2)}"
-                    ),
-                },
-            ],
-            max_tokens=500,
-            temperature=1.0,  # high temperature for variety
-        )
+
+        _messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You generate Pexels stock video search queries for a YouTube video.\n\n"
+                    "RULES:\n"
+                    "- For each scene section, generate exactly 2-3 short (2-4 word) search queries\n"
+                    "- Queries must be SPECIFIC to that scene's content — not generic\n"
+                    "- NO duplicate queries across ANY sections\n"
+                    "- Mix of: concrete subjects (e.g. 'person saving money'), "
+                    "abstract/mood shots (e.g. 'sunrise golden hour'), "
+                    "and lifestyle B-roll (e.g. 'cooking healthy meal')\n"
+                    "- Queries should find VIDEOS, not images — prefer action-oriented terms\n"
+                    "- Do NOT use the exact topic title as a query\n"
+                    f"- {seed_note}\n\n"
+                    "Return ONLY a JSON array of objects with keys: label, queries\n"
+                    "Example: [{\"label\": \"intro\", \"queries\": [\"city skyline morning\", \"person waking up\"]}]"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"VIDEO TOPIC: {topic}\n\n"
+                    f"SCENES:\n{json.dumps(section_summaries, indent=2)}"
+                ),
+            },
+        ]
+
+        # Phase 8: Retry with exponential backoff for scene query generation
+        _scene_max_retries = 4
+        _scene_base_delay = 2.0
+        _scene_retriable = (RateLimitError, APIError, APIConnectionError, APITimeoutError)
+        response = None
+
+        for _attempt in range(1, _scene_max_retries + 1):
+            try:
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=_messages,
+                    max_tokens=500,
+                    temperature=1.0,  # high temperature for variety
+                )
+                break  # success
+            except _scene_retriable as _exc:
+                if _attempt >= _scene_max_retries:
+                    raise
+                _delay = min(_scene_base_delay * (2 ** (_attempt - 1)), 30.0)
+                logger.warning(
+                    "Scene planner OpenAI error (attempt %d/%d): %s — retrying in %.1fs",
+                    _attempt, _scene_max_retries, type(_exc).__name__, _delay,
+                )
+                _time.sleep(_delay)
         
         raw = (response.choices[0].message.content or "").strip()
         # Strip markdown fences
