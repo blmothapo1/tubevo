@@ -1,11 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Youtube, Check, ArrowRight, ArrowLeft, Rocket, Sparkles } from 'lucide-react';
+import { Youtube, Check, ArrowRight, ArrowLeft, Rocket, Sparkles, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import api from '../lib/api';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
-const niches = ['Personal Finance', 'Fitness', 'Productivity', 'Motivation', 'Nutrition'];
+const niches = [
+  'Personal Finance',
+  'Investing / Stocks',
+  'Business & Entrepreneurship',
+  'Self-Improvement',
+  'Psychology',
+  'Productivity',
+  'Tech & AI',
+  'True Crime',
+  'Horror Stories',
+  'Mystery & Conspiracy',
+  'History',
+  'Science & Space',
+  'Fitness & Health',
+  'Luxury & Wealth',
+  'Geography & World Facts',
+];
 const frequencies = [
   { value: 'daily', label: 'Daily', desc: '1 video per day' },
   { value: 'every_2_days', label: 'Every 2 Days', desc: '3–4 videos per week' },
@@ -24,6 +41,48 @@ export default function Onboarding() {
   const [direction, setDirection] = useState(0);
   const [selectedNiches, setSelectedNiches] = useState([]);
   const [frequency, setFrequency] = useState('');
+
+  // YouTube connection state
+  const [ytConnecting, setYtConnecting] = useState(false);
+  const [ytConnected, setYtConnected] = useState(false);
+  const [ytChannel, setYtChannel] = useState('');
+  const [ytError, setYtError] = useState('');
+
+  // Check if YouTube is already connected on mount
+  useEffect(() => {
+    async function checkYt() {
+      try {
+        const { data } = await api.get('/oauth/youtube/status');
+        if (data?.connected) {
+          setYtConnected(true);
+          setYtChannel(data.channel_title || 'YouTube Connected');
+        }
+      } catch {
+        // Not connected — expected for new users
+      }
+    }
+    checkYt();
+  }, []);
+
+  async function handleConnectYouTube() {
+    setYtConnecting(true);
+    setYtError('');
+    try {
+      const { data } = await api.get('/oauth/youtube/authorize');
+      // Remember we came from onboarding so GoogleCallback redirects back here
+      localStorage.setItem('yt_connect_origin', 'onboarding');
+      // Redirect to Google consent screen — user comes back via GoogleCallback
+      window.location.href = data.auth_url;
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (err.response?.status === 503) {
+        setYtError('YouTube integration is not configured yet.');
+      } else {
+        setYtError(detail || 'Failed to start YouTube connection. Try again.');
+      }
+      setYtConnecting(false);
+    }
+  }
 
   function toggleNiche(n) {
     setSelectedNiches((prev) =>
@@ -51,29 +110,69 @@ export default function Onboarding() {
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.5, ease }}
-        className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-6 ring-1 ring-red-500/20 shadow-lg shadow-red-500/10"
+        className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ring-1 shadow-lg ${
+          ytConnected
+            ? 'bg-emerald-500/10 ring-emerald-500/20 shadow-emerald-500/10'
+            : 'bg-red-500/10 ring-red-500/20 shadow-red-500/10'
+        }`}
       >
-        <Youtube size={32} className="text-red-400" />
+        {ytConnected ? (
+          <CheckCircle2 size={32} className="text-emerald-400" />
+        ) : (
+          <Youtube size={32} className="text-red-400" />
+        )}
       </motion.div>
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Connect YouTube</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+        {ytConnected ? 'YouTube Connected!' : 'Connect YouTube'}
+      </h2>
       <p className="text-surface-600 text-sm mb-8 max-w-sm mx-auto leading-relaxed">
-        Link your YouTube channel so Tubevo can upload videos on your behalf.
+        {ytConnected
+          ? `Connected to ${ytChannel}. You're all set to upload videos!`
+          : 'Link your YouTube channel so Tubevo can upload videos on your behalf.'}
       </p>
-      <motion.button
-        whileHover={{ scale: 1.03, y: -1 }}
-        whileTap={{ scale: 0.97 }}
-        className="bg-red-500 hover:bg-red-400 text-white font-medium text-sm px-6 py-3 rounded-xl transition-all inline-flex items-center gap-2 shadow-lg shadow-red-500/25"
-      >
-        <Youtube size={18} /> Connect with Google
-      </motion.button>
-      <p className="text-xs text-surface-500 mt-4">You can also do this later in Settings.</p>
+      {ytConnected ? (
+        <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
+          <CheckCircle2 size={16} />
+          {ytChannel}
+        </div>
+      ) : (
+        <motion.button
+          onClick={handleConnectYouTube}
+          disabled={ytConnecting}
+          whileHover={!ytConnecting ? { scale: 1.03, y: -1 } : {}}
+          whileTap={!ytConnecting ? { scale: 0.97 } : {}}
+          className="bg-red-500 hover:bg-red-400 text-white font-medium text-sm px-6 py-3 rounded-xl transition-all inline-flex items-center gap-2 shadow-lg shadow-red-500/25 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {ytConnecting ? (
+            <>
+              <Loader2 size={18} className="animate-spin" /> Connecting…
+            </>
+          ) : (
+            <>
+              <Youtube size={18} /> Connect with Google
+            </>
+          )}
+        </motion.button>
+      )}
+      {ytError && (
+        <motion.p
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-xs text-red-400 mt-3 flex items-center justify-center gap-1.5"
+        >
+          <AlertTriangle size={12} /> {ytError}
+        </motion.p>
+      )}
+      <p className="text-xs text-surface-500 mt-4">
+        {ytConnected ? 'You can manage this in Settings.' : 'You can also do this later in Settings.'}
+      </p>
     </div>,
 
     // Step 1: Select niches
     <div key="niche" className="text-center">
       <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Pick your niches</h2>
-      <p className="text-surface-600 text-sm mb-8">Select one or more topics for your channel.</p>
-      <div className="flex flex-wrap justify-center gap-3 max-w-md mx-auto">
+      <p className="text-surface-600 text-sm mb-6">Select one or more topics for your channel.</p>
+      <div className="flex flex-wrap justify-center gap-2.5 max-w-lg mx-auto max-h-[280px] overflow-y-auto scrollbar-none px-1 py-1">
         {niches.map((n) => {
           const active = selectedNiches.includes(n);
           return (
@@ -82,7 +181,7 @@ export default function Onboarding() {
               onClick={() => toggleNiche(n)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all border ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all border ${
                 active
                   ? 'bg-gradient-to-r from-brand-500 to-brand-600 border-brand-500/50 text-white shadow-md shadow-brand-500/20'
                   : 'bg-surface-200/80 border-surface-300/60 text-surface-700 hover:border-surface-400 hover:text-surface-800'

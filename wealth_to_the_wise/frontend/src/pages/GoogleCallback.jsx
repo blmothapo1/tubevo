@@ -42,8 +42,12 @@ export default function GoogleCallback() {
       try {
         await api.post('/oauth/youtube/callback', { code, state });
         setStatus('success');
+        // Check if the user connected from onboarding vs settings
+        const origin = localStorage.getItem('yt_connect_origin');
+        localStorage.removeItem('yt_connect_origin');
+        const redirectTo = origin === 'onboarding' ? '/onboarding' : '/settings?tab=youtube';
         // Brief pause so the user sees the success message
-        setTimeout(() => navigate('/settings?tab=youtube', { replace: true }), 1500);
+        setTimeout(() => navigate(redirectTo, { replace: true }), 1500);
       } catch (err) {
         setStatus('error');
         setError(
