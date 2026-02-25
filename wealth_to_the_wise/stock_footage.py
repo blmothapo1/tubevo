@@ -4,18 +4,17 @@ stock_footage.py — Download royalty-free stock video clips from Pexels.
 Uses the Pexels API (free, no watermarks) to find cinematic B-roll clips
 that match a video's topic/keywords.
 
+Supports two modes:
+  1. **Legacy** — ``download_clips_for_topic(topic, num_clips)``
+     Generates generic queries from the topic and downloads N clips.
+  2. **Scene-aware** — ``download_clips_for_scenes(scene_plans)``
+     Downloads per-scene clips using targeted queries from the scene planner.
+     Each ScenePlan gets its own set of clips, ensuring visual variety and
+     semantic match to the narration.
+
 Setup:
     1. Get a free API key at https://www.pexels.com/api/
     2. Add to your .env:  PEXELS_API_KEY=your-key-here
-
-Usage:
-    from stock_footage import download_clips_for_topic
-
-    clip_paths = download_clips_for_topic(
-        topic="5 Frugal Habits That Build Wealth Fast",
-        num_clips=6,
-    )
-    # → ["output/clips/clip_0.mp4", "output/clips/clip_1.mp4", ...]
 """
 
 from __future__ import annotations
@@ -26,8 +25,12 @@ import os
 import random
 import requests
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import config
+
+if TYPE_CHECKING:
+    from scene_planner import ScenePlan
 
 logger = logging.getLogger("tubevo.stock_footage")
 
@@ -56,7 +59,26 @@ FALLBACK_QUERIES = [
     "coffee shop morning",
     "sunrise motivation",
     "gym workout discipline",
+    "counting money hands",
+    "office building exterior",
+    "investment chart graph",
+    "grocery shopping cart",
+    "running morning exercise",
+    "writing notes journal",
+    "city traffic timelapse",
+    "beach sunset relaxation",
 ]
+
+
+# ── Resolution validation ────────────────────────────────────────────
+
+def _validate_resolution(video: dict, min_width: int = 1280, min_height: int = 720) -> bool:
+    """Check that a Pexels video has at least one file meeting resolution requirements."""
+    files = video.get("video_files", [])
+    return any(
+        f.get("width", 0) >= min_width and f.get("height", 0) >= min_height
+        for f in files
+    )
 
 
 def _generate_search_queries(topic: str, num_queries: int = 16) -> list[str]:
@@ -78,6 +100,7 @@ def _generate_search_queries(topic: str, num_queries: int = 16) -> list[str]:
                         "Given a YouTube video topic about wealth/finance, return a JSON array of "
                         f"{num_queries} short (2-4 word) search queries that would find cinematic, "
                         "visually appealing B-roll clips.\n"
+                        "CRITICAL: Every query must be UNIQUE — no duplicates or near-duplicates.\n"
                         "Mix abstract/lifestyle shots with topic-specific ones.\n"
                         "Examples of good queries: 'money cash bills', 'luxury car driving', "
                         "'city skyline sunset', 'person typing laptop', 'gold bars vault'.\n"
@@ -86,8 +109,8 @@ def _generate_search_queries(topic: str, num_queries: int = 16) -> list[str]:
                 },
                 {"role": "user", "content": topic},
             ],
-            max_tokens=200,
-            temperature=0.9,
+            max_tokens=300,
+            temperature=1.0,  # high temp for variety
         )
         raw = (response.choices[0].message.content or "").strip()
         if raw.startswith("```"):
@@ -95,19 +118,36 @@ def _generate_search_queries(topic: str, num_queries: int = 16) -> list[str]:
             raw = raw.rsplit("```", 1)[0]
         queries = json.loads(raw)
         if isinstance(queries, list) and len(queries) > 0:
-            logger.info("AI-generated search queries: %s", queries)
-            return queries[:num_queries]
+            # Deduplicate while preserving order
+            seen: set[str] = set()
+            unique: list[str] = []
+            for q in queries:
+                q_lower = q.strip().lower()
+                if q_lower not in seen:
+                    seen.add(q_lower)
+                    unique.append(q.strip())
+            logger.info("AI-generated search queries (%d unique): %s", len(unique), unique)
+            return unique[:num_queries]
     except Exception as e:
         logger.warning("Could not generate AI queries: %s", e)
 
     # Fallback: pick random queries from the curated list
-    chosen = random.sample(FALLBACK_QUERIES, min(num_queries, len(FALLBACK_QUERIES)))
+    chosen: list[str] = random.sample(FALLBACK_QUERIES, min(num_queries, len(FALLBACK_QUERIES)))
     logger.info("Using fallback queries: %s", chosen)
     return chosen
 
 
-def _search_pexels_videos(query: str, per_page: int = 5) -> list[dict]:
-    """Search Pexels for videos matching *query*. Returns list of video dicts."""
+def _search_pexels_videos(
+    query: str,
+    per_page: int = 5,
+    *,
+    page: int = 1,
+) -> list[dict]:
+    """Search Pexels for videos matching *query*. Returns list of video dicts.
+
+    The *page* parameter allows fetching different result pages to increase
+    variety across generations (randomised page offsets).
+    """
     if not PEXELS_API_KEY:
         raise RuntimeError(
             "PEXELS_API_KEY is not set. Get a free key at https://www.pexels.com/api/\n"
@@ -120,8 +160,9 @@ def _search_pexels_videos(query: str, per_page: int = 5) -> list[dict]:
         params={
             "query": query,
             "per_page": per_page,
+            "page": page,
             "orientation": "landscape",
-            "size": "medium",  # don't need 4K, medium is fine
+            "size": "medium",
         },
         timeout=30,
     )
@@ -129,20 +170,21 @@ def _search_pexels_videos(query: str, per_page: int = 5) -> list[dict]:
     return resp.json().get("videos", [])
 
 
-def _pick_best_video_file(video: dict) -> str | None:
-    """From a Pexels video object, pick the best HD download URL.
+def _pick_best_video_file(video: dict, target_height: int = 720) -> str | None:
+    """From a Pexels video object, pick the best download URL.
 
-    Prefers: HD (1920x1080) → SD (1280x720) → whatever is available.
+    Prefers files closest to *target_height* (default 720p) for consistent
+    resolution across all clips in the video.
     """
     files = video.get("video_files", [])
     if not files:
         return None
 
-    # Sort by quality: prefer HD landscape
+    # Filter to at least 720p landscape
     hd_files = [f for f in files if f.get("height", 0) >= 720 and f.get("width", 0) >= 1280]
     if hd_files:
-        # Prefer 1080p but accept 720p
-        hd_files.sort(key=lambda f: abs(f.get("height", 0) - 1080))
+        # Sort by closeness to target_height (prefer exact match)
+        hd_files.sort(key=lambda f: abs(f.get("height", 0) - target_height))
         return hd_files[0].get("link")
 
     # Fallback: largest available
@@ -160,6 +202,171 @@ def _download_video(url: str, output_path: str) -> str:
     return output_path
 
 
+def _download_clips_for_queries(
+    queries: list[str],
+    num_clips: int,
+    *,
+    min_clip_duration: int = 5,
+    seen_video_ids: set[int] | None = None,
+    clip_index_start: int = 0,
+    use_random_page: bool = True,
+) -> tuple[list[str], set[int]]:
+    """Download clips for a list of queries, deduplicating by video ID.
+
+    Returns (list_of_clip_paths, updated_seen_video_ids).
+    Shared helper used by both legacy and scene-aware download functions.
+    """
+    if seen_video_ids is None:
+        seen_video_ids = set()
+
+    downloaded: list[str] = []
+
+    for query in queries:
+        if len(downloaded) >= num_clips:
+            break
+
+        # Random page offset (1-3) for variety across generations
+        page = random.randint(1, 3) if use_random_page else 1
+
+        try:
+            videos = _search_pexels_videos(query, per_page=5, page=page)
+        except Exception as e:
+            logger.warning("Pexels search failed for '%s' (page %d): %s", query, page, e)
+            # Retry on page 1 if random page failed
+            if page > 1:
+                try:
+                    videos = _search_pexels_videos(query, per_page=5, page=1)
+                except Exception:
+                    continue
+            else:
+                continue
+
+        # Shuffle results so we don't always pick the first hit
+        random.shuffle(videos)
+
+        for video in videos:
+            if len(downloaded) >= num_clips:
+                break
+
+            vid_id = video.get("id", 0)
+            duration = video.get("duration", 0)
+
+            # Skip duplicates, short clips, and low-res clips
+            if vid_id in seen_video_ids:
+                continue
+            if duration < min_clip_duration:
+                continue
+            if not _validate_resolution(video):
+                continue
+
+            download_url = _pick_best_video_file(video)
+            if not download_url:
+                continue
+
+            seen_video_ids.add(vid_id)
+            clip_idx = clip_index_start + len(downloaded)
+            clip_path = str(CLIPS_DIR / f"clip_{clip_idx}.mp4")
+
+            try:
+                logger.info(
+                    "Downloading clip %d: '%s' (page %d, %ds, vid %d)",
+                    clip_idx, query, page, duration, vid_id,
+                )
+                _download_video(download_url, clip_path)
+                downloaded.append(clip_path)
+            except Exception as e:
+                logger.warning("Download failed for vid %d: %s", vid_id, e)
+
+    return downloaded, seen_video_ids
+
+
+# ── Scene-aware download (NEW) ───────────────────────────────────────
+
+def download_clips_for_scenes(
+    scene_plans: list,  # list[ScenePlan] — avoid import cycle
+    *,
+    min_clip_duration: int = 5,
+) -> list[dict]:
+    """Download stock clips matched to each scene in the plan.
+
+    Returns a list of dicts, one per scene:
+        [{"label": "intro", "clips": ["output/clips/clip_0.mp4"], "duration": 12.5}, ...]
+
+    This ensures:
+      • Each scene gets clips semantically related to its content
+      • No duplicate Pexels video IDs across the entire video
+      • Resolution consistency (all clips validated at ≥1280×720)
+      • Randomised page offsets for generation-to-generation variety
+    """
+    # Clean out old clips
+    for old in CLIPS_DIR.glob("clip_*.mp4"):
+        old.unlink()
+
+    global_seen_ids: set[int] = set()
+    global_clip_index = 0
+    scene_clips: list[dict] = []
+
+    total_needed = sum(getattr(sp, "clip_count", 1) for sp in scene_plans)
+    logger.info(
+        "Scene-aware download: %d scenes, %d total clips needed",
+        len(scene_plans), total_needed,
+    )
+
+    for sp in scene_plans:
+        queries = getattr(sp, "queries", [])
+        needed = getattr(sp, "clip_count", 1)
+        label = getattr(sp, "label", "unknown")
+        duration = getattr(sp, "estimated_duration", 0.0)
+
+        if not queries:
+            logger.warning("Scene '%s' has no queries — using label as query", label)
+            queries = [label.replace("-", " ")]
+
+        # Extend queries if we need more clips than queries
+        extended_queries = list(queries)
+        while len(extended_queries) < needed:
+            # Append shuffled copies for more variety
+            extra = list(queries)
+            random.shuffle(extra)
+            extended_queries.extend(extra)
+
+        clips_downloaded, global_seen_ids = _download_clips_for_queries(
+            extended_queries,
+            needed,
+            min_clip_duration=min_clip_duration,
+            seen_video_ids=global_seen_ids,
+            clip_index_start=global_clip_index,
+        )
+
+        global_clip_index += len(clips_downloaded)
+
+        scene_clips.append({
+            "label": label,
+            "clips": clips_downloaded,
+            "duration": duration,
+        })
+
+        logger.info(
+            "Scene '%s': requested %d clips, downloaded %d",
+            label, needed, len(clips_downloaded),
+        )
+
+    total_downloaded = sum(len(sc["clips"]) for sc in scene_clips)
+    if total_downloaded == 0:
+        raise RuntimeError(
+            "Could not download any stock clips. "
+            "Check your PEXELS_API_KEY and internet connection."
+        )
+
+    logger.info(
+        "Scene-aware download complete: %d/%d clips across %d scenes → %s/",
+        total_downloaded, total_needed, len(scene_clips), CLIPS_DIR,
+    )
+    return scene_clips
+
+
+# ── Legacy download (unchanged API) ──────────────────────────────────
+
 def download_clips_for_topic(
     topic: str,
     num_clips: int = 6,
@@ -169,52 +376,21 @@ def download_clips_for_topic(
     """Download *num_clips* stock video clips related to *topic*.
 
     Returns a list of local file paths to the downloaded clips.
+
+    **Legacy API** — still works exactly as before.
+    For scene-aware downloads, use ``download_clips_for_scenes()`` instead.
     """
     # Clean out old clips
     for old in CLIPS_DIR.glob("clip_*.mp4"):
         old.unlink()
 
-    queries = _generate_search_queries(topic, num_queries=num_clips + 4)
+    queries = _generate_search_queries(topic, num_queries=num_clips + 6)
 
-    downloaded: list[str] = []
-    seen_video_ids: set[int] = set()
-
-    for query in queries:
-        if len(downloaded) >= num_clips:
-            break
-
-        try:
-            videos = _search_pexels_videos(query, per_page=3)
-        except Exception as e:
-            logger.warning("Pexels search failed for '%s': %s", query, e)
-            continue
-
-        for video in videos:
-            if len(downloaded) >= num_clips:
-                break
-
-            vid_id = video.get("id", 0)
-            duration = video.get("duration", 0)
-
-            # Skip duplicates and very short clips
-            if vid_id in seen_video_ids:
-                continue
-            if duration < min_clip_duration:
-                continue
-
-            download_url = _pick_best_video_file(video)
-            if not download_url:
-                continue
-
-            seen_video_ids.add(vid_id)
-            clip_path = str(CLIPS_DIR / f"clip_{len(downloaded)}.mp4")
-
-            try:
-                logger.info("Downloading clip %d/%d: '%s' (%ds)", len(downloaded)+1, num_clips, query, duration)
-                _download_video(download_url, clip_path)
-                downloaded.append(clip_path)
-            except Exception as e:
-                logger.warning("Download failed: %s", e)
+    downloaded, _ = _download_clips_for_queries(
+        queries,
+        num_clips,
+        min_clip_duration=min_clip_duration,
+    )
 
     if not downloaded:
         raise RuntimeError(

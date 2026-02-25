@@ -414,29 +414,62 @@ def _run_pipeline_locked(
         voiceover_mod.ELEVENLABS_API_KEY = old_el_key
         voiceover_mod.DEFAULT_VOICE_ID = old_el_voice
 
-        # ── Step 4: Build video ──────────────────────────────────────
-        logger.info("Pipeline step 4/5: Building video")
+        # ── Step 4: Scene planning + stock footage + video build ────────
+        logger.info("Pipeline step 4/6: Scene planning")
         import stock_footage as stock_mod
         old_pexels = stock_mod.PEXELS_API_KEY
         if user_api_keys.get("pexels_api_key"):
             stock_mod.PEXELS_API_KEY = user_api_keys["pexels_api_key"]
 
+        scene_clip_data = None
+        try:
+            from scene_planner import plan_scenes
+            scene_plans = plan_scenes(
+                script,
+                topic,
+                openai_api_key=user_api_keys["openai_api_key"],
+                target_total_clips=10,
+            )
+            logger.info(
+                "Pipeline step 4/6: Scene plan ready — %d scenes, %d clips",
+                len(scene_plans),
+                sum(s.clip_count for s in scene_plans),
+            )
+
+            # Download per-scene clips
+            logger.info("Pipeline step 4b/6: Downloading scene-aware stock footage")
+            from stock_footage import download_clips_for_scenes
+            scene_clip_data = download_clips_for_scenes(scene_plans)
+            total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
+            logger.info("Pipeline step 4b/6: Downloaded %d clips across %d scenes", total_clips, len(scene_clip_data))
+        except Exception as scene_err:
+            logger.warning(
+                "Scene planner failed, falling back to legacy download: %s", scene_err
+            )
+            # scene_clip_data stays None → build_video will auto-download
+
+        logger.info("Pipeline step 4c/6: Building video")
         from video_builder import build_video
-        video_path = build_video(audio_path=audio_path, title=metadata["title"], script=script)
+        video_path = build_video(
+            audio_path=audio_path,
+            title=metadata["title"],
+            script=script,
+            scene_clip_data=scene_clip_data,
+        )
         result["file_path"] = video_path
-        logger.info("Pipeline step 4/5: Video built → %s", video_path)
+        logger.info("Pipeline step 4c/6: Video built → %s", video_path)
 
         # Restore Pexels key
         stock_mod.PEXELS_API_KEY = old_pexels
 
-        # ── Step 4b: Generate thumbnail ──────────────────────────────
-        logger.info("Pipeline step 4b: Generating thumbnail")
+        # ── Step 5: Generate thumbnail ──────────────────────────────
+        logger.info("Pipeline step 5/6: Generating thumbnail")
         from thumbnail import generate_thumbnail
         thumbnail_path = generate_thumbnail(metadata["title"])
 
-        # ── Step 5: Upload to YouTube (if user connected) ────────────
+        # ── Step 6: Upload to YouTube (if user connected) ────────────
         if yt_access_token:
-            logger.info("Pipeline step 5/5: Uploading to YouTube")
+            logger.info("Pipeline step 6/6: Uploading to YouTube")
             youtube_video_id = _upload_with_user_tokens(
                 video_path=video_path,
                 metadata=metadata,
@@ -447,7 +480,7 @@ def _run_pipeline_locked(
             if youtube_video_id:
                 result["youtube_video_id"] = youtube_video_id
         else:
-            logger.info("Pipeline step 5/5: Skipping upload — no YouTube connection")
+            logger.info("Pipeline step 6/6: Skipping upload — no YouTube connection")
 
     except Exception:
         logger.exception("Pipeline error during locked execution")

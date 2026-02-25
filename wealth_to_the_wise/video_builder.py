@@ -60,8 +60,8 @@ DARK_OVERLAY_OPACITY = 0.35
 TITLE_CARD_DURATION = 3.5
 OUTRO_CARD_DURATION = 4.0
 
-# Number of stock clips to download
-NUM_STOCK_CLIPS = 6
+# Number of stock clips to download (legacy mode — scene planner may override)
+NUM_STOCK_CLIPS = 10
 
 # Encoding
 ENCODING_PRESET = "fast"       # fast for Railway CPU limits
@@ -278,6 +278,160 @@ def _prepare_background(
         except OSError:
             pass
 
+    return output_path
+
+
+# ── Step 1b: Scene-aware background (NEW) ────────────────────────────
+
+def _prepare_background_from_scenes(
+    scene_clip_data: list[dict],
+    narration_duration: float,
+    tmp_dir: str,
+) -> str:
+    """Build background.mp4 by stitching scene-specific clips in order.
+
+    Each entry in *scene_clip_data* is:
+        {"label": "intro", "clips": ["clip_0.mp4", ...], "duration": 12.5}
+
+    Clips within each scene are distributed across that scene's duration.
+    This ensures visual variety that matches the narration structure.
+
+    Falls back to ``_prepare_background`` if scene data is empty.
+    """
+    all_clips = []
+    for sd in scene_clip_data:
+        all_clips.extend(sd.get("clips", []))
+
+    if not all_clips:
+        logger.warning("No scene clips — falling back to blank background")
+        return _prepare_background([], narration_duration, tmp_dir)
+
+    output_path = os.path.join(tmp_dir, "background.mp4")
+
+    # Compute per-scene time budgets proportional to declared duration
+    total_declared = sum(sd.get("duration", 0) for sd in scene_clip_data)
+    if total_declared <= 0:
+        # Equal distribution if no durations provided
+        total_declared = narration_duration
+        per_scene_frac = 1.0 / max(1, len(scene_clip_data))
+    else:
+        per_scene_frac = None  # will compute per-scene
+
+    segment_files: list[str] = []
+    seg_idx = 0
+    remaining_total = narration_duration
+
+    for sd in scene_clip_data:
+        clips = sd.get("clips", [])
+        if not clips:
+            continue
+
+        if per_scene_frac is not None:
+            scene_budget = narration_duration * per_scene_frac
+        else:
+            scene_budget = (sd["duration"] / total_declared) * narration_duration
+
+        # Don't exceed remaining time
+        scene_budget = min(scene_budget, remaining_total)
+        if scene_budget < 0.5:
+            continue
+
+        # Probe clip durations
+        valid: list[tuple[str, float]] = []
+        for cp in clips:
+            try:
+                dur = _get_video_duration(cp)
+                if dur > 0.5:
+                    valid.append((cp, dur))
+            except Exception as e:
+                logger.warning("Could not probe clip %s: %s", cp, e)
+
+        if not valid:
+            continue
+
+        # Distribute scene_budget across the scene's clips
+        total_clip_dur = sum(d for _, d in valid)
+        scene_remaining = scene_budget
+
+        if total_clip_dur >= scene_budget:
+            for path, dur in valid:
+                if scene_remaining <= 0:
+                    break
+                share = max(1.5, (dur / total_clip_dur) * scene_budget)
+                share = min(share, scene_remaining, dur)
+                seg_path = os.path.join(tmp_dir, f"seg_{seg_idx:03d}.mp4")
+                _run_ffmpeg([
+                    "-i", path,
+                    "-t", f"{share:.2f}",
+                    "-vf", (
+                        f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
+                        f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,"
+                        f"fps={FPS},format=yuv420p"
+                    ),
+                    "-an",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                    seg_path,
+                ], f"scale/trim scene segment {seg_idx}")
+                segment_files.append(seg_path)
+                scene_remaining -= share
+                seg_idx += 1
+        else:
+            # Loop clips to fill the scene budget
+            clip_idx = 0
+            while scene_remaining > 0.5 and valid:
+                path, dur = valid[clip_idx % len(valid)]
+                use_dur = min(dur, scene_remaining)
+                if use_dur < 1.0:
+                    break
+                seg_path = os.path.join(tmp_dir, f"seg_{seg_idx:03d}.mp4")
+                _run_ffmpeg([
+                    "-i", path,
+                    "-t", f"{use_dur:.2f}",
+                    "-vf", (
+                        f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
+                        f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,"
+                        f"fps={FPS},format=yuv420p"
+                    ),
+                    "-an",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                    seg_path,
+                ], f"scale/trim scene segment {seg_idx}")
+                segment_files.append(seg_path)
+                scene_remaining -= use_dur
+                seg_idx += 1
+                clip_idx += 1
+
+        remaining_total -= (scene_budget - scene_remaining)
+
+    if not segment_files:
+        return _prepare_background(all_clips, narration_duration, tmp_dir)
+
+    if len(segment_files) == 1:
+        shutil.move(segment_files[0], output_path)
+        return output_path
+
+    # Concat all scene segments
+    concat_list = os.path.join(tmp_dir, "concat_bg.txt")
+    with open(concat_list, "w") as f:
+        for seg in segment_files:
+            f.write(f"file '{seg}'\n")
+
+    _run_ffmpeg([
+        "-f", "concat", "-safe", "0", "-i", concat_list,
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-t", f"{narration_duration:.2f}",
+        output_path,
+    ], "concat scene-aware background segments")
+
+    # Clean up segment files
+    for seg in segment_files:
+        try:
+            os.remove(seg)
+        except OSError:
+            pass
+
+    logger.info("Scene-aware background: %d segments, %.1fs", len(segment_files), narration_duration)
     return output_path
 
 
@@ -544,6 +698,7 @@ def build_video(
     *,
     output_path: str | None = None,
     stock_clip_paths: list[str] | None = None,
+    scene_clip_data: list[dict] | None = None,
 ) -> str:
     """Build a cinematic video from stock footage + voiceover + captions.
 
@@ -561,7 +716,12 @@ def build_video(
     output_path : str | None
         Where to save. Defaults to ``output/<slug>.mp4``.
     stock_clip_paths : list[str] | None
-        Paths to stock footage clips. If None, auto-downloads via Pexels.
+        Paths to stock footage clips (legacy flat list). If None,
+        auto-downloads via Pexels unless *scene_clip_data* is provided.
+    scene_clip_data : list[dict] | None
+        Scene-aware clip data from ``stock_footage.download_clips_for_scenes()``.
+        Each dict has keys: label, clips, duration.
+        If provided, takes precedence over *stock_clip_paths*.
     """
     if output_path is None:
         slug = re.sub(r'[^\w\s-]', '', title).strip().lower()
@@ -580,6 +740,7 @@ def build_video(
             script=script,
             output_path=output_path,
             stock_clip_paths=stock_clip_paths,
+            scene_clip_data=scene_clip_data,
             tmp_dir=tmp_dir,
         )
     finally:
@@ -597,6 +758,7 @@ def _build_video_inner(
     script: str,
     output_path: str,
     stock_clip_paths: list[str] | None,
+    scene_clip_data: list[dict] | None,
     tmp_dir: str,
 ) -> str:
     """Inner build function — all work happens here."""
@@ -607,15 +769,24 @@ def _build_video_inner(
 
     total_duration = TITLE_CARD_DURATION + narration_duration + OUTRO_CARD_DURATION
 
-    # ── 2. Download stock footage if needed ──────────────────────────
-    if stock_clip_paths is None:
+    # ── 2. Download / prepare stock footage ──────────────────────────
+    if scene_clip_data is not None:
+        # Scene-aware mode: clips already downloaded per-scene
+        total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
+        logger.info("Using scene-aware clips: %d clips across %d scenes", total_clips, len(scene_clip_data))
+        background_path = _prepare_background_from_scenes(scene_clip_data, narration_duration, tmp_dir)
+    elif stock_clip_paths is not None:
+        # Legacy mode: flat list of clip paths provided
+        logger.info("Preparing background from %d clips (legacy) …", len(stock_clip_paths))
+        background_path = _prepare_background(stock_clip_paths, narration_duration, tmp_dir)
+    else:
+        # Auto-download (legacy fallback)
         logger.info("Downloading %d stock footage clips …", NUM_STOCK_CLIPS)
         from stock_footage import download_clips_for_topic
         stock_clip_paths = download_clips_for_topic(title, num_clips=NUM_STOCK_CLIPS)
+        logger.info("Preparing background from %d clips …", len(stock_clip_paths))
+        background_path = _prepare_background(stock_clip_paths, narration_duration, tmp_dir)
 
-    # ── 3. Prepare background ────────────────────────────────────────
-    logger.info("Preparing background from %d clips …", len(stock_clip_paths) if stock_clip_paths else 0)
-    background_path = _prepare_background(stock_clip_paths or [], narration_duration, tmp_dir)
     logger.info("Background ready: %s", background_path)
 
     # ── 4. Generate ASS subtitles ────────────────────────────────────
