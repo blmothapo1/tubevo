@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonVideoList } from '../components/Skeleton';
+import ConfettiCelebration from '../components/ConfettiCelebration';
 import {
   CheckCircle,
   XCircle,
@@ -37,6 +38,19 @@ export default function Videos() {
   const [activeJobId, setActiveJobId] = useState(null);
   const pollRef = useRef(null);
 
+  // Confetti for first successful video
+  const [showConfetti, setShowConfetti] = useState(false);
+  const hasSeenConfetti = useRef(
+    (() => { try { return localStorage.getItem('hasSeenFirstVideoConfetti') === 'true'; } catch { return false; } })()
+  );
+
+  const triggerFirstVideoConfetti = useCallback(() => {
+    if (hasSeenConfetti.current) return;
+    hasSeenConfetti.current = true;
+    try { localStorage.setItem('hasSeenFirstVideoConfetti', 'true'); } catch { /* silent */ }
+    setShowConfetti(true);
+  }, []);
+
   const fetchVideos = useCallback(async () => {
     try {
       const { data } = await api.get('/api/videos/history');
@@ -70,8 +84,10 @@ export default function Videos() {
           setMessage({ type: 'error', text: data.error_message || 'Video generation failed.' });
         } else if (data.status === 'posted') {
           setMessage({ type: 'success', text: `Video "${data.title}" generated and posted to YouTube!` });
+          triggerFirstVideoConfetti();
         } else {
           setMessage({ type: 'success', text: `Video "${data.title}" generated successfully!` });
+          triggerFirstVideoConfetti();
         }
         fetchVideos();
       } catch {
@@ -82,7 +98,7 @@ export default function Videos() {
     pollRef.current = setInterval(pollStatus, 5000);
     pollStatus();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [activeJobId, fetchVideos]);
+  }, [activeJobId, fetchVideos, triggerFirstVideoConfetti]);
 
   async function handleGenerate(e) {
     e.preventDefault();
@@ -126,6 +142,9 @@ export default function Videos() {
 
   return (
     <FadeIn className="max-w-5xl mx-auto space-y-8">
+      {/* Confetti on first successful video — additive */}
+      <ConfettiCelebration show={showConfetti} onDone={() => setShowConfetti(false)} />
+
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Videos</h1>
@@ -160,12 +179,14 @@ export default function Videos() {
             placeholder="Enter a topic, e.g. 'Why Budgeting Fails'"
             className="input-premium flex-1"
             disabled={generating}
+            data-tour="topic-input"
           />
           <motion.button
             type="submit"
             disabled={generating}
             whileHover={{ scale: 1.02, y: -1 }}
             whileTap={{ scale: 0.97 }}
+            data-tour="generate-button"
             className="btn-primary flex items-center justify-center gap-2 px-6 py-3 whitespace-nowrap"
           >
             {generating ? (
@@ -221,6 +242,7 @@ export default function Videos() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2, ease }}
           className="card-elevated p-12 text-center"
+          data-tour="video-list"
         >
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center mx-auto mb-4">
             <Sparkles size={28} className="text-brand-400" />
@@ -231,7 +253,7 @@ export default function Videos() {
           </p>
         </motion.div>
       ) : (
-        <StaggerContainer className="card-elevated divide-y divide-surface-300/30" staggerDelay={0.04}>
+        <StaggerContainer className="card-elevated divide-y divide-surface-300/30" staggerDelay={0.04} data-tour="video-list">
           {videos.map((video) => {
             const cfg = statusConfig[video.status] || statusConfig.pending;
             const StatusIcon = cfg.icon;

@@ -33,6 +33,7 @@ export default function Topbar({ onMenuToggle }) {
         {/* Hamburger menu — visible on all screen sizes */}
         <button
           onClick={onMenuToggle}
+          data-tour="menu-button"
           className="p-2 -ml-2 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all duration-200"
         >
           <Menu size={20} />

@@ -25,7 +25,9 @@ import {
   Sparkles,
   CircleDot,
   CheckCircle2,
+  PlayCircle,
 } from 'lucide-react';
+import useOnboarding from '../hooks/useOnboarding';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
@@ -70,6 +72,7 @@ export default function Settings() {
             onClick={() => setActiveTab(key)}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
+            {...(key === 'apikeys' ? { 'data-tour': 'settings-apikeys-tab' } : {})}
             className={`relative flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === key
                 ? 'text-white'
@@ -201,6 +204,37 @@ function AccountTab({ fullName, setFullName, email }) {
       >
         {saving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
         {saving ? 'Saving…' : 'Save Changes'}
+      </motion.button>
+
+      {/* Replay Tutorial — additive section */}
+      <ReplayTutorialSection />
+    </div>
+  );
+}
+
+/* ── Replay Tutorial ──────────────────────────────────────────── */
+function ReplayTutorialSection() {
+  const { replayTutorial } = useOnboarding();
+
+  return (
+    <div className="pt-6 mt-6 border-t border-surface-300/30">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
+          <PlayCircle size={20} className="text-brand-400" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-white">Guided Tutorial</h3>
+          <p className="text-xs text-surface-600">Walk through the app features step by step</p>
+        </div>
+      </div>
+      <motion.button
+        onClick={replayTutorial}
+        whileHover={{ scale: 1.02, y: -1 }}
+        whileTap={{ scale: 0.97 }}
+        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-brand-400 bg-brand-500/10 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
+      >
+        <PlayCircle size={16} />
+        Replay Tutorial
       </motion.button>
     </div>
   );

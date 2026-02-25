@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import OnboardingTutorial from './OnboardingTutorial';
+import useOnboarding from '../hooks/useOnboarding';
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { showTutorial, completeTutorial } = useOnboarding();
 
   // Auto-close sidebar on any route change
   useEffect(() => {
@@ -28,6 +31,13 @@ export default function DashboardLayout() {
           <Outlet />
         </motion.main>
       </div>
+
+      {/* Onboarding tutorial overlay — additive, no existing logic modified */}
+      <AnimatePresence>
+        {showTutorial && (
+          <OnboardingTutorial onComplete={completeTutorial} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
