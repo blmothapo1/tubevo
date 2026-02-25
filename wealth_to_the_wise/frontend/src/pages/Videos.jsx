@@ -304,7 +304,7 @@ export default function Videos() {
   }
 
   return (
-    <FadeIn className="max-w-5xl mx-auto space-y-8">
+    <FadeIn className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
       {/* Confetti on first successful video — additive */}
       <ConfettiCelebration show={showConfetti} onDone={() => setShowConfetti(false)} />
 
@@ -435,7 +435,7 @@ export default function Videos() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2, ease }}
-          className="card-elevated p-12 text-center"
+          className="card-elevated px-6 py-10 sm:p-12 text-center"
           data-tour="video-list"
         >
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center mx-auto mb-4">

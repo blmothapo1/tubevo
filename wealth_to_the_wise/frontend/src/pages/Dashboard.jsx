@@ -77,7 +77,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
         <div className="space-y-2">
           <div className="skeleton h-8 w-64" />
           <div className="skeleton h-4 w-48" />
@@ -90,7 +90,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
       {/* Header with personalized greeting */}
       <FadeIn>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -129,12 +129,12 @@ export default function Dashboard() {
       </FadeIn>
 
       {/* Stats Row */}
-      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
         {statCards.map(({ label, value, icon: Icon, gradient, iconColor }) => (
           <StaggerItem key={label}>
             <motion.div
               whileHover={{ y: -2, transition: { duration: 0.2 } }}
-              className="card-elevated p-6 flex items-center gap-4"
+              className="card-elevated p-5 sm:p-6 flex items-center gap-4"
             >
               <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
                 <Icon size={22} className={iconColor} />
@@ -150,7 +150,7 @@ export default function Dashboard() {
 
       {/* Monthly Quota */}
       <FadeIn delay={0.2}>
-        <div className="card p-6">
+        <div className="card p-5 sm:p-6">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <TrendingUp size={14} className="text-surface-600" />
@@ -191,11 +191,11 @@ export default function Dashboard() {
       {/* Recent Activity */}
       <FadeIn delay={0.3}>
         <div>
-          <h2 className="text-xs font-medium text-surface-600 uppercase tracking-wider mb-5">
+          <h2 className="text-xs font-medium text-surface-600 uppercase tracking-wider mb-4 sm:mb-5">
             Recent Activity
           </h2>
           {activity.length === 0 ? (
-            <div className="card px-6 py-16 text-center">
+            <div className="card px-5 py-12 sm:px-6 sm:py-16 text-center">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500/15 to-brand-500/5 flex items-center justify-center mx-auto mb-4">
                 <Sparkles size={24} className="text-brand-400" />
               </div>
@@ -220,7 +220,7 @@ export default function Dashboard() {
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.04, duration: 0.3 }}
-                    className="flex items-center gap-4 px-6 py-4 hover:bg-surface-200/30 transition-colors duration-200"
+                    className="flex items-center gap-3 sm:gap-4 px-4 py-3.5 sm:px-6 sm:py-4 hover:bg-surface-200/30 transition-colors duration-200"
                   >
                     <div className="w-9 h-9 rounded-xl bg-surface-200/80 flex items-center justify-center shrink-0">
                       <Icon size={16} className={cfg.color} />

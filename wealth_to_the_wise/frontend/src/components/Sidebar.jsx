@@ -33,7 +33,7 @@ export default function Sidebar({ open, onClose }) {
 
       {/* Sidebar panel — overlay on all screen sizes */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 w-64 glass border-r border-surface-300/50 flex flex-col z-40 transition-transform duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]
+        className={`fixed left-0 top-0 bottom-0 w-64 max-w-[80vw] glass border-r border-surface-300/50 flex flex-col z-40 transition-transform duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]
           ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         {/* Top gradient accent line */}

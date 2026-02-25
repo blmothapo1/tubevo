@@ -1,4 +1,3 @@
-// filepath: frontend/src/components/OnboardingTutorial.jsx
 /**
  * Interactive Adobe-style guided onboarding tutorial.
  *
@@ -6,6 +5,13 @@
  * step by step, highlighting elements with a glow/focus effect,
  * darkening the rest of the screen, and displaying tooltip
  * instructions with an animated pointer.
+ *
+ * Enhanced with:
+ * - Device-aware step descriptions (mobile/tablet/desktop)
+ * - Collision detection (auto-flip tooltip if offscreen)
+ * - Mobile modal fallback (bottom-sheet on small screens)
+ * - Orientation change listener
+ * - Scroll-into-view for off-screen targets
  *
  * 100 % additive — does not modify or break any existing logic.
  */
@@ -27,13 +33,19 @@ import {
 
 const ease = [0.25, 0.1, 0.25, 1];
 
+// ── Mobile breakpoint ────────────────────────────────────────
+const MOBILE_BREAKPOINT = 640;
+
 // ── Tutorial step definitions ────────────────────────────────
+// Each step can have an optional `mobileDescription` for small screens.
 const STEPS = [
   {
     id: 'welcome',
     title: 'Welcome to Tubevo! 🎬',
     description:
       'Let\'s take a quick tour to get you set up. We\'ll walk through adding your API keys, generating your first video, and more.',
+    mobileDescription:
+      'Quick tour! We\'ll help you add API keys and generate your first video.',
     icon: Sparkles,
     target: null, // No element — centered modal
     route: '/dashboard',
@@ -45,6 +57,8 @@ const STEPS = [
     title: 'Navigation',
     description:
       'Use the menu button to open the sidebar. From here you can jump to your Dashboard, Videos, Schedule, and Settings.',
+    mobileDescription:
+      'Tap the ☰ menu button to open navigation. Access Dashboard, Videos, Schedule, and Settings.',
     icon: null,
     target: '[data-tour="menu-button"]',
     route: '/dashboard',
@@ -56,6 +70,8 @@ const STEPS = [
     title: 'Add Your API Keys',
     description:
       'Head to Settings → API Keys to paste your OpenAI, ElevenLabs, and Pexels keys. These power the script, voice, and footage.',
+    mobileDescription:
+      'Go to Settings → API Keys to paste your OpenAI, ElevenLabs, and Pexels keys.',
     icon: Key,
     target: '[data-tour="settings-apikeys-tab"]',
     route: '/settings?tab=apikeys',
@@ -78,6 +94,8 @@ const STEPS = [
     title: 'Click Generate',
     description:
       'Hit the Generate button to kick off the full pipeline: script → voiceover → stock footage → video. It takes about 2–3 minutes.',
+    mobileDescription:
+      'Tap Generate to start the pipeline: script → voice → footage → video (~2–3 min).',
     icon: null,
     target: '[data-tour="generate-button"]',
     route: '/videos',
@@ -113,6 +131,7 @@ export default function OnboardingTutorial({ onComplete }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < MOBILE_BREAKPOINT);
   const navigate = useNavigate();
   const location = useLocation();
   const resizeObserverRef = useRef(null);
@@ -121,6 +140,17 @@ export default function OnboardingTutorial({ onComplete }) {
   const step = STEPS[currentStep];
   const totalSteps = STEPS.length;
   const progress = ((currentStep + 1) / totalSteps) * 100;
+
+  // ── Track device size for mobile modal fallback ───────────
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    window.addEventListener('resize', checkMobile);
+    window.addEventListener('orientationchange', checkMobile);
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('orientationchange', checkMobile);
+    };
+  }, []);
 
   // ── Locate the target element and track its position ──────
   const updateTargetRect = useCallback(() => {
@@ -133,14 +163,38 @@ export default function OnboardingTutorial({ onComplete }) {
     const timer = setTimeout(() => {
       const el = document.querySelector(step.target);
       if (el) {
-        const rect = el.getBoundingClientRect();
+        // Scroll target into view if it's off-screen
+        const elRect = el.getBoundingClientRect();
+        const isOffScreen =
+          elRect.bottom < 0 ||
+          elRect.top > window.innerHeight ||
+          elRect.right < 0 ||
+          elRect.left > window.innerWidth;
+
+        if (isOffScreen) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+          // Re-read rect after scroll
+          setTimeout(() => {
+            const rect = el.getBoundingClientRect();
+            setTargetRect({
+              top: rect.top,
+              left: rect.left,
+              width: rect.width,
+              height: rect.height,
+              centerX: rect.left + rect.width / 2,
+              centerY: rect.top + rect.height / 2,
+            });
+          }, 400);
+          return;
+        }
+
         setTargetRect({
-          top: rect.top,
-          left: rect.left,
-          width: rect.width,
-          height: rect.height,
-          centerX: rect.left + rect.width / 2,
-          centerY: rect.top + rect.height / 2,
+          top: elRect.top,
+          left: elRect.left,
+          width: elRect.width,
+          height: elRect.height,
+          centerX: elRect.left + elRect.width / 2,
+          centerY: elRect.top + elRect.height / 2,
         });
       } else {
         setTargetRect(null);
@@ -168,15 +222,17 @@ export default function OnboardingTutorial({ onComplete }) {
   useEffect(() => {
     const cleanup = updateTargetRect();
 
-    // Also listen for resize/scroll
+    // Also listen for resize/scroll/orientation
     const handleUpdate = () => updateTargetRect();
     window.addEventListener('resize', handleUpdate);
     window.addEventListener('scroll', handleUpdate, true);
+    window.addEventListener('orientationchange', handleUpdate);
 
     return () => {
       if (cleanup) cleanup();
       window.removeEventListener('resize', handleUpdate);
       window.removeEventListener('scroll', handleUpdate, true);
+      window.removeEventListener('orientationchange', handleUpdate);
     };
   }, [updateTargetRect, currentStep, isTransitioning]);
 
@@ -208,8 +264,13 @@ export default function OnboardingTutorial({ onComplete }) {
     return () => window.removeEventListener('keydown', handleKey);
   }, [goNext, goPrev, onComplete]);
 
-  // ── Compute tooltip position ──────────────────────────────
+  // ── Compute tooltip position with collision detection ─────
   const getTooltipStyle = () => {
+    // On mobile with a target element, use modal fallback (no positioning)
+    if (isMobile && step.position !== 'center' && targetRect) {
+      return null; // Signals to render mobile bottom-sheet
+    }
+
     if (step.position === 'center' || !targetRect) {
       return {
         position: 'fixed',
@@ -221,31 +282,64 @@ export default function OnboardingTutorial({ onComplete }) {
 
     const pad = 20;
     const tooltipW = 380;
-    const tooltipH = 220;
+    const tooltipH = 240;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
 
-    switch (step.position) {
+    // Determine best position with collision detection
+    let preferredPos = step.position;
+
+    // Check if preferred position overflows; if so, flip
+    if (preferredPos === 'bottom' && targetRect.top + targetRect.height + pad + tooltipH > vh) {
+      preferredPos = 'top';
+    } else if (preferredPos === 'top' && targetRect.top - tooltipH - pad < 0) {
+      preferredPos = 'bottom';
+    } else if (preferredPos === 'right' && targetRect.left + targetRect.width + pad + tooltipW > vw) {
+      preferredPos = 'left';
+    } else if (preferredPos === 'left' && targetRect.left - tooltipW - pad < 0) {
+      preferredPos = 'right';
+    }
+
+    // If still overflowing after flip, fallback to bottom (safest)
+    const wouldOverflow = (pos) => {
+      switch (pos) {
+        case 'bottom': return targetRect.top + targetRect.height + pad + tooltipH > vh;
+        case 'top': return targetRect.top - tooltipH - pad < 0;
+        case 'right': return targetRect.left + targetRect.width + pad + tooltipW > vw;
+        case 'left': return targetRect.left - tooltipW - pad < 0;
+        default: return false;
+      }
+    };
+
+    if (wouldOverflow(preferredPos)) {
+      // Try all positions, pick first non-overflowing
+      const candidates = ['bottom', 'top', 'right', 'left'];
+      preferredPos = candidates.find((p) => !wouldOverflow(p)) || 'bottom';
+    }
+
+    switch (preferredPos) {
       case 'bottom':
         return {
           position: 'fixed',
-          top: Math.min(targetRect.top + targetRect.height + pad, window.innerHeight - tooltipH - 20),
-          left: Math.max(20, Math.min(targetRect.centerX - tooltipW / 2, window.innerWidth - tooltipW - 20)),
+          top: Math.min(targetRect.top + targetRect.height + pad, vh - tooltipH - 20),
+          left: Math.max(20, Math.min(targetRect.centerX - tooltipW / 2, vw - tooltipW - 20)),
         };
       case 'top':
         return {
           position: 'fixed',
           top: Math.max(20, targetRect.top - tooltipH - pad),
-          left: Math.max(20, Math.min(targetRect.centerX - tooltipW / 2, window.innerWidth - tooltipW - 20)),
+          left: Math.max(20, Math.min(targetRect.centerX - tooltipW / 2, vw - tooltipW - 20)),
         };
       case 'right':
         return {
           position: 'fixed',
-          top: Math.max(20, Math.min(targetRect.centerY - tooltipH / 2, window.innerHeight - tooltipH - 20)),
-          left: Math.min(targetRect.left + targetRect.width + pad, window.innerWidth - tooltipW - 20),
+          top: Math.max(20, Math.min(targetRect.centerY - tooltipH / 2, vh - tooltipH - 20)),
+          left: Math.min(targetRect.left + targetRect.width + pad, vw - tooltipW - 20),
         };
       case 'left':
         return {
           position: 'fixed',
-          top: Math.max(20, Math.min(targetRect.centerY - tooltipH / 2, window.innerHeight - tooltipH - 20)),
+          top: Math.max(20, Math.min(targetRect.centerY - tooltipH / 2, vh - tooltipH - 20)),
           left: Math.max(20, targetRect.left - tooltipW - pad),
         };
       default:
@@ -257,6 +351,116 @@ export default function OnboardingTutorial({ onComplete }) {
         };
     }
   };
+
+  // Get device-aware description text
+  const getDescription = () => {
+    if (isMobile && step.mobileDescription) return step.mobileDescription;
+    return step.description;
+  };
+
+  // ── Shared tooltip card content (used in both positioned + modal) ──
+  const renderTooltipContent = () => (
+    <div className="bg-surface-100 border border-surface-300/70 rounded-2xl shadow-soft-lg overflow-hidden">
+      {/* Progress bar */}
+      <div className="h-1 bg-surface-300/50">
+        <motion.div
+          className="h-full gradient-brand rounded-r-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.5, ease }}
+        />
+      </div>
+
+      <div className="p-5 sm:p-6">
+        {/* Step icon & counter */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            {step.icon && (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
+                <step.icon size={20} className="text-brand-400" />
+              </div>
+            )}
+            <span className="text-xs font-medium text-surface-600 uppercase tracking-wider">
+              Step {currentStep + 1} of {totalSteps}
+            </span>
+          </div>
+          <button
+            onClick={onComplete}
+            className="p-1.5 rounded-lg text-surface-600 hover:text-surface-800 hover:bg-surface-200/80 transition-all"
+            title="Skip tutorial"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Title & description */}
+        <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
+        <p className="text-sm text-surface-700 leading-relaxed mb-6">{getDescription()}</p>
+
+        {/* Navigation buttons */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onComplete}
+            className="text-xs text-surface-600 hover:text-surface-800 transition-colors"
+          >
+            Skip Tutorial
+          </button>
+
+          <div className="flex items-center gap-2">
+            {currentStep > 0 && (
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={goPrev}
+                className="flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-surface-700 bg-surface-200/80 border border-surface-300 hover:bg-surface-300/80 transition-all"
+              >
+                <ChevronLeft size={14} />
+                Back
+              </motion.button>
+            )}
+            <motion.button
+              whileHover={{ scale: 1.04, y: -1 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={goNext}
+              className="btn-primary flex items-center gap-1.5 px-5 py-2"
+            >
+              {currentStep === totalSteps - 1 ? (
+                <>
+                  Get Started
+                  <Sparkles size={14} />
+                </>
+              ) : (
+                <>
+                  Next
+                  <ChevronRight size={14} />
+                </>
+              )}
+            </motion.button>
+          </div>
+        </div>
+
+        {/* Step dots */}
+        <div className="flex items-center justify-center gap-1.5 mt-5">
+          {STEPS.map((_, i) => (
+            <motion.div
+              key={i}
+              className={`rounded-full transition-all duration-300 ${
+                i === currentStep
+                  ? 'w-6 h-1.5 gradient-brand'
+                  : i < currentStep
+                  ? 'w-1.5 h-1.5 bg-brand-500/50'
+                  : 'w-1.5 h-1.5 bg-surface-400'
+              }`}
+              layout
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const tooltipStyle = getTooltipStyle();
+  const useMobileModal = tooltipStyle === null;
 
   return (
     <div className="fixed inset-0 z-[9999]" style={{ pointerEvents: 'auto' }}>
@@ -335,9 +539,9 @@ export default function OnboardingTutorial({ onComplete }) {
         </svg>
       </motion.div>
 
-      {/* ── Animated pointer ─────────────────────────────── */}
+      {/* ── Animated pointer (hidden on mobile modal) ────── */}
       <AnimatePresence>
-        {targetRect && (
+        {targetRect && !useMobileModal && (
           <motion.div
             key={`pointer-${currentStep}`}
             initial={{ opacity: 0, scale: 0.5, x: targetRect.centerX - 12, y: targetRect.centerY - 12 }}
@@ -356,115 +560,36 @@ export default function OnboardingTutorial({ onComplete }) {
         )}
       </AnimatePresence>
 
-      {/* ── Tooltip card ─────────────────────────────────── */}
+      {/* ── Tooltip card — positioned or mobile bottom-sheet ─ */}
       <AnimatePresence mode="wait">
-        <motion.div
-          key={currentStep}
-          initial={{ opacity: 0, y: 16, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -12, scale: 0.95 }}
-          transition={{ duration: 0.35, ease }}
-          style={getTooltipStyle()}
-          className="z-[10002] w-[380px] max-w-[calc(100vw-40px)]"
-        >
-          <div className="bg-surface-100 border border-surface-300/70 rounded-2xl shadow-soft-lg overflow-hidden">
-            {/* Progress bar */}
-            <div className="h-1 bg-surface-300/50">
-              <motion.div
-                className="h-full gradient-brand rounded-r-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.5, ease }}
-              />
+        {useMobileModal ? (
+          /* ── Mobile modal fallback (bottom sheet) ──────── */
+          <motion.div
+            key={`mobile-${currentStep}`}
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            transition={{ duration: 0.35, ease }}
+            className="onboarding-mobile-modal"
+          >
+            <div className="onboarding-card">
+              {renderTooltipContent()}
             </div>
-
-            <div className="p-6">
-              {/* Step icon & counter */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  {step.icon && (
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
-                      <step.icon size={20} className="text-brand-400" />
-                    </div>
-                  )}
-                  <span className="text-xs font-medium text-surface-600 uppercase tracking-wider">
-                    Step {currentStep + 1} of {totalSteps}
-                  </span>
-                </div>
-                <button
-                  onClick={onComplete}
-                  className="p-1.5 rounded-lg text-surface-600 hover:text-surface-800 hover:bg-surface-200/80 transition-all"
-                  title="Skip tutorial"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Title & description */}
-              <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
-              <p className="text-sm text-surface-700 leading-relaxed mb-6">{step.description}</p>
-
-              {/* Navigation buttons */}
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={onComplete}
-                  className="text-xs text-surface-600 hover:text-surface-800 transition-colors"
-                >
-                  Skip Tutorial
-                </button>
-
-                <div className="flex items-center gap-2">
-                  {currentStep > 0 && (
-                    <motion.button
-                      whileHover={{ scale: 1.04 }}
-                      whileTap={{ scale: 0.96 }}
-                      onClick={goPrev}
-                      className="flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-surface-700 bg-surface-200/80 border border-surface-300 hover:bg-surface-300/80 transition-all"
-                    >
-                      <ChevronLeft size={14} />
-                      Back
-                    </motion.button>
-                  )}
-                  <motion.button
-                    whileHover={{ scale: 1.04, y: -1 }}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={goNext}
-                    className="btn-primary flex items-center gap-1.5 px-5 py-2"
-                  >
-                    {currentStep === totalSteps - 1 ? (
-                      <>
-                        Get Started
-                        <Sparkles size={14} />
-                      </>
-                    ) : (
-                      <>
-                        Next
-                        <ChevronRight size={14} />
-                      </>
-                    )}
-                  </motion.button>
-                </div>
-              </div>
-
-              {/* Step dots */}
-              <div className="flex items-center justify-center gap-1.5 mt-5">
-                {STEPS.map((_, i) => (
-                  <motion.div
-                    key={i}
-                    className={`rounded-full transition-all duration-300 ${
-                      i === currentStep
-                        ? 'w-6 h-1.5 gradient-brand'
-                        : i < currentStep
-                        ? 'w-1.5 h-1.5 bg-brand-500/50'
-                        : 'w-1.5 h-1.5 bg-surface-400'
-                    }`}
-                    layout
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        ) : (
+          /* ── Desktop / tablet positioned tooltip ───────── */
+          <motion.div
+            key={currentStep}
+            initial={{ opacity: 0, y: 16, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.95 }}
+            transition={{ duration: 0.35, ease }}
+            style={tooltipStyle}
+            className="z-[10002] w-[380px] max-w-[calc(100vw-40px)]"
+          >
+            {renderTooltipContent()}
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
