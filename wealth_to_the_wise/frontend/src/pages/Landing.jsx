@@ -58,7 +58,7 @@ export default function Landing() {
       {/* ── Navbar ── */}
       <nav className="border-b border-surface-300/30 glass sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <img src={tubevoLogo} alt="Tubevo" className="h-8" />
+          <img src={tubevoLogo} alt="Tubevo" className="h-10" />
           <div className="flex items-center gap-3">
             <Link
               to="/login"

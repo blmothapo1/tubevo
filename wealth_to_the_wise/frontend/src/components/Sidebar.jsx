@@ -41,7 +41,7 @@ export default function Sidebar({ open, onClose }) {
 
         {/* Logo area */}
         <div className="px-6 py-7 flex items-center justify-between">
-          <img src={tubevoLogo} alt="Tubevo" className="h-7" />
+          <img src={tubevoLogo} alt="Tubevo" className="h-9" />
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all duration-200"
