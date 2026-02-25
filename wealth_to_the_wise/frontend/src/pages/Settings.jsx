@@ -26,6 +26,9 @@ import {
   CircleDot,
   CheckCircle2,
   PlayCircle,
+  Film,
+  Type,
+  Volume2,
 } from 'lucide-react';
 import useOnboarding from '../hooks/useOnboarding';
 
@@ -34,6 +37,7 @@ const ease = [0.25, 0.1, 0.25, 1];
 const tabs = [
   { key: 'account', label: 'Account', icon: User },
   { key: 'apikeys', label: 'API Keys', icon: Key },
+  { key: 'video', label: 'Video', icon: Film },
   { key: 'youtube', label: 'YouTube', icon: Youtube },
   { key: 'notifications', label: 'Notifications', icon: Bell },
   { key: 'plan', label: 'Plan', icon: CreditCard },
@@ -108,6 +112,7 @@ export default function Settings() {
             <AccountTab fullName={fullName} setFullName={setFullName} email={email} />
           )}
           {activeTab === 'apikeys' && <ApiKeysTab />}
+          {activeTab === 'video' && <VideoPreferencesTab />}
           {activeTab === 'youtube' && <YouTubeTab />}
           {activeTab === 'notifications' && <NotificationsTab />}
           {activeTab === 'plan' && <PlanTab plan={user?.plan || 'free'} />}
@@ -579,6 +584,239 @@ function KeyStatusRow({ label, active, hint }) {
         />
         {active ? `Connected (${hint})` : 'Not set'}
       </span>
+    </div>
+  );
+}
+
+/* ── Video Preferences (Phase 4 & 5) ─────────────────────────── */
+
+const STYLE_DESCRIPTIONS = {
+  bold_pop: 'Large bold text with thick outline — maximum visibility',
+  minimal: 'Clean thin text with subtle outline — understated elegance',
+  cinematic: 'Semi-transparent background box — cinematic movie feel',
+  accent_highlight: 'Teal-accented bold text — branded & eye-catching',
+};
+
+const SPEED_LABELS = {
+  '0.8': 'Slow — Relaxed, cinematic pacing',
+  '0.9': 'Slightly slow — Clear & deliberate',
+  '1.0': 'Normal — Default narration speed',
+  '1.1': 'Slightly fast — Energetic & punchy',
+  '1.2': 'Fast — Quick-paced delivery',
+};
+
+function VideoPreferencesTab() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+  const [subtitleStyle, setSubtitleStyle] = useState('bold_pop');
+  const [burnCaptions, setBurnCaptions] = useState(true);
+  const [speechSpeed, setSpeechSpeed] = useState('1.0');
+  const [availableStyles, setAvailableStyles] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get('/api/videos/preferences');
+        setSubtitleStyle(data.subtitle_style || 'bold_pop');
+        setBurnCaptions(data.burn_captions ?? true);
+        setSpeechSpeed(data.speech_speed || '1.0');
+        setAvailableStyles(data.available_styles || []);
+      } catch (err) {
+        setError('Failed to load video preferences.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      await api.put('/api/videos/preferences', {
+        subtitle_style: subtitleStyle,
+        burn_captions: burnCaptions,
+        speech_speed: speechSpeed === '1.0' ? null : speechSpeed,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to save preferences.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-4 max-w-lg">
+        <SkeletonLine width="w-40" />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 max-w-lg">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-violet-600/10 flex items-center justify-center">
+          <Film size={20} className="text-violet-400" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-white">Video Preferences</h3>
+          <p className="text-xs text-surface-600">Customize subtitle style, captions & speech speed</p>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+          >
+            {error}
+          </motion.div>
+        )}
+        {saved && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-emerald-500/8 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2"
+          >
+            <Check size={16} /> Preferences saved — applied to your next video.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Subtitle Style */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Type size={16} className="text-surface-500" />
+          <label className="text-sm font-medium text-white">Caption Style</label>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {(availableStyles.length > 0 ? availableStyles : [
+            { key: 'bold_pop', name: 'Bold Pop' },
+            { key: 'minimal', name: 'Minimal' },
+            { key: 'cinematic', name: 'Cinematic' },
+            { key: 'accent_highlight', name: 'Accent Highlight' },
+          ]).map((style) => (
+            <motion.button
+              key={style.key}
+              onClick={() => setSubtitleStyle(style.key)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              className={`relative p-3.5 rounded-xl border text-left transition-all ${
+                subtitleStyle === style.key
+                  ? 'border-brand-500/60 bg-brand-500/8 ring-1 ring-brand-500/30'
+                  : 'border-surface-300/30 bg-surface-100/30 hover:border-surface-400/40'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className={`text-sm font-semibold ${subtitleStyle === style.key ? 'text-brand-400' : 'text-white'}`}>
+                  {style.name}
+                </span>
+                {subtitleStyle === style.key && (
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                    <CheckCircle2 size={16} className="text-brand-400" />
+                  </motion.div>
+                )}
+              </div>
+              <p className="text-xs text-surface-500 leading-relaxed">
+                {STYLE_DESCRIPTIONS[style.key] || `${style.bold ? 'Bold' : 'Regular'} ${style.font_size}px — ${style.border_style}`}
+              </p>
+            </motion.button>
+          ))}
+        </div>
+      </div>
+
+      {/* Burn Captions Toggle */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-surface-200/50 flex items-center justify-center">
+              <Type size={14} className="text-surface-500" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">Burn captions into video</p>
+              <p className="text-xs text-surface-500">
+                {burnCaptions
+                  ? 'Captions permanently embedded — visible on all platforms'
+                  : 'SRT file only — upload as closed captions on YouTube'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setBurnCaptions(!burnCaptions)}
+            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+              burnCaptions ? 'bg-brand-500' : 'bg-surface-300/50'
+            }`}
+          >
+            <motion.div
+              animate={{ x: burnCaptions ? 20 : 2 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              className="w-5 h-5 rounded-full bg-white shadow-sm absolute top-0.5"
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Speech Speed */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Volume2 size={16} className="text-surface-500" />
+          <label className="text-sm font-medium text-white">Speech Speed</label>
+        </div>
+        <div className="card p-4 space-y-3">
+          <input
+            type="range"
+            min="0.8"
+            max="1.2"
+            step="0.1"
+            value={speechSpeed}
+            onChange={(e) => setSpeechSpeed(e.target.value)}
+            className="w-full accent-brand-500 cursor-pointer"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-surface-500">0.8× Slow</span>
+            <span className="text-sm font-medium text-brand-400">{speechSpeed}×</span>
+            <span className="text-xs text-surface-500">1.2× Fast</span>
+          </div>
+          <p className="text-xs text-surface-500 text-center">
+            {SPEED_LABELS[speechSpeed] || 'Custom speed'}
+          </p>
+        </div>
+      </div>
+
+      {/* Info box */}
+      <div className="card p-4 flex items-start gap-3">
+        <Sparkles size={16} className="text-violet-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-surface-600 leading-relaxed">
+          <strong className="text-surface-700">How it works:</strong> Audio is automatically polished with
+          loudness normalization, silence trimming, and subtle ambient background music with voice-priority
+          ducking. An SRT file is generated alongside every video for YouTube closed captions.
+        </p>
+      </div>
+
+      {/* Save */}
+      <motion.button
+        onClick={handleSave}
+        disabled={saving}
+        whileHover={{ scale: 1.02, y: -1 }}
+        whileTap={{ scale: 0.97 }}
+        className="btn-primary flex items-center gap-2 px-6 py-2.5"
+      >
+        {saving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+        {saving ? 'Saving…' : 'Save Preferences'}
+      </motion.button>
     </div>
   );
 }

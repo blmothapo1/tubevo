@@ -97,6 +97,13 @@ class VideoRecord(Base):
     thumbnail_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # ── Pipeline progress (Phase 6 — UX polish) ─────────────────────
+    progress_step: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    progress_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # ── Phase 5 — Subtitle artefacts ─────────────────────────────────
+    srt_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # ── Timestamps ───────────────────────────────────────────────────
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow,
@@ -181,6 +188,11 @@ class UserApiKeys(Base):
     elevenlabs_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     elevenlabs_voice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     pexels_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ── Phase 4 & 5 — Video production preferences ──────────────────
+    subtitle_style: Mapped[str] = mapped_column(String(30), nullable=False, default="bold_pop")
+    burn_captions: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    speech_speed: Mapped[str | None] = mapped_column(String(10), nullable=True)  # e.g. "1.0"
 
     # ── Timestamps ───────────────────────────────────────────────────
     created_at: Mapped[datetime] = mapped_column(

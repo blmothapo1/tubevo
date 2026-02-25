@@ -124,6 +124,7 @@ def _split_script_into_sections(script: str) -> list[dict]:
     
     if numbered_indices and len(numbered_indices) >= 2:
         # Split body by numbered points
+        end_idx = None  # Ensure end_idx is always defined
         for idx_pos, start_idx in enumerate(numbered_indices):
             if idx_pos + 1 < len(numbered_indices):
                 end_idx = numbered_indices[idx_pos + 1]
@@ -140,15 +141,16 @@ def _split_script_into_sections(script: str) -> list[dict]:
                 })
         
         # Conclusion: remaining sentences after last body section
-        last_body_end = end_idx
-        if last_body_end < len(sentences):
-            conclusion_sentences = sentences[last_body_end:]
-            if conclusion_sentences:
-                sections.append({
-                    "label": "conclusion",
-                    "text": " ".join(conclusion_sentences),
-                    "sentences": conclusion_sentences,
-                })
+        if end_idx is not None:
+            last_body_end = end_idx
+            if last_body_end < len(sentences):
+                conclusion_sentences = sentences[last_body_end:]
+                if conclusion_sentences:
+                    sections.append({
+                        "label": "conclusion",
+                        "text": " ".join(conclusion_sentences),
+                        "sentences": conclusion_sentences,
+                    })
     else:
         # No clear numbered structure — split body evenly into 3-5 chunks
         body_sentences = sentences[intro_end:-2] if len(sentences) > 4 else sentences[intro_end:]

@@ -46,8 +46,15 @@ def generate_voiceover(
     stability: float = 0.5,
     similarity_boost: float = 0.75,
     style: float = 0.4,
+    speed: float | None = None,
 ) -> str:
     """Convert *script* text to speech via ElevenLabs and save as MP3.
+
+    Parameters
+    ----------
+    speed : float | None
+        Speech speed multiplier (0.7–1.2). None = ElevenLabs default (~1.0).
+        Useful for pacing narration: 0.85 for slow/cinematic, 1.1 for punchy.
 
     Returns the path to the saved audio file.
     """
@@ -78,6 +85,15 @@ def generate_voiceover(
             "use_speaker_boost": True,
         },
     }
+
+    # ── Phase 4: Speech speed adjustment ─────────────────────────
+    # ElevenLabs v1 API accepts an optional top-level "speed" field
+    # (float, 0.7–1.2). Only include it when explicitly set so that
+    # older API tiers that don't support it aren't affected.
+    if speed is not None:
+        clamped = max(0.7, min(1.2, float(speed)))
+        payload["speed"] = clamped
+        logger.info("Speech speed set to %.2f", clamped)
 
     logger.info("Generating voiceover (%d chars) …", len(script))
 

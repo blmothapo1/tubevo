@@ -206,7 +206,7 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
     logger.info(
         "Scheduler: triggering video for schedule %s, user %s, topic='%s' (%d/%d). Next run: %s",
         schedule.id, user.email, topic, idx + 1, len(topics),
-        schedule.next_run_at.isoformat() if schedule.next_run_at else "unknown",
+        schedule.next_run_at.isoformat() if schedule.next_run_at is not None else "unknown",
     )
 
     # Fire and forget the pipeline

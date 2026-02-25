@@ -101,12 +101,21 @@ async def _run_migrations(conn) -> None:
 
     is_pg = not _using_sqlite
 
-    # (table, column, type)
+    # (table, column, type[, default])
     migrations: list[tuple[str, str, str]] = [
         # User model additions
         ("users", "stripe_customer_id", "VARCHAR(64)"),
         ("users", "reset_token", "VARCHAR(64)"),
         ("users", "reset_token_expires", "TIMESTAMPTZ"),
+        # Phase 6 — pipeline progress tracking
+        ("video_records", "progress_step", "VARCHAR(100)"),
+        ("video_records", "progress_pct", "INTEGER DEFAULT 0"),
+        # Phase 5 — SRT path on video records
+        ("video_records", "srt_path", "TEXT"),
+        # Phase 4 & 5 — video production preferences on user_api_keys
+        ("user_api_keys", "subtitle_style", "VARCHAR(30) DEFAULT 'bold_pop'"),
+        ("user_api_keys", "burn_captions", "BOOLEAN DEFAULT TRUE"),
+        ("user_api_keys", "speech_speed", "VARCHAR(10)"),
     ]
 
     for table, column, col_type in migrations:

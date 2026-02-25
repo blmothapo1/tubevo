@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,6 +47,11 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 PIPELINE_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
 # If a record has been "generating" for longer than this, mark it failed.
 STALE_JOB_MINUTES = 15
+
+# ── In-memory progress tracker (Phase 6) ────────────────────────────
+# Keyed by record_id → { "step": str, "pct": int, "started_at": float }
+# This avoids hammering the DB on every sub-step update.
+_progress_store: dict[str, dict] = {}
 
 # ── Plan-based monthly video limits ─────────────────────────────────
 PLAN_MONTHLY_LIMITS: dict[str, int] = {
@@ -76,10 +82,13 @@ class VideoHistoryItem(BaseModel):
     title: str
     status: str
     file_path: str | None = None
+    srt_path: str | None = None
     youtube_video_id: str | None = None
     youtube_url: str | None = None
     thumbnail_path: str | None = None
     error_message: str | None = None
+    progress_step: str | None = None
+    progress_pct: int = 0
     created_at: str
     updated_at: str
 
@@ -135,12 +144,16 @@ async def generate_video(
             detail="Please add your ElevenLabs API key in Settings → API Keys before generating videos.",
         )
 
-    # Pack the user's decrypted keys for the pipeline
+    # Pack the user's decrypted keys + video preferences for the pipeline
     user_api_keys = {
         "openai_api_key": openai_key,
         "elevenlabs_api_key": elevenlabs_key,
         "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
         "pexels_api_key": pexels_key,
+        # Phase 4 & 5 video production preferences
+        "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
+        "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
+        "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
     }
 
     # ── Enforce plan-based monthly video limits ──────────────────────
@@ -214,6 +227,9 @@ async def _run_pipeline_background(
     """
     logger.info("Background pipeline starting for record %s", record_id)
 
+    # Initialise in-memory progress tracker
+    _progress_store[record_id] = {"step": "Starting…", "pct": 0, "started_at": time.time()}
+
     result: dict
     try:
         result = await asyncio.wait_for(
@@ -223,6 +239,7 @@ async def _run_pipeline_background(
                 user_api_keys=user_api_keys,
                 yt_access_token=yt_access_token,
                 yt_refresh_token=yt_refresh_token,
+                record_id=record_id,
             ),
             timeout=PIPELINE_TIMEOUT_SECONDS,
         )
@@ -250,12 +267,14 @@ async def _run_pipeline_background(
                 row.status = "posted"
                 row.title = result.get("title", topic)
                 row.file_path = result.get("file_path")
+                row.srt_path = result.get("srt_path")
                 row.youtube_video_id = result["youtube_video_id"]
                 row.youtube_url = f"https://www.youtube.com/watch?v={result['youtube_video_id']}"
             elif result.get("file_path"):
                 row.status = "completed"
                 row.title = result.get("title", topic)
                 row.file_path = result.get("file_path")
+                row.srt_path = result.get("srt_path")
             else:
                 row.status = "completed"
                 row.title = result.get("title", topic)
@@ -265,6 +284,9 @@ async def _run_pipeline_background(
             logger.info("Updated VideoRecord %s → status=%s", record_id, row.status)
     except Exception:
         logger.exception("Failed to update VideoRecord %s after pipeline", record_id)
+    finally:
+        # Clean up in-memory progress store
+        _progress_store.pop(record_id, None)
 
 
 # ── Plan-based limit enforcement ─────────────────────────────────────
@@ -340,6 +362,7 @@ def _run_pipeline_sync(
     user_api_keys: dict,
     yt_access_token: str | None,
     yt_refresh_token: str | None,
+    record_id: str | None = None,
 ) -> dict:
     """Synchronous pipeline: script → voiceover → video → (optional) upload.
 
@@ -355,6 +378,7 @@ def _run_pipeline_sync(
             user_api_keys=user_api_keys,
             yt_access_token=yt_access_token,
             yt_refresh_token=yt_refresh_token,
+            record_id=record_id,
         )
 
 
@@ -364,8 +388,16 @@ def _run_pipeline_locked(
     user_api_keys: dict,
     yt_access_token: str | None,
     yt_refresh_token: str | None,
+    record_id: str | None = None,
 ) -> dict:
     """Inner pipeline function — runs under ``_pipeline_lock``."""
+
+    def _report(step: str, pct: int) -> None:
+        """Update in-memory progress for real-time polling."""
+        if record_id and record_id in _progress_store:
+            _progress_store[record_id]["step"] = step
+            _progress_store[record_id]["pct"] = pct
+
     # Ensure the top-level project dir is on sys.path so we can import
     # the Phase 1 modules (config, script_generator, etc.)
     project_root = str(Path(__file__).resolve().parent.parent.parent)
@@ -387,18 +419,23 @@ def _run_pipeline_locked(
 
     try:
         # ── Step 1: Generate script ──────────────────────────────────
+        _report("Generating script…", 5)
         logger.info("Pipeline step 1/5: Generating script for '%s'", topic)
         script = script_generator.generate_script(topic)
         (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
         logger.info("Pipeline step 1/5: Script generated (%d chars)", len(script))
+        _report("Script ready", 15)
 
         # ── Step 2: Generate metadata ────────────────────────────────
+        _report("Generating metadata…", 18)
         logger.info("Pipeline step 2/5: Generating metadata")
         metadata = script_generator.generate_metadata(script, topic)
         result["title"] = metadata.get("title", topic)
         logger.info("Pipeline step 2/5: Metadata ready — title: %s", result["title"])
+        _report("Metadata ready", 22)
 
         # ── Step 3: Generate voiceover ───────────────────────────────
+        _report("Generating voiceover…", 25)
         logger.info("Pipeline step 3/5: Generating voiceover")
         import voiceover as voiceover_mod
         old_el_key = voiceover_mod.ELEVENLABS_API_KEY
@@ -407,14 +444,31 @@ def _run_pipeline_locked(
         if user_api_keys.get("elevenlabs_voice_id"):
             voiceover_mod.DEFAULT_VOICE_ID = user_api_keys["elevenlabs_voice_id"]
 
-        audio_path = voiceover_mod.generate_voiceover(script)
+        audio_path = voiceover_mod.generate_voiceover(
+            script,
+            speed=float(user_api_keys["speech_speed"]) if user_api_keys.get("speech_speed") else None,
+        )
         logger.info("Pipeline step 3/5: Voiceover saved → %s", audio_path)
+        _report("Voiceover ready", 35)
 
         # Restore ElevenLabs keys
         voiceover_mod.ELEVENLABS_API_KEY = old_el_key
         voiceover_mod.DEFAULT_VOICE_ID = old_el_voice
 
+        # ── Step 3b: Audio polish (Phase 4) ─────────────────────────
+        _report("Polishing audio…", 36)
+        try:
+            from audio_processor import polish_audio
+            polished_path = polish_audio(audio_path)
+            audio_path = polished_path
+            logger.info("Pipeline step 3b: Audio polished → %s", audio_path)
+            _report("Audio polished", 38)
+        except Exception as audio_err:
+            logger.warning("Audio polish failed (non-fatal, using raw voiceover): %s", audio_err)
+            _report("Audio polish skipped", 38)
+
         # ── Step 4: Scene planning + stock footage + video build ────────
+        _report("Planning scenes…", 40)
         logger.info("Pipeline step 4/6: Scene planning")
         import stock_footage as stock_mod
         old_pexels = stock_mod.PEXELS_API_KEY
@@ -435,40 +489,53 @@ def _run_pipeline_locked(
                 len(scene_plans),
                 sum(s.clip_count for s in scene_plans),
             )
+            _report("Scene plan ready", 45)
 
             # Download per-scene clips
+            _report("Downloading stock footage…", 48)
             logger.info("Pipeline step 4b/6: Downloading scene-aware stock footage")
             from stock_footage import download_clips_for_scenes
             scene_clip_data = download_clips_for_scenes(scene_plans)
             total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
             logger.info("Pipeline step 4b/6: Downloaded %d clips across %d scenes", total_clips, len(scene_clip_data))
+            _report("Stock footage ready", 60)
         except Exception as scene_err:
             logger.warning(
                 "Scene planner failed, falling back to legacy download: %s", scene_err
             )
             # scene_clip_data stays None → build_video will auto-download
 
+        _report("Building video…", 62)
         logger.info("Pipeline step 4c/6: Building video")
         from video_builder import build_video
+        import video_builder as _vb_mod
         video_path = build_video(
             audio_path=audio_path,
             title=metadata["title"],
             script=script,
             scene_clip_data=scene_clip_data,
+            subtitle_style=user_api_keys.get("subtitle_style", "bold_pop"),
+            burn_captions=user_api_keys.get("burn_captions", True),
         )
         result["file_path"] = video_path
+        # Phase 5: capture SRT path from video builder
+        result["srt_path"] = getattr(_vb_mod, "last_srt_path", None)
         logger.info("Pipeline step 4c/6: Video built → %s", video_path)
+        _report("Video built", 78)
 
         # Restore Pexels key
         stock_mod.PEXELS_API_KEY = old_pexels
 
         # ── Step 5: Generate thumbnail ──────────────────────────────
+        _report("Generating thumbnail…", 80)
         logger.info("Pipeline step 5/6: Generating thumbnail")
         from thumbnail import generate_thumbnail
         thumbnail_path = generate_thumbnail(metadata["title"])
+        _report("Thumbnail ready", 85)
 
         # ── Step 6: Upload to YouTube (if user connected) ────────────
         if yt_access_token:
+            _report("Uploading to YouTube…", 88)
             logger.info("Pipeline step 6/6: Uploading to YouTube")
             youtube_video_id = _upload_with_user_tokens(
                 video_path=video_path,
@@ -479,8 +546,10 @@ def _run_pipeline_locked(
             )
             if youtube_video_id:
                 result["youtube_video_id"] = youtube_video_id
+                _report("Uploaded to YouTube!", 100)
         else:
             logger.info("Pipeline step 6/6: Skipping upload — no YouTube connection")
+            _report("Complete", 100)
 
     except Exception:
         logger.exception("Pipeline error during locked execution")
@@ -630,12 +699,29 @@ async def video_status(
     if not record:
         raise HTTPException(status_code=404, detail="Video not found.")
 
+    # Merge in-memory progress (live during generation) with DB fields
+    progress = _progress_store.get(video_id)
+    progress_step = progress["step"] if progress else record.progress_step
+    progress_pct = progress["pct"] if progress else (record.progress_pct or 0)
+    started_at = progress["started_at"] if progress else None
+
+    # If status is final, force 100%
+    if record.status in ("completed", "posted"):
+        progress_pct = 100
+        progress_step = "Complete"
+    elif record.status == "failed":
+        progress_step = progress_step or "Failed"
+
     return {
         "id": record.id,
         "status": record.status,
         "title": record.title,
         "error_message": record.error_message,
         "youtube_url": record.youtube_url,
+        "file_path": record.file_path,
+        "progress_step": progress_step,
+        "progress_pct": progress_pct,
+        "started_at": started_at,
         "updated_at": record.updated_at.isoformat() if record.updated_at else "",
     }
 
@@ -666,10 +752,13 @@ async def video_history(
             title=r.title,
             status=r.status,
             file_path=r.file_path,
+            srt_path=getattr(r, "srt_path", None),
             youtube_video_id=r.youtube_video_id,
             youtube_url=r.youtube_url,
             thumbnail_path=r.thumbnail_path,
             error_message=r.error_message,
+            progress_step=_progress_store.get(r.id, {}).get("step") or r.progress_step,
+            progress_pct=_progress_store.get(r.id, {}).get("pct", r.progress_pct or 0),
             created_at=r.created_at.isoformat() if r.created_at else "",
             updated_at=r.updated_at.isoformat() if r.updated_at else "",
         )
@@ -720,3 +809,269 @@ async def video_stats(
         monthly_limit=limit,
         plan=plan,
     )
+
+
+# ── GET /api/videos/{video_id}/download ──────────────────────────────
+
+@router.get("/{video_id}/download")
+async def download_video(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Serve the built MP4 file for download."""
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    if not record.file_path or not os.path.isfile(record.file_path):
+        raise HTTPException(status_code=404, detail="Video file not found on server.")
+
+    safe_title = (record.title or "video").replace(" ", "_")[:60]
+    return FileResponse(
+        path=record.file_path,
+        media_type="video/mp4",
+        filename=f"{safe_title}.mp4",
+    )
+
+
+# ── POST /api/videos/{video_id}/regenerate ───────────────────────────
+
+@router.post("/{video_id}/regenerate", response_model=GenerateResponse)
+@limiter.limit("5/hour")
+async def regenerate_video(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-trigger the pipeline for the same topic as an existing video."""
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    if record.status == "generating":
+        raise HTTPException(status_code=409, detail="This video is already being generated.")
+
+    # ── Fetch the user's API keys (BYOK) ─────────────────────────────
+    keys_result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = keys_result.scalar_one_or_none()
+
+    openai_key = decrypt(user_keys.openai_api_key) if user_keys and user_keys.openai_api_key else ""
+    elevenlabs_key = decrypt(user_keys.elevenlabs_api_key) if user_keys and user_keys.elevenlabs_api_key else ""
+    pexels_key = decrypt(user_keys.pexels_api_key) if user_keys and user_keys.pexels_api_key else ""
+
+    if not openai_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please add your OpenAI API key in Settings → API Keys.",
+        )
+    if not elevenlabs_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please add your ElevenLabs API key in Settings → API Keys.",
+        )
+
+    user_api_keys = {
+        "openai_api_key": openai_key,
+        "elevenlabs_api_key": elevenlabs_key,
+        "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
+        "pexels_api_key": pexels_key,
+        # Phase 4 & 5 video production preferences
+        "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
+        "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
+        "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
+    }
+
+    # ── Enforce plan-based monthly video limits ──────────────────────
+    await _enforce_plan_limit(current_user, db)
+
+    # ── Fetch YouTube tokens ─────────────────────────────────────────
+    oauth_result = await db.execute(
+        select(OAuthToken).where(
+            OAuthToken.user_id == current_user.id,
+            OAuthToken.provider == "google",
+        )
+    )
+    oauth_token = oauth_result.scalar_one_or_none()
+    yt_access_token = oauth_token.access_token if oauth_token else None
+    yt_refresh_token = oauth_token.refresh_token if oauth_token else None
+
+    # ── Create a NEW "generating" record (preserve old one) ──────────
+    new_record = VideoRecord(
+        user_id=current_user.id,
+        topic=record.topic,
+        title=record.topic,
+        status="generating",
+    )
+    db.add(new_record)
+    await db.commit()
+    new_record_id = new_record.id
+    logger.info("Regenerate: created VideoRecord %s from original %s", new_record_id, video_id)
+
+    asyncio.create_task(
+        _run_pipeline_background(
+            record_id=new_record_id,
+            topic=record.topic,
+            user_id=current_user.id,
+            user_api_keys=user_api_keys,
+            yt_access_token=yt_access_token,
+            yt_refresh_token=yt_refresh_token,
+        )
+    )
+
+    return GenerateResponse(
+        status="generating",
+        topic=record.topic,
+        message="Regeneration started! This takes 2-5 minutes.",
+        video_id=new_record_id,
+    )
+
+
+# ── GET /api/videos/queue ───────────────────────────────────────────
+
+@router.get("/queue")
+async def render_queue(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the number of currently generating jobs (global + user)."""
+    # Global generating count
+    global_stmt = (
+        select(func.count())
+        .select_from(VideoRecord)
+        .where(VideoRecord.status == "generating")
+    )
+    global_count = (await db.execute(global_stmt)).scalar() or 0
+
+    # User's generating count
+    user_stmt = (
+        select(func.count())
+        .select_from(VideoRecord)
+        .where(
+            VideoRecord.user_id == current_user.id,
+            VideoRecord.status == "generating",
+        )
+    )
+    user_count = (await db.execute(user_stmt)).scalar() or 0
+
+    return {
+        "global_generating": global_count,
+        "user_generating": user_count,
+    }
+
+
+# ── Video preferences schemas (Phase 4 & 5) ─────────────────────────
+
+class VideoPreferences(BaseModel):
+    subtitle_style: str = "bold_pop"
+    burn_captions: bool = True
+    speech_speed: str | None = None  # e.g. "1.0", "0.85", "1.1"
+
+
+class VideoPreferencesResponse(BaseModel):
+    subtitle_style: str
+    burn_captions: bool
+    speech_speed: str | None
+    available_styles: list[dict]
+
+
+# ── GET /api/videos/preferences ──────────────────────────────────────
+
+@router.get("/preferences", response_model=VideoPreferencesResponse)
+async def get_video_preferences(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the user's video production preferences."""
+    result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = result.scalar_one_or_none()
+
+    # Fetch available subtitle styles from subtitle_generator (with fallback)
+    available_styles = [
+        {"key": "bold_pop", "name": "Bold Pop", "font_size": 44, "bold": True, "border_style": "Outline"},
+        {"key": "minimal", "name": "Minimal", "font_size": 38, "bold": False, "border_style": "Outline"},
+        {"key": "cinematic", "name": "Cinematic", "font_size": 40, "bold": True, "border_style": "Box"},
+        {"key": "accent_highlight", "name": "Accent Highlight", "font_size": 42, "bold": True, "border_style": "Outline"},
+    ]
+    try:
+        project_root = str(Path(__file__).resolve().parent.parent.parent)
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        from subtitle_generator import get_available_styles
+        available_styles = get_available_styles()
+    except Exception:
+        pass  # use hardcoded fallback
+
+    return VideoPreferencesResponse(
+        subtitle_style=getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
+        burn_captions=getattr(user_keys, "burn_captions", True) if user_keys else True,
+        speech_speed=getattr(user_keys, "speech_speed", None) if user_keys else None,
+        available_styles=available_styles,
+    )
+
+
+# ── PUT /api/videos/preferences ──────────────────────────────────────
+
+@router.put("/preferences")
+async def update_video_preferences(
+    body: VideoPreferences,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save the user's video production preferences."""
+    result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = result.scalar_one_or_none()
+
+    if not user_keys:
+        # Create a UserApiKeys row if it doesn't exist yet
+        user_keys = UserApiKeys(user_id=current_user.id)
+        db.add(user_keys)
+
+    # Validate subtitle style
+    valid_styles = {"bold_pop", "minimal", "cinematic", "accent_highlight"}
+    if body.subtitle_style not in valid_styles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid subtitle style. Choose from: {', '.join(sorted(valid_styles))}",
+        )
+
+    # Validate speech speed
+    if body.speech_speed is not None:
+        try:
+            speed_val = float(body.speech_speed)
+            if not (0.7 <= speed_val <= 1.2):
+                raise ValueError
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Speech speed must be a number between 0.7 and 1.2",
+            )
+
+    user_keys.subtitle_style = body.subtitle_style
+    user_keys.burn_captions = body.burn_captions
+    user_keys.speech_speed = body.speech_speed
+
+    await db.commit()
+    logger.info("Updated video preferences for user %s: style=%s burn=%s speed=%s",
+                current_user.email, body.subtitle_style, body.burn_captions, body.speech_speed)
+
+    return {"message": "Video preferences saved.", "preferences": body.model_dump()}

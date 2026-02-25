@@ -69,6 +69,9 @@ VIDEO_BITRATE = "4000k"        # 720p needs less bitrate
 AUDIO_BITRATE = "128k"
 
 # Cross-platform font detection
+# Phase 5: last generated SRT path (set by _build_video_inner, read by pipeline)
+last_srt_path: str | None = None
+
 def _find_font(bold: bool = True) -> str:
     """Return the best available font path for FFmpeg drawtext."""
     if bold:
@@ -699,6 +702,8 @@ def build_video(
     output_path: str | None = None,
     stock_clip_paths: list[str] | None = None,
     scene_clip_data: list[dict] | None = None,
+    subtitle_style: str | None = None,
+    burn_captions: bool = True,
 ) -> str:
     """Build a cinematic video from stock footage + voiceover + captions.
 
@@ -722,6 +727,11 @@ def build_video(
         Scene-aware clip data from ``stock_footage.download_clips_for_scenes()``.
         Each dict has keys: label, clips, duration.
         If provided, takes precedence over *stock_clip_paths*.
+    subtitle_style : str | None
+        Phase 5 subtitle style preset name (e.g. "bold_pop", "minimal").
+        None = use default ("bold_pop"). Falls back to legacy if import fails.
+    burn_captions : bool
+        Whether to burn captions into the video (default True).
     """
     if output_path is None:
         slug = re.sub(r'[^\w\s-]', '', title).strip().lower()
@@ -741,6 +751,8 @@ def build_video(
             output_path=output_path,
             stock_clip_paths=stock_clip_paths,
             scene_clip_data=scene_clip_data,
+            subtitle_style=subtitle_style,
+            burn_captions=burn_captions,
             tmp_dir=tmp_dir,
         )
     finally:
@@ -759,6 +771,8 @@ def _build_video_inner(
     output_path: str,
     stock_clip_paths: list[str] | None,
     scene_clip_data: list[dict] | None,
+    subtitle_style: str | None,
+    burn_captions: bool,
     tmp_dir: str,
 ) -> str:
     """Inner build function — all work happens here."""
@@ -790,13 +804,56 @@ def _build_video_inner(
     logger.info("Background ready: %s", background_path)
 
     # ── 4. Generate ASS subtitles ────────────────────────────────────
-    sentences = _split_script_to_sentences(script)
-    logger.info("Generating %d caption segments as ASS subtitles", len(sentences))
+    # Phase 5: Use subtitle_generator for styled captions + SRT export.
+    # Falls back to legacy _generate_ass_subtitles() if import fails.
     ass_path = os.path.join(tmp_dir, "captions.ass")
-    _generate_ass_subtitles(sentences, narration_duration, ass_path)
+    srt_path = None
+
+    try:
+        from subtitle_generator import generate_subtitles
+        _srt_out = os.path.join(tmp_dir, "captions.srt")
+        _style_name = subtitle_style or "bold_pop"
+        srt_path, _ass_path = generate_subtitles(
+            script,
+            audio_duration=narration_duration,
+            style_name=_style_name,
+            srt_output=_srt_out,
+            ass_output=ass_path,
+            burn_captions=burn_captions,
+        )
+        if _ass_path:
+            ass_path = _ass_path
+        logger.info("Phase 5 subtitles: style=%s, SRT=%s, ASS=%s", _style_name, srt_path, ass_path)
+
+        # Copy SRT to output/ so pipeline can pick it up
+        import shutil as _shutil
+        srt_output_path = str(OUTPUT_DIR / "captions.srt")
+        _shutil.copy2(srt_path, srt_output_path)
+        srt_path = srt_output_path
+    except Exception as sub_err:
+        logger.warning("Phase 5 subtitle_generator failed — using legacy fallback: %s", sub_err)
+        sentences = _split_script_to_sentences(script)
+        logger.info("Generating %d caption segments as ASS subtitles (legacy)", len(sentences))
+        _generate_ass_subtitles(sentences, narration_duration, ass_path)
 
     # ── 5. Composite main section ────────────────────────────────────
     logger.info("Compositing main section (background + overlay + captions + branding) …")
+    # Phase 5: If burn_captions is False, create an empty ASS file so the
+    # composite function still works (zero subtitle events = nothing rendered).
+    if not burn_captions:
+        empty_ass = os.path.join(tmp_dir, "captions_empty.ass")
+        with open(empty_ass, "w", encoding="utf-8") as _ef:
+            _ef.write("[Script Info]\nTitle: Empty\nScriptType: v4.00+\n"
+                       f"PlayResX: {VIDEO_WIDTH}\nPlayResY: {VIDEO_HEIGHT}\n\n"
+                       "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+                       "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, "
+                       "Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+                       f"Style: Default,Liberation Sans,38,&H00FFFFFF,&H000000FF,&H00000000,&H96000000,"
+                       "-1,0,0,0,100,100,0,0,1,2,0,2,40,40,80,1\n\n"
+                       "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
+        ass_path = empty_ass
+        logger.info("Burn captions disabled — using empty ASS file")
+
     main_path = _composite_main_section(
         background_path, audio_path, ass_path, narration_duration, tmp_dir,
     )
@@ -821,6 +878,10 @@ def _build_video_inner(
 
     # ── 9. File-size enforcement ─────────────────────────────────────
     output_path = _enforce_size_limit(output_path)
+
+    # Phase 5: Store SRT path for pipeline access
+    global last_srt_path
+    last_srt_path = srt_path
 
     return output_path
 
