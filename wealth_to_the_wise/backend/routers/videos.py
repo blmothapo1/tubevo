@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth import get_current_user
 from backend.database import async_session_factory, get_db
 from backend.encryption import decrypt
-from backend.models import OAuthToken, User, UserApiKeys, VideoRecord
+from backend.models import ContentMemory, OAuthToken, User, UserApiKeys, VideoRecord
 from backend.rate_limit import limiter
 
 logger = logging.getLogger("tubevo.backend.videos")
@@ -230,6 +230,25 @@ async def _run_pipeline_background(
     # Initialise in-memory progress tracker
     _progress_store[record_id] = {"step": "Starting…", "pct": 0, "started_at": time.time()}
 
+    # ── Phase 7: Fetch past titles from content memory ───────────────
+    past_titles: list[str] = []
+    try:
+        async with async_session_factory() as db:
+            cm_stmt = (
+                select(ContentMemory.title)
+                .where(ContentMemory.user_id == user_id)
+                .order_by(ContentMemory.created_at.desc())
+                .limit(15)
+            )
+            cm_rows = (await db.execute(cm_stmt)).scalars().all()
+            past_titles = [t for t in cm_rows if t]  # filter empty
+            logger.info("Phase 7: loaded %d past titles from content memory", len(past_titles))
+    except Exception as cm_err:
+        logger.warning("Phase 7: content memory query failed (non-fatal): %s", cm_err)
+
+    # Inject past titles into user_api_keys dict for the sync pipeline
+    user_api_keys["_past_titles"] = past_titles
+
     result: dict
     try:
         result = await asyncio.wait_for(
@@ -282,6 +301,24 @@ async def _run_pipeline_background(
             row.updated_at = datetime.now(timezone.utc)
             await db.commit()
             logger.info("Updated VideoRecord %s → status=%s", record_id, row.status)
+
+            # ── Phase 7: Save to content memory on success ───────────
+            if row.status in ("completed", "posted"):
+                try:
+                    from variation_engine import compute_topic_fingerprint
+                    cm_entry = ContentMemory(
+                        user_id=user_id,
+                        topic=topic,
+                        topic_fingerprint=compute_topic_fingerprint(topic),
+                        title=row.title or topic,
+                        temperature_used=str(result.get("_temperature_used", "")),
+                        music_mood=result.get("_music_mood", ""),
+                    )
+                    db.add(cm_entry)
+                    await db.commit()
+                    logger.info("Phase 7: saved content memory entry for '%s'", topic[:60])
+                except Exception as cm_save_err:
+                    logger.warning("Phase 7: content memory save failed (non-fatal): %s", cm_save_err)
     except Exception:
         logger.exception("Failed to update VideoRecord %s after pipeline", record_id)
     finally:
@@ -418,10 +455,28 @@ def _run_pipeline_locked(
     result: dict = {"title": topic}
 
     try:
+        # ── Phase 7: Build variation context ─────────────────────────
+        _report("Preparing variations…", 3)
+        variation_ctx = None
+        past_titles: list[str] = []
+        try:
+            from variation_engine import create_variation_context
+            # Fetch past titles from content memory (sync DB query via raw SQL)
+            past_titles = user_api_keys.get("_past_titles", [])
+            variation_ctx = create_variation_context(topic, past_titles=past_titles)
+            logger.info("Phase 7: variation context ready — temp=%.2f music=%s past=%d",
+                        variation_ctx.script_temperature, variation_ctx.music_mood.label, len(past_titles))
+        except Exception as var_err:
+            logger.warning("Phase 7: variation engine failed (non-fatal, using defaults): %s", var_err)
+
         # ── Step 1: Generate script ──────────────────────────────────
         _report("Generating script…", 5)
         logger.info("Pipeline step 1/5: Generating script for '%s'", topic)
-        script = script_generator.generate_script(topic)
+        script_kwargs: dict = {}
+        if variation_ctx:
+            script_kwargs["temperature"] = variation_ctx.script_temperature
+            script_kwargs["avoidance_prompt"] = variation_ctx.avoidance_prompt
+        script = script_generator.generate_script(topic, **script_kwargs)
         (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
         logger.info("Pipeline step 1/5: Script generated (%d chars)", len(script))
         _report("Script ready", 15)
@@ -429,7 +484,11 @@ def _run_pipeline_locked(
         # ── Step 2: Generate metadata ────────────────────────────────
         _report("Generating metadata…", 18)
         logger.info("Pipeline step 2/5: Generating metadata")
-        metadata = script_generator.generate_metadata(script, topic)
+        meta_kwargs: dict = {}
+        if variation_ctx:
+            meta_kwargs["temperature"] = variation_ctx.metadata_temperature
+            meta_kwargs["avoidance_prompt"] = variation_ctx.metadata_avoidance
+        metadata = script_generator.generate_metadata(script, topic, **meta_kwargs)
         result["title"] = metadata.get("title", topic)
         logger.info("Pipeline step 2/5: Metadata ready — title: %s", result["title"])
         _report("Metadata ready", 22)
@@ -444,10 +503,16 @@ def _run_pipeline_locked(
         if user_api_keys.get("elevenlabs_voice_id"):
             voiceover_mod.DEFAULT_VOICE_ID = user_api_keys["elevenlabs_voice_id"]
 
-        audio_path = voiceover_mod.generate_voiceover(
-            script,
-            speed=float(user_api_keys["speech_speed"]) if user_api_keys.get("speech_speed") else None,
-        )
+        # Phase 7: voice tone variation — pass jittered stability/similarity/style
+        voice_kwargs: dict = {
+            "speed": float(user_api_keys["speech_speed"]) if user_api_keys.get("speech_speed") else None,
+        }
+        if variation_ctx:
+            voice_kwargs["stability"] = variation_ctx.voice_params.stability
+            voice_kwargs["similarity_boost"] = variation_ctx.voice_params.similarity_boost
+            voice_kwargs["style"] = variation_ctx.voice_params.style
+
+        audio_path = voiceover_mod.generate_voiceover(script, **voice_kwargs)
         logger.info("Pipeline step 3/5: Voiceover saved → %s", audio_path)
         _report("Voiceover ready", 35)
 
@@ -459,7 +524,12 @@ def _run_pipeline_locked(
         _report("Polishing audio…", 36)
         try:
             from audio_processor import polish_audio
-            polished_path = polish_audio(audio_path)
+            # Phase 7: music mood rotation — pass frequencies from variation context
+            polish_kwargs: dict = {}
+            if variation_ctx:
+                polish_kwargs["music_frequencies"] = variation_ctx.music_mood.frequencies
+                polish_kwargs["music_tremolo_base"] = variation_ctx.music_mood.tremolo_base
+            polished_path = polish_audio(audio_path, **polish_kwargs)
             audio_path = polished_path
             logger.info("Pipeline step 3b: Audio polished → %s", audio_path)
             _report("Audio polished", 38)
@@ -478,12 +548,14 @@ def _run_pipeline_locked(
         scene_clip_data = None
         try:
             from scene_planner import plan_scenes
-            scene_plans = plan_scenes(
-                script,
-                topic,
-                openai_api_key=user_api_keys["openai_api_key"],
-                target_total_clips=10,
-            )
+            # Phase 7: pass style_seed from variation context for better rotation
+            plan_kwargs: dict = {
+                "openai_api_key": user_api_keys["openai_api_key"],
+                "target_total_clips": 10,
+            }
+            if variation_ctx and variation_ctx.style_seed:
+                plan_kwargs["style_seed"] = variation_ctx.style_seed
+            scene_plans = plan_scenes(script, topic, **plan_kwargs)
             logger.info(
                 "Pipeline step 4/6: Scene plan ready — %d scenes, %d clips",
                 len(scene_plans),
@@ -558,6 +630,11 @@ def _run_pipeline_locked(
         # ── Always restore original keys ─────────────────────────────
         setattr(app_config, "OPENAI_API_KEY", old_openai)
         script_generator._client = None
+
+    # ── Phase 7: Attach variation metadata for content memory ────────
+    if variation_ctx:
+        result["_temperature_used"] = variation_ctx.script_temperature
+        result["_music_mood"] = variation_ctx.music_mood.label
 
     return result
 

@@ -260,3 +260,44 @@ class PostingSchedule(Base):
 
     def __repr__(self) -> str:
         return f"<PostingSchedule {self.id} user={self.user_id} freq={self.frequency} active={self.is_active}>"
+
+
+class ContentMemory(Base):
+    """Phase 7 — Content Memory: stores fingerprints of past video topics
+    so the AI can avoid repeating the same hooks, angles, and structures.
+
+    Each row = one generated video's content fingerprint.
+    Queried at the start of each pipeline run to build avoidance prompts.
+    """
+
+    __tablename__ = "content_memory"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True,
+    )
+
+    # The topic string used for generation
+    topic: Mapped[str] = mapped_column(String(300), nullable=False)
+
+    # SHA-256 fingerprint of the normalised topic (for dedup lookups)
+    topic_fingerprint: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+
+    # The final video title (used in avoidance prompts)
+    title: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+
+    # The script temperature used (for analytics/debugging)
+    temperature_used: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    # The music mood label (for analytics/debugging)
+    music_mood: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+    # Timestamp
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<ContentMemory user={self.user_id} topic='{self.topic[:40]}' fp={self.topic_fingerprint}>"

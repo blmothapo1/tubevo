@@ -38,13 +38,25 @@ def _get_client() -> OpenAI:
 
 # ── Script generation ───────────────────────────────────────────────
 
-def generate_script(topic: str, *, max_tokens: int = 1200) -> str:
+def generate_script(
+    topic: str,
+    *,
+    max_tokens: int = 1200,
+    temperature: float | None = None,
+    avoidance_prompt: str = "",
+) -> str:
     """Return a ~3-minute video script for the given *topic*.
 
     The script follows the Tubevo style:
     • Hook (5-10 s)
     • 3–5 key points with actionable advice
     • Strong CTA close
+
+    Phase 7 additions:
+    - *temperature*: Override for OpenAI temperature (default 0.8).
+      Use ``variation_engine.pick_script_temperature()`` for per-run jitter.
+    - *avoidance_prompt*: Extra prompt fragment from content memory that
+      tells the model to avoid previously-used angles/hooks.
     """
     system_prompt = (
         f"{config.CHANNEL_TONE}\n\n"
@@ -58,7 +70,14 @@ def generate_script(topic: str, *, max_tokens: int = 1200) -> str:
         "- Speak directly to 'you' — second person, conversational.\n"
     )
 
+    # Phase 7: inject content-memory avoidance if present
+    if avoidance_prompt:
+        system_prompt += avoidance_prompt
+
     user_prompt = f"Write a video script on the following topic:\n\n{topic}"
+
+    # Phase 7: use provided temperature or fall back to original 0.8
+    effective_temp = temperature if temperature is not None else 0.8
 
     response = _get_client().chat.completions.create(
         model="gpt-4o",
@@ -67,18 +86,29 @@ def generate_script(topic: str, *, max_tokens: int = 1200) -> str:
             {"role": "user", "content": user_prompt},
         ],
         max_tokens=max_tokens,
-        temperature=0.8,
+        temperature=effective_temp,
     )
 
     content = response.choices[0].message.content or ""
+    logger.info("Script generated (temp=%.2f, avoidance=%d chars)", effective_temp, len(avoidance_prompt))
     return content.strip()
 
 
 # ── Metadata generation (title / description / tags) ────────────────
 
-def generate_metadata(script: str, topic: str) -> dict:
+def generate_metadata(
+    script: str,
+    topic: str,
+    *,
+    temperature: float | None = None,
+    avoidance_prompt: str = "",
+) -> dict:
     """Generate a YouTube title, SEO description, and tags from a
     finished script. Returns ``{"title": ..., "description": ..., "tags": [...]}``.
+
+    Phase 7 additions:
+    - *temperature*: Override for metadata temperature (default 0.6).
+    - *avoidance_prompt*: Hints to avoid repeated title patterns.
     """
     system_prompt = (
         "You are an expert YouTube SEO strategist for a personal-finance channel.\n"
@@ -89,10 +119,17 @@ def generate_metadata(script: str, topic: str) -> dict:
         "Do NOT include markdown fences. Return raw JSON only."
     )
 
+    # Phase 7: inject metadata avoidance if present
+    if avoidance_prompt:
+        system_prompt += avoidance_prompt
+
     user_prompt = (
         f"TOPIC: {topic}\n\n"
         f"SCRIPT:\n{script}"
     )
+
+    # Phase 7: use provided temperature or fall back to original 0.6
+    effective_temp = temperature if temperature is not None else 0.6
 
     response = _get_client().chat.completions.create(
         model="gpt-4o",
@@ -101,7 +138,7 @@ def generate_metadata(script: str, topic: str) -> dict:
             {"role": "user", "content": user_prompt},
         ],
         max_tokens=600,
-        temperature=0.6,
+        temperature=effective_temp,
     )
 
     import json

@@ -193,14 +193,25 @@ def _parse_loudnorm_stats(stderr: str) -> dict | None:
 
 # ── Step 3: Generate ambient background music ───────────────────────
 
-def generate_ambient_music(duration: float, output_path: str) -> str:
+def generate_ambient_music(
+    duration: float,
+    output_path: str,
+    *,
+    frequencies: list[float] | None = None,
+    tremolo_base: float | None = None,
+) -> str:
     """Generate a subtle ambient pad using FFmpeg's audio synthesis.
 
     Creates a warm, barely-noticeable ambient drone using layered sine
     waves at consonant intervals. This is 100% royalty-free since it's
     generated programmatically.
 
-    The result is a gentle C-major pad with slow volume modulation:
+    Phase 7 — Music Mood Rotation:
+    *frequencies* and *tremolo_base* can be overridden by the variation
+    engine to rotate between different keys/moods.  When not provided,
+    the original C-major pad is used (backward-compatible).
+
+    Default (C-major pad):
     - C3 (130.81 Hz) — root
     - E3 (164.81 Hz) — major third
     - G3 (196.00 Hz) — fifth
@@ -208,24 +219,33 @@ def generate_ambient_music(duration: float, output_path: str) -> str:
 
     With a slow tremolo for organic feel.
     """
+    # Phase 7: use provided frequencies or fall back to original C-major
+    f1, f2, f3, f4 = (frequencies or [130.81, 164.81, 196.00, 261.63])[:4]
+    trem_base = tremolo_base if tremolo_base is not None else 0.07
+
+    logger.info(
+        "Generating ambient music: %.1fHz/%.1fHz/%.1fHz/%.1fHz  tremolo=%.3f",
+        f1, f2, f3, f4, trem_base,
+    )
+
     # Generate layered sine tones with tremolo modulation
     # Each voice at a different volume to create a warm pad
     af_filter = (
-        # Voice 1: Root note C3 with slow tremolo
-        "sine=frequency=130.81:duration={dur},"
-        "tremolo=f=0.08:d=0.3,"
+        # Voice 1: Root note with slow tremolo
+        "sine=frequency={f1}:duration={dur},"
+        "tremolo=f={t1}:d=0.3,"
         "volume=0.25 [v1];"
-        # Voice 2: Major third E3
-        "sine=frequency=164.81:duration={dur},"
-        "tremolo=f=0.06:d=0.25,"
+        # Voice 2: Third
+        "sine=frequency={f2}:duration={dur},"
+        "tremolo=f={t2}:d=0.25,"
         "volume=0.18 [v2];"
-        # Voice 3: Fifth G3
-        "sine=frequency=196.00:duration={dur},"
-        "tremolo=f=0.07:d=0.2,"
+        # Voice 3: Fifth
+        "sine=frequency={f3}:duration={dur},"
+        "tremolo=f={t3}:d=0.2,"
         "volume=0.15 [v3];"
-        # Voice 4: Octave C4 (barely there)
-        "sine=frequency=261.63:duration={dur},"
-        "tremolo=f=0.05:d=0.35,"
+        # Voice 4: Octave (barely there)
+        "sine=frequency={f4}:duration={dur},"
+        "tremolo=f={t4}:d=0.35,"
         "volume=0.08 [v4];"
         # Mix all voices
         "[v1][v2][v3][v4] amix=inputs=4:duration=longest,"
@@ -237,6 +257,11 @@ def generate_ambient_music(duration: float, output_path: str) -> str:
         # Final volume adjustment
         "volume={vol}dB"
     ).format(
+        f1=f1, f2=f2, f3=f3, f4=f4,
+        t1=round(trem_base + 0.01, 3),
+        t2=round(trem_base - 0.01, 3),
+        t3=trem_base,
+        t4=round(trem_base - 0.02, 3),
         dur=duration + 1,  # +1s buffer
         fade_out_start=max(0, duration - 3),
         vol=MUSIC_VOLUME_DB,
@@ -304,6 +329,8 @@ def polish_audio(
     add_music: bool = True,
     trim_silence_enabled: bool = True,
     normalize_enabled: bool = True,
+    music_frequencies: list[float] | None = None,
+    music_tremolo_base: float | None = None,
 ) -> str:
     """Full audio polish pipeline: trim → normalize → music → duck → mix.
 
@@ -319,6 +346,10 @@ def polish_audio(
         Whether to trim silence from start/end (default True).
     normalize_enabled : bool
         Whether to normalize loudness (default True).
+    music_frequencies : list[float] | None
+        Phase 7 — Override ambient pad frequencies for mood rotation.
+    music_tremolo_base : float | None
+        Phase 7 — Override tremolo speed for mood rotation.
 
     Returns
     -------
@@ -359,7 +390,12 @@ def polish_audio(
             try:
                 duration = _get_duration(current)
                 music_path = os.path.join(tmp_dir, "ambient_music.mp3")
-                generate_ambient_music(duration, music_path)
+                generate_ambient_music(
+                    duration,
+                    music_path,
+                    frequencies=music_frequencies,
+                    tremolo_base=music_tremolo_base,
+                )
 
                 mixed_path = os.path.join(tmp_dir, "mixed.mp3")
                 current = mix_with_ducking(current, music_path, mixed_path)
