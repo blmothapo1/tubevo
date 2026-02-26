@@ -2,7 +2,6 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Film, CalendarClock, Settings, LogOut, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import tubevoLogo from '../assets/tubevo-logo-web.png';
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -39,7 +38,7 @@ export default function Sidebar({ open, onClose }) {
 
         {/* Logo area */}
         <div className="px-5 py-5 flex items-center justify-between">
-          <img src={tubevoLogo} alt="Tubevo" className="h-8" />
+          <span className="text-[20px] font-semibold text-white" style={{ fontFamily: "'Poppins', sans-serif" }}>Tubevo</span>
           <button
             onClick={onClose}
             className="p-1 rounded-[8px] text-surface-600 hover:text-white hover:bg-white/[0.04] transition-colors duration-150"

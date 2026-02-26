@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { Wifi, WifiOff, UserCircle, Menu } from 'lucide-react';
-import tubevoLogo from '../assets/tubevo-logo-web.png';
 
 export default function Topbar({ onMenuToggle }) {
   const { user } = useAuth();
@@ -41,7 +40,7 @@ export default function Topbar({ onMenuToggle }) {
         </button>
 
         {/* Logo — always visible in the topbar */}
-        <img src={tubevoLogo} alt="Tubevo" className="h-7 sm:h-8 shrink-0" />
+        <span className="text-[18px] sm:text-[20px] font-semibold text-white shrink-0" style={{ fontFamily: "'Poppins', sans-serif" }}>Tubevo</span>
 
         {/* YouTube connection status pill */}
         <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11px] font-medium tracking-wide uppercase transition-colors duration-150 ${

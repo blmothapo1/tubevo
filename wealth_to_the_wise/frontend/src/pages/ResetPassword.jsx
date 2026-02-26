@@ -3,7 +3,6 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../lib/api';
 import Spinner from '../components/Spinner';
-import tubevoLogo from '../assets/tubevo-logo-web.png';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
@@ -64,7 +63,7 @@ export default function ResetPassword() {
       >
         <div className="text-center mb-8">
           <Link to="/">
-            <img src={tubevoLogo} alt="Tubevo" className="h-8 mx-auto" />
+            <span className="text-[22px] font-semibold text-white mx-auto block text-center" style={{ fontFamily: "'Poppins', sans-serif" }}>Tubevo</span>
           </Link>
           <p className="mt-2.5 text-xs text-surface-600 uppercase tracking-wider font-medium">Choose a new password</p>
         </div>

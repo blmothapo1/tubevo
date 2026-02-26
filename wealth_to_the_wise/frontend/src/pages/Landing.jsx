@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import {
   Sparkles, Mic, Upload, Target, CalendarClock, Zap, Check, ArrowRight,
 } from 'lucide-react';
-import tubevoLogo from '../assets/tubevo-logo-web.png';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
@@ -58,7 +57,7 @@ export default function Landing() {
       {/* ── Navbar ── */}
       <nav className="glass sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-[56px] flex items-center justify-between">
-          <img src={tubevoLogo} alt="Tubevo" className="h-8" />
+          <span className="text-[20px] font-semibold text-white" style={{ fontFamily: "'Poppins', sans-serif" }}>Tubevo</span>
           <div className="flex items-center gap-2">
             <Link
               to="/login"
