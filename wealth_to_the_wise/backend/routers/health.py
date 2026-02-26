@@ -43,10 +43,14 @@ async def debug_kit(request: Request) -> dict:
     # Also check raw env vars for any KIT-related vars
     kit_env_vars = {k: v[:4] + "..." for k, v in os.environ.items() if "KIT" in k.upper()}
 
+    # Show all env var NAMES (not values) so we can see what Railway injects
+    all_env_names = sorted(os.environ.keys())
+
     return {
         "kit_key_set": bool(key),
         "kit_key_length": len(key) if key else 0,
         "kit_key_prefix": key[:4] + "..." if key and len(key) > 4 else "empty",
         "kit_env_vars_found": kit_env_vars,
         "total_env_var_count": len(os.environ),
+        "all_env_names": all_env_names,
     }
