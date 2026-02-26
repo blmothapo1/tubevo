@@ -268,7 +268,7 @@ async def _run_pipeline_background(
     except Exception as e:
         tb = traceback.format_exc()
         # Phase 8: mask any API keys that might appear in tracebacks
-        from backend.config import mask_secrets
+        from config import mask_secrets
         safe_tb = mask_secrets(tb)
         safe_msg = mask_secrets(str(e))
         logger.error("Pipeline background task failed for record %s: %s\n%s", record_id, safe_msg, safe_tb)
