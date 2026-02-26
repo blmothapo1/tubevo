@@ -767,7 +767,7 @@ function VideoPreferencesTab() {
               whileTap={{ scale: 0.98 }}
               className={`relative p-3 rounded-lg text-left transition-all ${
                 subtitleStyle === style.key
-                  ? 'bg-brand-500/8'
+                  ? 'bg-brand-500/10 ring-1 ring-brand-500/30'
                   : 'bg-surface-100/30 hover:bg-surface-200/50'
               }`}
             >
@@ -1156,7 +1156,7 @@ function PlanTab({ plan }) {
             transition={{ duration: 0.2, delay: 0.04 * i, ease }}
             className={`relative rounded-lg p-4 transition-all ${
               plan === p.key
-                ? 'bg-brand-600/8'
+                ? 'bg-brand-500/10 ring-1 ring-brand-500/30'
                 : 'bg-surface-200/30 hover:bg-surface-200/50'
             }`}
           >
