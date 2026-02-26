@@ -213,10 +213,12 @@ def _generate_queries_with_ai(
         # Use a random seed to prevent identical queries across generations
         seed_note = f"Randomization seed: {random.randint(1000, 9999)}"
 
-        _messages = [
-            {
-                "role": "system",
-                "content": (
+        from openai.types.chat import ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam
+
+        _messages: list = [
+            ChatCompletionSystemMessageParam(
+                role="system",
+                content=(
                     "You generate Pexels stock video search queries for a YouTube video.\n\n"
                     "RULES:\n"
                     "- For each scene section, generate exactly 2-3 short (2-4 word) search queries\n"
@@ -231,14 +233,14 @@ def _generate_queries_with_ai(
                     "Return ONLY a JSON array of objects with keys: label, queries\n"
                     "Example: [{\"label\": \"intro\", \"queries\": [\"city skyline morning\", \"person waking up\"]}]"
                 ),
-            },
-            {
-                "role": "user",
-                "content": (
+            ),
+            ChatCompletionUserMessageParam(
+                role="user",
+                content=(
                     f"VIDEO TOPIC: {topic}\n\n"
                     f"SCENES:\n{json.dumps(section_summaries, indent=2)}"
                 ),
-            },
+            ),
         ]
 
         # Phase 8: Retry with exponential backoff for scene query generation
@@ -266,6 +268,8 @@ def _generate_queries_with_ai(
                 )
                 _time.sleep(_delay)
         
+        if response is None or not hasattr(response, "choices") or not response.choices:
+            raise RuntimeError("OpenAI API call failed: no response or choices returned")
         raw = (response.choices[0].message.content or "").strip()
         # Strip markdown fences
         if raw.startswith("```"):

@@ -7,10 +7,13 @@
  * instructions with an animated pointer.
  *
  * Enhanced with:
- * - Device-aware step descriptions (mobile/tablet/desktop)
+ * - useDeviceContext-based layout (mobile / tablet / desktop presets)
  * - Collision detection (auto-flip tooltip if offscreen)
- * - Mobile modal fallback (bottom-sheet on small screens)
- * - Orientation change listener
+ * - Mobile bottom-sheet modal fallback
+ * - Tablet anchored tooltips with safe padding
+ * - Desktop anchored tooltips with arrows near target
+ * - 16px minimum edge padding on ALL device types
+ * - Orientation change + visualViewport listener
  * - Scroll-into-view for off-screen targets
  *
  * 100 % additive — does not modify or break any existing logic.
@@ -30,11 +33,29 @@ import {
   Download,
   PartyPopper,
 } from 'lucide-react';
+import useDeviceContext from '../hooks/useDeviceContext';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
-// ── Mobile breakpoint ────────────────────────────────────────
-const MOBILE_BREAKPOINT = 640;
+// ── Layout presets per device ────────────────────────────────
+// Minimum padding from any screen edge (px)
+const EDGE_PAD = {
+  mobile: 16,
+  tablet: 16,
+  desktop: 20,
+};
+// Tooltip width (px)
+const TOOLTIP_W = {
+  mobile: 0,     // full-width bottom sheet on mobile — not used for positioning
+  tablet: 340,
+  desktop: 380,
+};
+// Estimated tooltip height for collision math
+const TOOLTIP_H = {
+  mobile: 0,
+  tablet: 220,
+  desktop: 240,
+};
 
 // ── Tutorial step definitions ────────────────────────────────
 // Each step can have an optional `mobileDescription` for small screens.
@@ -131,26 +152,17 @@ export default function OnboardingTutorial({ onComplete }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < MOBILE_BREAKPOINT);
   const navigate = useNavigate();
   const location = useLocation();
   const resizeObserverRef = useRef(null);
   const stepTimerRef = useRef(null);
 
+  // ── Device context (robust detection) ─────────────────────
+  const device = useDeviceContext();
+
   const step = STEPS[currentStep];
   const totalSteps = STEPS.length;
   const progress = ((currentStep + 1) / totalSteps) * 100;
-
-  // ── Track device size for mobile modal fallback ───────────
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    window.addEventListener('resize', checkMobile);
-    window.addEventListener('orientationchange', checkMobile);
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-      window.removeEventListener('orientationchange', checkMobile);
-    };
-  }, []);
 
   // ── Locate the target element and track its position ──────
   const updateTargetRect = useCallback(() => {
@@ -165,11 +177,13 @@ export default function OnboardingTutorial({ onComplete }) {
       if (el) {
         // Scroll target into view if it's off-screen
         const elRect = el.getBoundingClientRect();
+        const vw = device.width;
+        const vh = device.height;
         const isOffScreen =
           elRect.bottom < 0 ||
-          elRect.top > window.innerHeight ||
+          elRect.top > vh ||
           elRect.right < 0 ||
-          elRect.left > window.innerWidth;
+          elRect.left > vw;
 
         if (isOffScreen) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
@@ -202,12 +216,12 @@ export default function OnboardingTutorial({ onComplete }) {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [step.target]);
+  }, [step.target, device.width, device.height]);
 
   // Navigate to the step's route if needed
   useEffect(() => {
     if (step.route) {
-      const [path, query] = step.route.split('?');
+      const [path] = step.route.split('?');
       const currentPath = location.pathname;
       if (currentPath !== path) {
         setIsTransitioning(true);
@@ -222,17 +236,21 @@ export default function OnboardingTutorial({ onComplete }) {
   useEffect(() => {
     const cleanup = updateTargetRect();
 
-    // Also listen for resize/scroll/orientation
     const handleUpdate = () => updateTargetRect();
     window.addEventListener('resize', handleUpdate);
     window.addEventListener('scroll', handleUpdate, true);
     window.addEventListener('orientationchange', handleUpdate);
+
+    // visualViewport for accurate mobile sizing
+    const vv = window.visualViewport;
+    if (vv) vv.addEventListener('resize', handleUpdate);
 
     return () => {
       if (cleanup) cleanup();
       window.removeEventListener('resize', handleUpdate);
       window.removeEventListener('scroll', handleUpdate, true);
       window.removeEventListener('orientationchange', handleUpdate);
+      if (vv) vv.removeEventListener('resize', handleUpdate);
     };
   }, [updateTargetRect, currentStep, isTransitioning]);
 
@@ -266,11 +284,15 @@ export default function OnboardingTutorial({ onComplete }) {
 
   // ── Compute tooltip position with collision detection ─────
   const getTooltipStyle = () => {
-    // On mobile with a target element, use modal fallback (no positioning)
-    if (isMobile && step.position !== 'center' && targetRect) {
-      return null; // Signals to render mobile bottom-sheet
+    const { deviceType } = device;
+    const pad = EDGE_PAD[deviceType];
+
+    // Mobile: ALWAYS use bottom-sheet modal (no anchored positioning)
+    if (deviceType === 'mobile') {
+      return null; // Signals mobile bottom-sheet
     }
 
+    // Center steps (no target) — centered modal for all devices
     if (step.position === 'center' || !targetRect) {
       return {
         position: 'fixed',
@@ -280,67 +302,65 @@ export default function OnboardingTutorial({ onComplete }) {
       };
     }
 
-    const pad = 20;
-    const tooltipW = 380;
-    const tooltipH = 240;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    const tooltipW = TOOLTIP_W[deviceType];
+    const tooltipH = TOOLTIP_H[deviceType];
+    const vw = device.width;
+    const vh = device.height;
 
     // Determine best position with collision detection
     let preferredPos = step.position;
 
     // Check if preferred position overflows; if so, flip
-    if (preferredPos === 'bottom' && targetRect.top + targetRect.height + pad + tooltipH > vh) {
-      preferredPos = 'top';
-    } else if (preferredPos === 'top' && targetRect.top - tooltipH - pad < 0) {
-      preferredPos = 'bottom';
-    } else if (preferredPos === 'right' && targetRect.left + targetRect.width + pad + tooltipW > vw) {
-      preferredPos = 'left';
-    } else if (preferredPos === 'left' && targetRect.left - tooltipW - pad < 0) {
-      preferredPos = 'right';
-    }
-
-    // If still overflowing after flip, fallback to bottom (safest)
     const wouldOverflow = (pos) => {
       switch (pos) {
-        case 'bottom': return targetRect.top + targetRect.height + pad + tooltipH > vh;
-        case 'top': return targetRect.top - tooltipH - pad < 0;
-        case 'right': return targetRect.left + targetRect.width + pad + tooltipW > vw;
-        case 'left': return targetRect.left - tooltipW - pad < 0;
+        case 'bottom': return targetRect.top + targetRect.height + pad + tooltipH > vh - pad;
+        case 'top':    return targetRect.top - tooltipH - pad < pad;
+        case 'right':  return targetRect.left + targetRect.width + pad + tooltipW > vw - pad;
+        case 'left':   return targetRect.left - tooltipW - pad < pad;
         default: return false;
       }
     };
 
     if (wouldOverflow(preferredPos)) {
-      // Try all positions, pick first non-overflowing
+      // Flip to opposite
+      const flip = { bottom: 'top', top: 'bottom', right: 'left', left: 'right' };
+      preferredPos = flip[preferredPos] || preferredPos;
+    }
+
+    // If still overflowing after flip, try all positions
+    if (wouldOverflow(preferredPos)) {
       const candidates = ['bottom', 'top', 'right', 'left'];
       preferredPos = candidates.find((p) => !wouldOverflow(p)) || 'bottom';
     }
+
+    // Clamp helper — ensures >= pad from all edges
+    const clampX = (x) => Math.max(pad, Math.min(x, vw - tooltipW - pad));
+    const clampY = (y) => Math.max(pad, Math.min(y, vh - tooltipH - pad));
 
     switch (preferredPos) {
       case 'bottom':
         return {
           position: 'fixed',
-          top: Math.min(targetRect.top + targetRect.height + pad, vh - tooltipH - 20),
-          left: Math.max(20, Math.min(targetRect.centerX - tooltipW / 2, vw - tooltipW - 20)),
+          top: clampY(targetRect.top + targetRect.height + pad),
+          left: clampX(targetRect.centerX - tooltipW / 2),
         };
       case 'top':
         return {
           position: 'fixed',
-          top: Math.max(20, targetRect.top - tooltipH - pad),
-          left: Math.max(20, Math.min(targetRect.centerX - tooltipW / 2, vw - tooltipW - 20)),
+          top: clampY(targetRect.top - tooltipH - pad),
+          left: clampX(targetRect.centerX - tooltipW / 2),
         };
       case 'right':
         return {
           position: 'fixed',
-          top: Math.max(20, Math.min(targetRect.centerY - tooltipH / 2, vh - tooltipH - 20)),
-          left: Math.min(targetRect.left + targetRect.width + pad, vw - tooltipW - 20),
+          top: clampY(targetRect.centerY - tooltipH / 2),
+          left: clampX(targetRect.left + targetRect.width + pad),
         };
       case 'left':
         return {
           position: 'fixed',
-          top: Math.max(20, Math.min(targetRect.centerY - tooltipH / 2, vh - tooltipH - 20)),
-          left: Math.max(20, targetRect.left - tooltipW - pad),
+          top: clampY(targetRect.centerY - tooltipH / 2),
+          left: clampX(targetRect.left - tooltipW - pad),
         };
       default:
         return {
@@ -354,9 +374,14 @@ export default function OnboardingTutorial({ onComplete }) {
 
   // Get device-aware description text
   const getDescription = () => {
-    if (isMobile && step.mobileDescription) return step.mobileDescription;
+    if (device.isMobile && step.mobileDescription) return step.mobileDescription;
     return step.description;
   };
+
+  // ── Tooltip width class per device ─────────────────────────
+  const tooltipWidthClass = device.isTablet
+    ? 'w-[340px] max-w-[calc(100vw-32px)]'
+    : 'w-[380px] max-w-[calc(100vw-40px)]';
 
   // ── Shared tooltip card content (used in both positioned + modal) ──
   const renderTooltipContent = () => (
@@ -371,7 +396,7 @@ export default function OnboardingTutorial({ onComplete }) {
         />
       </div>
 
-      <div className="p-5 sm:p-6">
+      <div className={device.isMobile ? 'p-4' : 'p-5 sm:p-6'}>
         {/* Step icon & counter */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -394,8 +419,12 @@ export default function OnboardingTutorial({ onComplete }) {
         </div>
 
         {/* Title & description */}
-        <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
-        <p className="text-sm text-surface-700 leading-relaxed mb-6">{getDescription()}</p>
+        <h3 className={`font-semibold text-white mb-2 ${device.isMobile ? 'text-base' : 'text-lg'}`}>
+          {step.title}
+        </h3>
+        <p className={`text-surface-700 leading-relaxed mb-5 ${device.isMobile ? 'text-xs' : 'text-sm'}`}>
+          {getDescription()}
+        </p>
 
         {/* Navigation buttons */}
         <div className="flex items-center justify-between">
@@ -462,6 +491,10 @@ export default function OnboardingTutorial({ onComplete }) {
   const tooltipStyle = getTooltipStyle();
   const useMobileModal = tooltipStyle === null;
 
+  // Spotlight cutout padding (smaller on mobile to avoid tight edges)
+  const spotlightPad = device.isMobile ? 6 : 8;
+  const spotlightBorderPad = device.isMobile ? 8 : 10;
+
   return (
     <div className="fixed inset-0 z-[9999]" style={{ pointerEvents: 'auto' }}>
       {/* ── Dark overlay with spotlight cutout ───────────── */}
@@ -481,10 +514,10 @@ export default function OnboardingTutorial({ onComplete }) {
                 <motion.rect
                   initial={{ opacity: 0 }}
                   animate={{
-                    x: targetRect.left - 8,
-                    y: targetRect.top - 8,
-                    width: targetRect.width + 16,
-                    height: targetRect.height + 16,
+                    x: targetRect.left - spotlightPad,
+                    y: targetRect.top - spotlightPad,
+                    width: targetRect.width + spotlightPad * 2,
+                    height: targetRect.height + spotlightPad * 2,
                     opacity: 1,
                     rx: 12,
                     ry: 12,
@@ -520,10 +553,10 @@ export default function OnboardingTutorial({ onComplete }) {
             <motion.rect
               initial={{ opacity: 0 }}
               animate={{
-                x: targetRect.left - 10,
-                y: targetRect.top - 10,
-                width: targetRect.width + 20,
-                height: targetRect.height + 20,
+                x: targetRect.left - spotlightBorderPad,
+                y: targetRect.top - spotlightBorderPad,
+                width: targetRect.width + spotlightBorderPad * 2,
+                height: targetRect.height + spotlightBorderPad * 2,
                 opacity: 1,
               }}
               transition={{ duration: 0.4, ease }}
@@ -560,10 +593,10 @@ export default function OnboardingTutorial({ onComplete }) {
         )}
       </AnimatePresence>
 
-      {/* ── Tooltip card — positioned or mobile bottom-sheet ─ */}
+      {/* ── Tooltip card — mobile bottom-sheet / tablet+desktop anchored ─ */}
       <AnimatePresence mode="wait">
         {useMobileModal ? (
-          /* ── Mobile modal fallback (bottom sheet) ──────── */
+          /* ── Mobile bottom-sheet modal ─────────────────── */
           <motion.div
             key={`mobile-${currentStep}`}
             initial={{ opacity: 0, y: 100 }}
@@ -577,15 +610,15 @@ export default function OnboardingTutorial({ onComplete }) {
             </div>
           </motion.div>
         ) : (
-          /* ── Desktop / tablet positioned tooltip ───────── */
+          /* ── Tablet / Desktop positioned tooltip ──────── */
           <motion.div
             key={currentStep}
             initial={{ opacity: 0, y: 16, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -12, scale: 0.95 }}
             transition={{ duration: 0.35, ease }}
+            className={`z-[10002] ${tooltipWidthClass}`}
             style={tooltipStyle}
-            className="z-[10002] w-[380px] max-w-[calc(100vw-40px)]"
           >
             {renderTooltipContent()}
           </motion.div>

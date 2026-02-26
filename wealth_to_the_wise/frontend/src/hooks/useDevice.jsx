@@ -1,56 +1,20 @@
 /**
- * useDevice — responsive device detection hook with optional debug overlay.
+ * useDevice — backward-compatible device detection hook.
  *
- * Returns: { isMobile, isTablet, isDesktop, deviceType, width, height, isLandscape }
+ * Now delegates to useDeviceContext() for accurate media-query-based
+ * detection (pointer, hover, visualViewport). The returned shape is
+ * a superset of the original API so nothing breaks.
  *
- * Usage:
- *   const { isMobile, isTablet, isDesktop } = useDevice();
- *
- * The debug overlay renders automatically in dev mode when ?debug=device
- * is present in the URL. Fully additive — no side-effects on existing logic.
+ * Also exports DeviceDebugOverlay with richer context display.
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-
-const BREAKPOINTS = { mobile: 640, tablet: 1024 };
-
-function getDeviceInfo() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  const isMobile = w < BREAKPOINTS.mobile;
-  const isTablet = w >= BREAKPOINTS.mobile && w < BREAKPOINTS.tablet;
-  const isDesktop = w >= BREAKPOINTS.tablet;
-  const deviceType = isMobile ? 'mobile' : isTablet ? 'tablet' : 'desktop';
-  const isLandscape = w > h;
-
-  return { isMobile, isTablet, isDesktop, deviceType, width: w, height: h, isLandscape };
-}
+import useDeviceContext from './useDeviceContext';
 
 export default function useDevice() {
-  const [device, setDevice] = useState(getDeviceInfo);
-
-  const handleChange = useCallback(() => {
-    setDevice(getDeviceInfo());
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('resize', handleChange);
-    window.addEventListener('orientationchange', handleChange);
-    // Also use matchMedia for more reliable detection
-    const mql = window.matchMedia(`(max-width: ${BREAKPOINTS.mobile - 1}px)`);
-    const mqlTablet = window.matchMedia(`(max-width: ${BREAKPOINTS.tablet - 1}px)`);
-    mql.addEventListener?.('change', handleChange);
-    mqlTablet.addEventListener?.('change', handleChange);
-
-    return () => {
-      window.removeEventListener('resize', handleChange);
-      window.removeEventListener('orientationchange', handleChange);
-      mql.removeEventListener?.('change', handleChange);
-      mqlTablet.removeEventListener?.('change', handleChange);
-    };
-  }, [handleChange]);
-
-  return device;
+  // Delegate to the robust context hook — returns everything the old
+  // hook did plus inputType, orientation, etc.
+  return useDeviceContext();
 }
 
 /**
@@ -60,7 +24,7 @@ export default function useDevice() {
  * Usage: <DeviceDebugOverlay /> anywhere in the tree.
  */
 export function DeviceDebugOverlay() {
-  const device = useDevice();
+  const device = useDeviceContext();
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -90,8 +54,8 @@ export function DeviceDebugOverlay() {
         lineHeight: 1.5,
       }}
     >
-      <div><strong>{device.deviceType.toUpperCase()}</strong></div>
-      <div>{device.width}×{device.height} {device.isLandscape ? '⬌' : '⬍'}</div>
+      <div><strong>{device.deviceType.toUpperCase()}</strong> · {device.inputType}</div>
+      <div>{device.width}×{device.height} {device.orientation === 'landscape' ? '⬌' : '⬍'}</div>
     </div>
   );
 
