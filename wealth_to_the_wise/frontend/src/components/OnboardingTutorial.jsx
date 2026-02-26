@@ -385,44 +385,44 @@ export default function OnboardingTutorial({ onComplete }) {
 
   // ── Shared tooltip card content (used in both positioned + modal) ──
   const renderTooltipContent = () => (
-    <div className="bg-surface-100 border border-surface-300/70 rounded-2xl shadow-soft-lg overflow-hidden">
+    <div className="bg-surface-100 border border-surface-300/70 rounded overflow-hidden">
       {/* Progress bar */}
       <div className="h-1 bg-surface-300/50">
         <motion.div
-          className="h-full gradient-brand rounded-r-full"
+          className="h-full bg-brand-500 rounded-r-sm"
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.5, ease }}
+          transition={{ duration: 0.4, ease }}
         />
       </div>
 
       <div className={device.isMobile ? 'p-4' : 'p-5 sm:p-6'}>
         {/* Step icon & counter */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
             {step.icon && (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
-                <step.icon size={20} className="text-brand-400" />
+              <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+                <step.icon size={16} className="text-brand-400" />
               </div>
             )}
-            <span className="text-xs font-medium text-surface-600 uppercase tracking-wider">
-              Step {currentStep + 1} of {totalSteps}
+            <span className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest tabular-nums">
+              {String(currentStep + 1).padStart(2, '0')} / {String(totalSteps).padStart(2, '0')}
             </span>
           </div>
           <button
             onClick={onComplete}
-            className="p-1.5 rounded-lg text-surface-600 hover:text-surface-800 hover:bg-surface-200/80 transition-all"
+            className="p-1 rounded text-surface-600 hover:text-surface-800 hover:bg-surface-200/80 transition-colors"
             title="Skip tutorial"
           >
-            <X size={16} />
+            <X size={14} />
           </button>
         </div>
 
         {/* Title & description */}
-        <h3 className={`font-semibold text-white mb-2 ${device.isMobile ? 'text-base' : 'text-lg'}`}>
+        <h3 className={`font-semibold text-white mb-1.5 ${device.isMobile ? 'text-sm' : 'text-base'}`}>
           {step.title}
         </h3>
-        <p className={`text-surface-700 leading-relaxed mb-5 ${device.isMobile ? 'text-xs' : 'text-sm'}`}>
+        <p className={`text-surface-700 leading-relaxed mb-4 ${device.isMobile ? 'text-[11px]' : 'text-xs'}`}>
           {getDescription()}
         </p>
 
@@ -430,7 +430,7 @@ export default function OnboardingTutorial({ onComplete }) {
         <div className="flex items-center justify-between">
           <button
             onClick={onComplete}
-            className="text-xs text-surface-600 hover:text-surface-800 transition-colors"
+            className="text-[11px] text-surface-600 hover:text-surface-800 transition-colors"
           >
             Skip Tutorial
           </button>
@@ -438,20 +438,18 @@ export default function OnboardingTutorial({ onComplete }) {
           <div className="flex items-center gap-2">
             {currentStep > 0 && (
               <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={goPrev}
-                className="flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-surface-700 bg-surface-200/80 border border-surface-300 hover:bg-surface-300/80 transition-all"
+                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium text-surface-700 bg-surface-200/80 border border-surface-300 hover:bg-surface-300/80 transition-colors"
               >
                 <ChevronLeft size={14} />
                 Back
               </motion.button>
             )}
             <motion.button
-              whileHover={{ scale: 1.04, y: -1 }}
-              whileTap={{ scale: 0.96 }}
+              whileTap={{ scale: 0.97 }}
               onClick={goNext}
-              className="btn-primary flex items-center gap-1.5 px-5 py-2"
+              className="btn-primary flex items-center gap-1.5 px-4 py-1.5 text-xs"
             >
               {currentStep === totalSteps - 1 ? (
                 <>
@@ -469,16 +467,16 @@ export default function OnboardingTutorial({ onComplete }) {
         </div>
 
         {/* Step dots */}
-        <div className="flex items-center justify-center gap-1.5 mt-5">
+        <div className="flex items-center justify-center gap-1 mt-4">
           {STEPS.map((_, i) => (
             <motion.div
               key={i}
-              className={`rounded-full transition-all duration-300 ${
+              className={`rounded-sm transition-all duration-200 ${
                 i === currentStep
-                  ? 'w-6 h-1.5 gradient-brand'
+                  ? 'w-5 h-1 bg-brand-500'
                   : i < currentStep
-                  ? 'w-1.5 h-1.5 bg-brand-500/50'
-                  : 'w-1.5 h-1.5 bg-surface-400'
+                  ? 'w-1.5 h-1 bg-brand-500/50'
+                  : 'w-1.5 h-1 bg-surface-400'
               }`}
               layout
             />
@@ -519,8 +517,8 @@ export default function OnboardingTutorial({ onComplete }) {
                     width: targetRect.width + spotlightPad * 2,
                     height: targetRect.height + spotlightPad * 2,
                     opacity: 1,
-                    rx: 12,
-                    ry: 12,
+                    rx: 6,
+                    ry: 6,
                   }}
                   transition={{ duration: 0.4, ease }}
                   fill="black"
@@ -530,8 +528,8 @@ export default function OnboardingTutorial({ onComplete }) {
 
             {/* Glow filter for the spotlight ring */}
             <filter id="spotlight-glow">
-              <feGaussianBlur stdDeviation="8" result="blur" />
-              <feFlood floodColor="#6366f1" floodOpacity="0.6" result="color" />
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feFlood floodColor="#2563eb" floodOpacity="0.4" result="color" />
               <feComposite in="color" in2="blur" operator="in" result="glow" />
               <feMerge>
                 <feMergeNode in="glow" />
@@ -560,13 +558,13 @@ export default function OnboardingTutorial({ onComplete }) {
                 opacity: 1,
               }}
               transition={{ duration: 0.4, ease }}
-              rx="14"
-              ry="14"
+              rx="8"
+              ry="8"
               fill="none"
-              stroke="#6366f1"
-              strokeWidth="2"
+              stroke="#2563eb"
+              strokeWidth="1"
               filter="url(#spotlight-glow)"
-              className="animate-pulse"
+              className=""
             />
           )}
         </svg>
@@ -588,7 +586,7 @@ export default function OnboardingTutorial({ onComplete }) {
             transition={{ duration: 1.5, ease, repeat: Infinity, repeatDelay: 1 }}
             className="fixed z-[10001] pointer-events-none"
           >
-            <MousePointerClick size={24} className="text-brand-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+            <MousePointerClick size={24} className="text-brand-400 drop-shadow-[0_0_6px_rgba(37,99,235,0.5)]" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -599,10 +597,10 @@ export default function OnboardingTutorial({ onComplete }) {
           /* ── Mobile bottom-sheet modal ─────────────────── */
           <motion.div
             key={`mobile-${currentStep}`}
-            initial={{ opacity: 0, y: 100 }}
+            initial={{ opacity: 0, y: 80 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 100 }}
-            transition={{ duration: 0.35, ease }}
+            exit={{ opacity: 0, y: 80 }}
+            transition={{ duration: 0.25, ease }}
             className="onboarding-mobile-modal"
           >
             <div className="onboarding-card">
@@ -613,10 +611,10 @@ export default function OnboardingTutorial({ onComplete }) {
           /* ── Tablet / Desktop positioned tooltip ──────── */
           <motion.div
             key={currentStep}
-            initial={{ opacity: 0, y: 16, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.95 }}
-            transition={{ duration: 0.35, ease }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease }}
             className={`z-[10002] ${tooltipWidthClass}`}
             style={tooltipStyle}
           >

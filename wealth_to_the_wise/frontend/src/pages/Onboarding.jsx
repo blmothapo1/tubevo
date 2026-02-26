@@ -107,49 +107,49 @@ export default function Onboarding() {
     // Step 0: Connect YouTube
     <div key="yt" className="text-center">
       <motion.div
-        initial={{ scale: 0.8, opacity: 0 }}
+        initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5, ease }}
-        className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ring-1 shadow-lg ${
+        transition={{ duration: 0.3, ease }}
+        className={`w-14 h-14 rounded flex items-center justify-center mx-auto mb-5 ring-1 ${
           ytConnected
-            ? 'bg-emerald-500/10 ring-emerald-500/20 shadow-emerald-500/10'
-            : 'bg-red-500/10 ring-red-500/20 shadow-red-500/10'
+            ? 'bg-emerald-500/8 ring-emerald-500/20'
+            : 'bg-red-500/8 ring-red-500/20'
         }`}
       >
         {ytConnected ? (
-          <CheckCircle2 size={32} className="text-emerald-400" />
+          <CheckCircle2 size={28} className="text-emerald-400" />
         ) : (
-          <Youtube size={32} className="text-red-400" />
+          <Youtube size={28} className="text-red-400" />
         )}
       </motion.div>
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">
         {ytConnected ? 'YouTube Connected!' : 'Connect YouTube'}
       </h2>
-      <p className="text-surface-600 text-sm mb-8 max-w-sm mx-auto leading-relaxed">
+      <p className="text-surface-600 text-xs mb-6 max-w-sm mx-auto leading-relaxed">
         {ytConnected
           ? `Connected to ${ytChannel}. You're all set to upload videos!`
           : 'Link your YouTube channel so Tubevo can upload videos on your behalf.'}
       </p>
       {ytConnected ? (
-        <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
-          <CheckCircle2 size={16} />
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded bg-emerald-500/8 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+          <CheckCircle2 size={14} />
           {ytChannel}
         </div>
       ) : (
         <motion.button
           onClick={handleConnectYouTube}
           disabled={ytConnecting}
-          whileHover={!ytConnecting ? { scale: 1.03, y: -1 } : {}}
-          whileTap={!ytConnecting ? { scale: 0.97 } : {}}
-          className="bg-red-500 hover:bg-red-400 text-white font-medium text-sm px-6 py-3 rounded-xl transition-all inline-flex items-center gap-2 shadow-lg shadow-red-500/25 disabled:opacity-60 disabled:cursor-not-allowed"
+          whileHover={!ytConnecting ? { scale: 1.02 } : {}}
+          whileTap={!ytConnecting ? { scale: 0.98 } : {}}
+          className="bg-red-500 hover:bg-red-400 text-white font-medium text-xs px-5 py-2.5 rounded transition-all inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {ytConnecting ? (
             <>
-              <Loader2 size={18} className="animate-spin" /> Connecting…
+              <Loader2 size={16} className="animate-spin" /> Connecting…
             </>
           ) : (
             <>
-              <Youtube size={18} /> Connect with Google
+              <Youtube size={16} /> Connect with Google
             </>
           )}
         </motion.button>
@@ -158,36 +158,35 @@ export default function Onboarding() {
         <motion.p
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-xs text-red-400 mt-3 flex items-center justify-center gap-1.5"
+          className="text-[11px] text-red-400 mt-2.5 flex items-center justify-center gap-1"
         >
-          <AlertTriangle size={12} /> {ytError}
+          <AlertTriangle size={11} /> {ytError}
         </motion.p>
       )}
-      <p className="text-xs text-surface-500 mt-4">
+      <p className="text-[11px] text-surface-500 mt-3">
         {ytConnected ? 'You can manage this in Settings.' : 'You can also do this later in Settings.'}
       </p>
     </div>,
 
     // Step 1: Select niches
     <div key="niche" className="text-center">
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Pick your niches</h2>
-      <p className="text-surface-600 text-sm mb-6">Select one or more topics for your channel.</p>
-      <div className="flex flex-wrap justify-center gap-2.5 max-w-lg mx-auto max-h-[280px] overflow-y-auto scrollbar-none px-1 py-1">
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">Pick your niches</h2>
+      <p className="text-surface-600 text-xs mb-5">Select one or more topics for your channel.</p>
+      <div className="flex flex-wrap justify-center gap-2 max-w-lg mx-auto max-h-[260px] overflow-y-auto scrollbar-none px-1 py-1">
         {niches.map((n) => {
           const active = selectedNiches.includes(n);
           return (
             <motion.button
               key={n}
               onClick={() => toggleNiche(n)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all border ${
+              whileTap={{ scale: 0.97 }}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-all border ${
                 active
-                  ? 'bg-gradient-to-r from-brand-500 to-brand-600 border-brand-500/50 text-white shadow-md shadow-brand-500/20'
-                  : 'bg-surface-200/80 border-surface-300/60 text-surface-700 hover:border-surface-400 hover:text-surface-800'
+                  ? 'bg-brand-500 border-brand-500/50 text-white'
+                  : 'bg-surface-200 border-surface-300 text-surface-700 hover:border-surface-400 hover:text-surface-800'
               }`}
             >
-              {active && <Check size={14} className="inline mr-1.5 -mt-0.5" />}
+              {active && <Check size={12} className="inline mr-1 -mt-0.5" />}
               {n}
             </motion.button>
           );
@@ -197,22 +196,21 @@ export default function Onboarding() {
 
     // Step 2: Posting frequency
     <div key="freq" className="text-center">
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Posting frequency</h2>
-      <p className="text-surface-600 text-sm mb-8">How often should Tubevo publish videos?</p>
-      <div className="space-y-3 max-w-xs mx-auto">
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">Posting frequency</h2>
+      <p className="text-surface-600 text-xs mb-6">How often should Tubevo publish videos?</p>
+      <div className="space-y-2 max-w-xs mx-auto">
         {frequencies.map((f) => (
           <motion.button
             key={f.value}
             onClick={() => setFrequency(f.value)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className={`w-full text-left px-5 py-4 rounded-xl border transition-all ${
+            whileTap={{ scale: 0.99 }}
+            className={`w-full text-left px-4 py-3 rounded border transition-all ${
               frequency === f.value
-                ? 'bg-brand-600/10 border-brand-500/50 text-white shadow-md shadow-brand-500/10'
-                : 'bg-surface-200/60 border-surface-300/50 text-surface-700 hover:border-surface-400'
+                ? 'bg-brand-500/8 border-brand-500/40 text-white'
+                : 'bg-surface-200/60 border-surface-300 text-surface-700 hover:border-surface-400'
             }`}
           >
-            <span className="text-sm font-semibold flex items-center gap-2">
+            <span className="text-xs font-semibold flex items-center gap-2">
               {f.label}
               {frequency === f.value && (
                 <motion.span
@@ -220,11 +218,11 @@ export default function Onboarding() {
                   animate={{ scale: 1 }}
                   className="inline-flex"
                 >
-                  <Check size={14} className="text-brand-400" />
+                  <Check size={12} className="text-brand-400" />
                 </motion.span>
               )}
             </span>
-            <span className="block text-xs text-surface-500 mt-1">{f.desc}</span>
+            <span className="block text-[11px] text-surface-500 mt-0.5">{f.desc}</span>
           </motion.button>
         ))}
       </div>
@@ -233,65 +231,67 @@ export default function Onboarding() {
     // Step 3: Confirmation
     <div key="confirm" className="text-center">
       <motion.div
-        initial={{ scale: 0.8, opacity: 0, rotate: -10 }}
-        animate={{ scale: 1, opacity: 1, rotate: 0 }}
-        transition={{ duration: 0.5, ease }}
-        className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-brand-500/30"
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.3, ease }}
+        className="w-14 h-14 rounded bg-brand-500 flex items-center justify-center mx-auto mb-5"
       >
-        <Rocket size={32} className="text-white" />
+        <Rocket size={28} className="text-white" />
       </motion.div>
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">You're all set!</h2>
-      <p className="text-surface-600 text-sm mb-6 max-w-sm mx-auto leading-relaxed">
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">You're all set!</h2>
+      <p className="text-surface-600 text-xs mb-5 max-w-sm mx-auto leading-relaxed">
         Tubevo will start generating and posting content based on your preferences.
       </p>
-      <div className="card p-5 max-w-xs mx-auto text-left space-y-3 mb-8">
-        <div className="flex justify-between text-sm">
-          <span className="text-surface-500">Niches</span>
+      <div className="card p-4 max-w-xs mx-auto text-left space-y-2.5 mb-6">
+        <div className="flex justify-between text-xs">
+          <span className="text-surface-500 uppercase tracking-wider text-[10px] font-semibold">Niches</span>
           <span className="text-white font-medium text-right max-w-[60%] truncate">{selectedNiches.join(', ') || 'None'}</span>
         </div>
         <div className="h-px bg-surface-300/30" />
-        <div className="flex justify-between text-sm">
-          <span className="text-surface-500">Frequency</span>
+        <div className="flex justify-between text-xs">
+          <span className="text-surface-500 uppercase tracking-wider text-[10px] font-semibold">Frequency</span>
           <span className="text-white font-medium capitalize">{frequency.replace('_', ' ') || 'Not set'}</span>
         </div>
       </div>
       <motion.button
         onClick={launch}
-        whileHover={{ scale: 1.03, y: -1 }}
-        whileTap={{ scale: 0.97 }}
-        className="btn-primary inline-flex items-center gap-2 px-8 py-3.5 text-sm"
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        className="btn-primary inline-flex items-center gap-2 px-6 py-2.5 text-xs"
       >
-        <Rocket size={16} /> Launch Tubevo
+        <Rocket size={14} /> Launch Tubevo
       </motion.button>
     </div>,
   ];
 
   return (
     <div className="min-h-screen bg-surface-50 flex items-center justify-center px-4 relative overflow-hidden">
-      {/* Ambient background glows */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-brand-600/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-accent-500/3 rounded-full blur-[100px] pointer-events-none" />
+      {/* Ambient background glows — subtle */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-brand-600/3 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="w-full max-w-lg relative z-10">
-        {/* Progress */}
-        <div className="flex items-center justify-center gap-2 mb-10">
+        {/* Progress — step counter style */}
+        <div className="flex items-center justify-center gap-1.5 mb-8">
           {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
               animate={{
-                width: i <= step ? 40 : 24,
-                opacity: i <= step ? 1 : 0.4,
+                width: i <= step ? 36 : 20,
+                opacity: i <= step ? 1 : 0.3,
               }}
-              transition={{ duration: 0.4, ease }}
-              className={`h-1.5 rounded-full ${
-                i <= step ? 'bg-gradient-to-r from-brand-500 to-brand-400' : 'bg-surface-400'
+              transition={{ duration: 0.25, ease }}
+              className={`h-1 rounded-sm ${
+                i <= step ? 'bg-brand-500' : 'bg-surface-400'
               }`}
             />
           ))}
+          <span className="text-[10px] text-surface-600 font-semibold tracking-wider ml-3 tabular-nums">
+            {String(step + 1).padStart(2, '0')} / 04
+          </span>
         </div>
 
         {/* Content Card */}
-        <div className="card-elevated p-6 sm:p-10 min-h-[360px] sm:min-h-[400px] flex items-center justify-center overflow-hidden">
+        <div className="card p-5 sm:p-8 min-h-[340px] sm:min-h-[380px] flex items-center justify-center overflow-hidden">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={step}
@@ -300,7 +300,7 @@ export default function Onboarding() {
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ duration: 0.35, ease }}
+              transition={{ duration: 0.25, ease }}
               className="w-full"
             >
               {steps[step]}
@@ -309,24 +309,22 @@ export default function Onboarding() {
         </div>
 
         {/* Navigation */}
-        <div className="flex items-center justify-between mt-8">
+        <div className="flex items-center justify-between mt-6">
           <motion.button
             onClick={back}
             disabled={step === 0}
-            whileHover={{ x: -2 }}
-            whileTap={{ scale: 0.95 }}
-            className="text-sm text-surface-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 font-medium"
+            whileTap={{ scale: 0.97 }}
+            className="text-xs text-surface-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors flex items-center gap-1 font-medium"
           >
-            <ArrowLeft size={14} /> Back
+            <ArrowLeft size={12} /> Back
           </motion.button>
           {step < 3 && (
             <motion.button
               onClick={next}
-              whileHover={{ x: 2 }}
-              whileTap={{ scale: 0.95 }}
-              className="text-sm text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1.5 font-medium"
+              whileTap={{ scale: 0.97 }}
+              className="text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1 font-medium"
             >
-              {step === 0 ? 'Skip for now' : 'Next'} <ArrowRight size={14} />
+              {step === 0 ? 'Skip for now' : 'Next'} <ArrowRight size={12} />
             </motion.button>
           )}
         </div>

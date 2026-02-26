@@ -77,97 +77,94 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
+      <div className="max-w-5xl mx-auto space-y-5 sm:space-y-6">
         <div className="space-y-2">
-          <div className="skeleton h-8 w-64" />
-          <div className="skeleton h-4 w-48" />
+          <div className="skeleton h-7 w-64" />
+          <div className="skeleton h-3 w-48" />
         </div>
         <SkeletonStatCards />
-        <div className="skeleton h-20 w-full rounded-2xl" />
+        <div className="skeleton h-16 w-full" />
         <SkeletonVideoList />
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
+    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-6">
       {/* Header with personalized greeting */}
       <FadeIn>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight">
-              {greeting}, {firstName} ✨
+            <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">
+              {greeting}, {firstName}
             </h1>
-            <p className="text-sm text-surface-600 mt-1.5">Here's what's happening with your pipeline</p>
+            <p className="text-xs text-surface-600 mt-1 uppercase tracking-wider font-medium">Pipeline overview</p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
               onClick={fetchData}
-              className="p-2.5 rounded-xl text-surface-600 hover:text-surface-800 hover:bg-surface-200/80 transition-all duration-200"
+              className="p-2 rounded text-surface-600 hover:text-surface-800 hover:bg-surface-200 transition-colors duration-150"
               title="Refresh"
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={14} />
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
               onClick={() => setAutomationOn(!automationOn)}
-              className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${
+              className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-medium tracking-wide uppercase transition-all duration-150 ${
                 automationOn
-                  ? 'bg-emerald-500/12 text-emerald-400 border border-emerald-500/25 shadow-[0_0_20px_rgba(52,211,153,0.1)]'
-                  : 'bg-surface-200/80 text-surface-700 border border-surface-300 hover:bg-surface-300/80'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-surface-200 text-surface-700 border border-surface-300 hover:bg-surface-300'
               }`}
             >
-              {automationOn ? <Pause size={16} /> : <Play size={16} />}
-              {automationOn ? 'Running' : 'Start Automation'}
+              {automationOn ? <Pause size={14} /> : <Play size={14} />}
+              {automationOn ? 'Running' : 'Start'}
             </motion.button>
           </div>
         </div>
       </FadeIn>
 
       {/* Stats Row */}
-      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
+      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {statCards.map(({ label, value, icon: Icon, gradient, iconColor }) => (
           <StaggerItem key={label}>
-            <motion.div
-              whileHover={{ y: -2, transition: { duration: 0.2 } }}
-              className="card-elevated p-5 sm:p-6 flex items-center gap-4"
-            >
-              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center`}>
-                <Icon size={22} className={iconColor} />
+            <div className="card p-4 sm:p-5 flex items-center gap-3">
+              <div className={`w-10 h-10 rounded bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+                <Icon size={18} className={iconColor} />
               </div>
               <div>
-                <p className="text-xs text-surface-600 font-medium uppercase tracking-wider">{label}</p>
-                <p className="text-2xl font-bold text-white mt-0.5 tracking-tight">{value}</p>
+                <p className="text-[10px] text-surface-600 font-semibold uppercase tracking-widest">{label}</p>
+                <p className="text-xl font-bold text-white mt-0.5 tabular-nums tracking-tight">{value}</p>
               </div>
-            </motion.div>
+            </div>
           </StaggerItem>
         ))}
       </StaggerContainer>
 
       {/* Monthly Quota */}
       <FadeIn delay={0.2}>
-        <div className="card p-5 sm:p-6">
-          <div className="flex items-center justify-between mb-3">
+        <div className="card p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-2.5">
             <div className="flex items-center gap-2">
-              <TrendingUp size={14} className="text-surface-600" />
-              <span className="text-xs text-surface-600 font-medium uppercase tracking-wider">
-                Monthly Quota · {plan.charAt(0).toUpperCase() + plan.slice(1)} Plan
+              <TrendingUp size={12} className="text-surface-600" />
+              <span className="text-[10px] text-surface-600 font-semibold uppercase tracking-widest">
+                Monthly Quota · {plan.charAt(0).toUpperCase() + plan.slice(1)}
               </span>
             </div>
-            <span className="text-sm font-semibold text-white">
+            <span className="text-xs font-semibold text-white tabular-nums">
               {monthlyUsed} / {monthlyLimit >= 999_999 ? '∞' : monthlyLimit}
             </span>
           </div>
-          <div className="w-full bg-surface-300/50 rounded-full h-2.5 overflow-hidden">
+          <div className="w-full bg-surface-300/50 rounded-sm h-1.5 overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${monthlyLimit >= 999_999 ? 3 : usagePct}%` }}
-              transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1], delay: 0.3 }}
-              className={`h-2.5 rounded-full ${usagePct >= 90 ? 'bg-red-500' : usagePct >= 70 ? 'bg-amber-500' : 'gradient-brand'}`}
+              transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.3 }}
+              className={`h-1.5 rounded-sm ${usagePct >= 90 ? 'bg-red-500' : usagePct >= 70 ? 'bg-amber-500' : 'bg-brand-500'}`}
             />
           </div>
         </div>
@@ -179,11 +176,11 @@ export default function Dashboard() {
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
-          className="bg-emerald-500/8 border border-emerald-500/15 rounded-2xl px-6 py-4 flex items-center gap-3"
+          className="bg-emerald-500/6 border border-emerald-500/15 rounded px-5 py-3 flex items-center gap-2.5"
         >
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-soft-pulse" />
-          <p className="text-sm text-emerald-300">
-            Pipeline is active — videos are being generated and queued automatically.
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-soft-pulse" />
+          <p className="text-xs text-emerald-300">
+            Pipeline active — videos are being generated and queued automatically.
           </p>
         </motion.div>
       )}
@@ -191,21 +188,21 @@ export default function Dashboard() {
       {/* Recent Activity */}
       <FadeIn delay={0.3}>
         <div>
-          <h2 className="text-xs font-medium text-surface-600 uppercase tracking-wider mb-4 sm:mb-5">
+          <h2 className="text-[10px] font-semibold text-surface-600 uppercase tracking-widest mb-3 sm:mb-4">
             Recent Activity
           </h2>
           {activity.length === 0 ? (
-            <div className="card px-5 py-12 sm:px-6 sm:py-16 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500/15 to-brand-500/5 flex items-center justify-center mx-auto mb-4">
-                <Sparkles size={24} className="text-brand-400" />
+            <div className="card px-5 py-10 sm:px-6 sm:py-14 text-center">
+              <div className="w-12 h-12 rounded bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
+                <Sparkles size={20} className="text-brand-400" />
               </div>
               <p className="text-sm font-medium text-surface-800 mb-1">No videos yet</p>
-              <p className="text-sm text-surface-600">
+              <p className="text-xs text-surface-600">
                 Head to the{' '}
                 <a href="/videos" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
                   Videos
                 </a>{' '}
-                page to generate your first one!
+                page to generate your first one.
               </p>
             </div>
           ) : (
@@ -217,27 +214,27 @@ export default function Dashboard() {
                 return (
                   <motion.div
                     key={item.id}
-                    initial={{ opacity: 0, x: -8 }}
+                    initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.04, duration: 0.3 }}
-                    className="flex items-center gap-3 sm:gap-4 px-4 py-3.5 sm:px-6 sm:py-4 hover:bg-surface-200/30 transition-colors duration-200"
+                    transition={{ delay: i * 0.03, duration: 0.2 }}
+                    className="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5 hover:bg-surface-200/40 transition-colors duration-150"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-surface-200/80 flex items-center justify-center shrink-0">
-                      <Icon size={16} className={cfg.color} />
+                    <div className="w-8 h-8 rounded bg-surface-200 flex items-center justify-center shrink-0">
+                      <Icon size={14} className={cfg.color} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-surface-900 truncate">{item.title}</p>
-                      <p className="text-xs text-surface-600 mt-0.5">{timeSince(item.created_at)}</p>
+                      <p className="text-[11px] text-surface-600 mt-0.5">{timeSince(item.created_at)}</p>
                     </div>
                     <span
-                      className={`text-xs font-medium px-3 py-1 rounded-full capitalize ${
+                      className={`text-[10px] font-semibold px-2.5 py-1 rounded uppercase tracking-wider capitalize ${
                         item.status === 'posted'
-                          ? 'bg-emerald-500/10 text-emerald-400'
+                          ? 'bg-emerald-500/8 text-emerald-400'
                           : item.status === 'failed'
-                          ? 'bg-red-500/10 text-red-400'
+                          ? 'bg-red-500/8 text-red-400'
                           : item.status === 'generating'
-                          ? 'bg-brand-500/10 text-brand-400'
-                          : 'bg-amber-500/10 text-amber-400'
+                          ? 'bg-brand-500/8 text-brand-400'
+                          : 'bg-amber-500/8 text-amber-400'
                       }`}
                     >
                       {item.status}

@@ -24,8 +24,8 @@ export default function Sidebar({ open, onClose }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30"
             onClick={onClose}
           />
         )}
@@ -33,46 +33,46 @@ export default function Sidebar({ open, onClose }) {
 
       {/* Sidebar panel — overlay on all screen sizes */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 w-64 max-w-[80vw] glass border-r border-surface-300/50 flex flex-col z-40 transition-transform duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]
+        className={`fixed left-0 top-0 bottom-0 w-60 max-w-[80vw] glass border-r border-surface-300 flex flex-col z-40 transition-transform duration-200 ease-out
           ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        {/* Top gradient accent line */}
-        <div className="h-[2px] gradient-brand-accent opacity-60" />
+        {/* Top accent line */}
+        <div className="h-[1px] gradient-brand-accent opacity-50" />
 
         {/* Logo area */}
-        <div className="px-6 py-7 flex items-center justify-between">
-          <img src={tubevoLogo} alt="Tubevo" className="h-9" />
+        <div className="px-5 py-5 flex items-center justify-between">
+          <img src={tubevoLogo} alt="Tubevo" className="h-8" />
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all duration-200"
+            className="p-1 rounded text-surface-600 hover:text-white hover:bg-surface-300/60 transition-colors duration-150"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 space-y-1 mt-2">
+        <nav className="flex-1 px-3 space-y-0.5 mt-1">
           {links.map(({ to, label, icon: Icon }) => {
             const isActive = location.pathname === to;
             return (
               <NavLink
                 key={to}
                 to={to}
-                className="relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200"
+                className="relative flex items-center gap-3 px-3 py-2.5 rounded text-[13px] font-medium transition-colors duration-150"
               >
                 {/* Active background indicator */}
                 {isActive && (
                   <motion.div
                     layoutId="sidebar-active"
-                    className="absolute inset-0 rounded-xl bg-brand-600/12 border border-brand-500/15"
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    className="absolute inset-0 rounded bg-brand-500/10 border border-brand-500/15"
+                    transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
                   />
                 )}
 
-                <span className={`relative z-10 transition-colors duration-200 ${isActive ? 'text-brand-400' : 'text-surface-600'}`}>
-                  <Icon size={18} />
+                <span className={`relative z-10 transition-colors duration-150 ${isActive ? 'text-brand-400' : 'text-surface-600'}`}>
+                  <Icon size={16} />
                 </span>
-                <span className={`relative z-10 transition-colors duration-200 ${isActive ? 'text-brand-300' : 'text-surface-700 hover:text-surface-900'}`}>
+                <span className={`relative z-10 transition-colors duration-150 ${isActive ? 'text-brand-300' : 'text-surface-700 hover:text-surface-900'}`}>
                   {label}
                 </span>
 
@@ -80,8 +80,8 @@ export default function Sidebar({ open, onClose }) {
                 {isActive && (
                   <motion.div
                     layoutId="sidebar-accent"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full gradient-brand"
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-r-sm gradient-brand"
+                    transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
                   />
                 )}
               </NavLink>
@@ -90,12 +90,12 @@ export default function Sidebar({ open, onClose }) {
         </nav>
 
         {/* Logout */}
-        <div className="px-3 pb-6">
+        <div className="px-3 pb-5">
           <button
             onClick={logout}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-surface-600 hover:text-red-400 hover:bg-red-500/8 transition-all duration-200 w-full group"
+            className="flex items-center gap-3 px-3 py-2.5 rounded text-[13px] font-medium text-surface-600 hover:text-red-400 hover:bg-red-500/8 transition-colors duration-150 w-full"
           >
-            <LogOut size={18} className="group-hover:rotate-[-8deg] transition-transform duration-200" />
+            <LogOut size={16} />
             Log out
           </button>
         </div>

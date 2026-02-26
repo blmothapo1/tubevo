@@ -62,12 +62,12 @@ export default function GoogleCallback() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-50">
-      <div className="bg-surface-100 border border-surface-300 rounded-2xl p-8 max-w-md w-full text-center space-y-4">
+      <div className="bg-surface-100 border border-surface-300 rounded p-6 max-w-md w-full text-center space-y-4">
         {status === 'connecting' && (
           <>
             <Spinner className="w-8 h-8 mx-auto text-brand-500" />
-            <h2 className="text-lg font-semibold text-white">Connecting YouTube…</h2>
-            <p className="text-sm text-surface-700">
+            <h2 className="text-sm font-semibold text-white">Connecting YouTube…</h2>
+            <p className="text-xs text-surface-700">
               Please wait while we link your Google account.
             </p>
           </>
@@ -80,8 +80,8 @@ export default function GoogleCallback() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-white">YouTube Connected!</h2>
-            <p className="text-sm text-surface-700">
+            <h2 className="text-sm font-semibold text-white">YouTube Connected!</h2>
+            <p className="text-xs text-surface-700">
               Redirecting you to Settings…
             </p>
           </>
@@ -94,11 +94,11 @@ export default function GoogleCallback() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <h2 className="text-lg font-semibold text-white">Connection Failed</h2>
-            <p className="text-sm text-red-400">{error}</p>
+            <h2 className="text-sm font-semibold text-white">Connection Failed</h2>
+            <p className="text-xs text-red-400">{error}</p>
             <button
               onClick={() => navigate('/settings?tab=youtube', { replace: true })}
-              className="mt-4 px-5 py-2.5 rounded-lg text-sm font-medium bg-surface-300 text-surface-800 hover:bg-surface-400 transition-colors"
+              className="mt-3 px-4 py-2 rounded text-xs font-medium bg-surface-300 text-surface-800 hover:bg-surface-400 transition-colors"
             >
               Back to Settings
             </button>

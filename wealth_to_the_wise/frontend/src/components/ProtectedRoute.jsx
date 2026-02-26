@@ -17,7 +17,7 @@ export default function ProtectedRoute({ children }) {
           <motion.div
             animate={{ scale: [1, 1.08, 1], opacity: [0.6, 1, 0.6] }}
             transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-            className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 shadow-lg shadow-brand-500/20"
+            className="w-10 h-10 rounded bg-brand-500"
           />
           <div className="flex gap-1">
             {[0, 1, 2].map((i) => (

@@ -62,22 +62,21 @@ export default function Settings() {
   }, [searchParams]);
 
   return (
-    <FadeIn className="max-w-4xl mx-auto space-y-8">
+    <FadeIn className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Settings</h1>
-        <p className="text-sm text-surface-600 mt-2">Manage your account and preferences</p>
+        <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Settings</h1>
+        <p className="text-xs text-surface-600 mt-1 uppercase tracking-wider font-medium">Manage your account and preferences</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 card p-1.5 overflow-x-auto scrollbar-none">
+      <div className="flex gap-0.5 card p-1 overflow-x-auto scrollbar-none">
         {tabs.map(({ key, label, icon: Icon }) => (
           <motion.button
             key={key}
             onClick={() => setActiveTab(key)}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
+            whileTap={{ scale: 0.98 }}
             {...(key === 'apikeys' ? { 'data-tour': 'settings-apikeys-tab' } : {})}
-            className={`relative flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+            className={`relative flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded text-[11px] sm:text-xs font-medium transition-all whitespace-nowrap ${
               activeTab === key
                 ? 'text-white'
                 : 'text-surface-600 hover:text-surface-800 hover:bg-surface-200/40'
@@ -86,12 +85,12 @@ export default function Settings() {
             {activeTab === key && (
               <motion.div
                 layoutId="settings-tab-bg"
-                className="absolute inset-0 bg-gradient-to-r from-brand-500 to-brand-600 rounded-lg shadow-md shadow-brand-500/20"
-                transition={{ type: 'spring', bounce: 0.18, duration: 0.5 }}
+                className="absolute inset-0 bg-brand-500 rounded"
+                transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
               />
             )}
-            <span className="relative z-10 flex items-center gap-2">
-              <Icon size={16} />
+            <span className="relative z-10 flex items-center gap-1.5">
+              <Icon size={14} />
               <span className="hidden sm:inline">{label}</span>
             </span>
           </motion.button>
@@ -102,11 +101,11 @@ export default function Settings() {
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.3, ease }}
-          className="card-elevated p-5 sm:p-8"
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.2, ease }}
+          className="card p-5 sm:p-6"
         >
           {activeTab === 'account' && (
             <AccountTab fullName={fullName} setFullName={setFullName} email={email} />
@@ -147,14 +146,14 @@ function AccountTab({ fullName, setFullName, email }) {
   }
 
   return (
-    <div className="space-y-6 max-w-md">
+    <div className="space-y-5 max-w-md">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
-          <User size={20} className="text-brand-400" />
+        <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+          <User size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">Account Details</h3>
-          <p className="text-xs text-surface-600">Update your profile information</p>
+          <h3 className="text-sm font-semibold text-white">Account Details</h3>
+          <p className="text-[11px] text-surface-600">Update your profile information</p>
         </div>
       </div>
 
@@ -164,7 +163,7 @@ function AccountTab({ fullName, setFullName, email }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
           >
             {error}
           </motion.div>
@@ -174,15 +173,15 @@ function AccountTab({ fullName, setFullName, email }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-emerald-500/8 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2"
+            className="bg-emerald-500/6 border border-emerald-500/15 text-emerald-400 text-xs px-3 py-2.5 rounded flex items-center gap-2"
           >
-            <Check size={16} /> Changes saved successfully.
+            <Check size={14} /> Changes saved successfully.
           </motion.div>
         )}
       </AnimatePresence>
 
       <div>
-        <label className="block text-xs font-medium text-surface-500 mb-2">Full Name</label>
+        <label className="block text-[10px] font-semibold text-surface-500 mb-1.5 uppercase tracking-wider">Full Name</label>
         <input
           type="text"
           value={fullName}
@@ -191,21 +190,21 @@ function AccountTab({ fullName, setFullName, email }) {
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-surface-500 mb-2">Email</label>
+        <label className="block text-[10px] font-semibold text-surface-500 mb-1.5 uppercase tracking-wider">Email</label>
         <input
           type="email"
           value={email}
           disabled
-          className="input-premium w-full opacity-50 cursor-not-allowed"
+          className="input-premium w-full opacity-45 cursor-not-allowed"
         />
-        <p className="text-xs text-surface-500 mt-1.5">Email cannot be changed.</p>
+        <p className="text-[11px] text-surface-500 mt-1">Email cannot be changed.</p>
       </div>
       <motion.button
         onClick={handleSave}
         disabled={saving}
-        whileHover={{ scale: 1.02, y: -1 }}
-        whileTap={{ scale: 0.97 }}
-        className="btn-primary flex items-center gap-2 px-6 py-2.5"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        className="btn-primary flex items-center gap-2 px-5 py-2"
       >
         {saving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
         {saving ? 'Saving…' : 'Save Changes'}
@@ -222,21 +221,21 @@ function ReplayTutorialSection() {
   const { replayTutorial } = useOnboarding();
 
   return (
-    <div className="pt-6 mt-6 border-t border-surface-300/30">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
-          <PlayCircle size={20} className="text-brand-400" />
+    <div className="pt-5 mt-5 border-t border-surface-300/30">
+      <div className="flex items-center gap-3 mb-2.5">
+        <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+          <PlayCircle size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">Guided Tutorial</h3>
-          <p className="text-xs text-surface-600">Walk through the app features step by step</p>
+          <h3 className="text-xs font-semibold text-white">Guided Tutorial</h3>
+          <p className="text-[11px] text-surface-600">Walk through the app features step by step</p>
         </div>
       </div>
       <motion.button
         onClick={replayTutorial}
-        whileHover={{ scale: 1.02, y: -1 }}
-        whileTap={{ scale: 0.97 }}
-        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-brand-400 bg-brand-500/10 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        className="flex items-center gap-2 px-4 py-2 rounded text-xs font-medium text-brand-400 bg-brand-500/8 border border-brand-500/15 hover:bg-brand-500/15 transition-colors"
       >
         <PlayCircle size={16} />
         Replay Tutorial
@@ -347,33 +346,33 @@ function ApiKeysTab() {
   ];
 
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="space-y-5 max-w-xl">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center">
-          <Key size={20} className="text-amber-400" />
+        <div className="w-9 h-9 rounded bg-amber-500/10 flex items-center justify-center">
+          <Key size={16} className="text-amber-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">Your API Keys</h3>
-          <p className="text-xs text-surface-600">
-            An API key is a private password that lets Tubevo use AI services on your behalf.
+          <h3 className="text-sm font-semibold text-white">Your API Keys</h3>
+          <p className="text-[11px] text-surface-600">
+            A private password that lets Tubevo use AI services on your behalf.
           </p>
         </div>
       </div>
 
       {/* Setup checklist */}
-      <div className="card p-5 space-y-3">
-        <p className="text-xs font-medium text-surface-500 uppercase tracking-wider mb-1">Setup Checklist</p>
+      <div className="card p-4 space-y-2.5">
+        <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest mb-0.5">Setup Checklist</p>
         {steps.map((s, i) => (
-          <div key={i} className="flex items-center gap-3">
+          <div key={i} className="flex items-center gap-2.5">
             {s.done ? (
-              <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+              <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
             ) : (
-              <CircleDot size={18} className="text-surface-500 shrink-0" />
+              <CircleDot size={14} className="text-surface-500 shrink-0" />
             )}
-            <span className={`text-sm ${s.done ? 'text-emerald-400 line-through' : 'text-white'}`}>
+            <span className={`text-xs ${s.done ? 'text-emerald-400 line-through' : 'text-white'}`}>
               {s.label}
-              {s.optional && <span className="text-surface-500 text-xs ml-1.5">(optional — free stock footage)</span>}
+              {s.optional && <span className="text-surface-500 text-[11px] ml-1">(optional)</span>}
             </span>
           </div>
         ))}
@@ -381,13 +380,13 @@ function ApiKeysTab() {
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="pt-2"
+            className="pt-1.5"
           >
             <a
               href="/videos"
-              className="btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-sm w-full justify-center"
+              className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-xs w-full justify-center"
             >
-              <Sparkles size={16} /> Start Creating Videos <ArrowRight size={14} />
+              <Sparkles size={14} /> Start Creating Videos <ArrowRight size={12} />
             </a>
           </motion.div>
         )}
@@ -399,7 +398,7 @@ function ApiKeysTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
           >
             {error}
           </motion.div>
@@ -409,9 +408,9 @@ function ApiKeysTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-emerald-500/8 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2"
+            className="bg-emerald-500/6 border border-emerald-500/15 text-emerald-400 text-xs px-3 py-2.5 rounded flex items-center gap-2"
           >
-            <Check size={16} /> Keys saved and encrypted securely.
+            <Check size={14} /> Keys saved and encrypted securely.
           </motion.div>
         )}
       </AnimatePresence>
@@ -461,9 +460,9 @@ function ApiKeysTab() {
             value={form.elevenlabs_voice_id}
             onChange={(e) => setForm({ ...form, elevenlabs_voice_id: e.target.value })}
             placeholder={keyStatus?.elevenlabs_voice_id || 'e.g. pNInz6obpgDQGcFmaJgB'}
-            className="input-premium w-full font-mono text-xs"
+            className="input-premium w-full mono"
           />
-          <p className="text-xs text-surface-500 mt-1.5">Leave blank to use the default voice.</p>
+          <p className="text-[11px] text-surface-500 mt-1">Leave blank to use the default voice.</p>
         </div>
         <KeyInput
           label="Pexels API Key"
@@ -486,20 +485,19 @@ function ApiKeysTab() {
       <motion.button
         onClick={handleSave}
         disabled={saving}
-        whileHover={{ scale: 1.02, y: -1 }}
-        whileTap={{ scale: 0.97 }}
-        className="btn-primary flex items-center gap-2 px-6 py-2.5 w-full justify-center"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        className="btn-primary flex items-center gap-2 px-5 py-2 w-full justify-center text-xs"
       >
-        {saving ? <RefreshCw size={16} className="animate-spin" /> : <Shield size={16} />}
+        {saving ? <RefreshCw size={14} className="animate-spin" /> : <Shield size={14} />}
         {saving ? 'Encrypting & saving…' : 'Save API Keys'}
       </motion.button>
 
-      <div className="card p-4 flex items-start gap-3">
-        <Shield size={16} className="text-brand-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-surface-600 leading-relaxed">
-          <strong className="text-surface-700">Your keys are encrypted</strong> and stored securely on our servers.
-          They are only used to generate videos on your behalf. We never share or expose your keys.
-          You pay each provider directly — no hidden markups.
+      <div className="card p-3.5 flex items-start gap-2.5">
+        <Shield size={14} className="text-brand-400 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-surface-600 leading-relaxed">
+          <strong className="text-surface-700">Keys are encrypted</strong> and stored securely.
+          Only used to generate videos on your behalf. You pay each provider directly.
         </p>
       </div>
     </div>
@@ -511,13 +509,13 @@ function KeyInput({ label, required, optional, value, onChange, placeholder, pro
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <label className="block text-xs font-medium text-surface-500">
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="block text-[10px] font-semibold text-surface-500 uppercase tracking-wider">
           {label} {required && <span className="text-red-400">*</span>}
-          {optional && <span className="text-surface-500/60">(optional)</span>}
+          {optional && <span className="text-surface-500/60">(opt)</span>}
           {isSet && (
-            <span className="ml-2 inline-flex items-center gap-1 text-emerald-400 text-[10px] font-semibold uppercase">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Connected
+            <span className="ml-1.5 inline-flex items-center gap-1 text-emerald-400 text-[10px] font-semibold uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Set
             </span>
           )}
         </label>
@@ -525,7 +523,7 @@ function KeyInput({ label, required, optional, value, onChange, placeholder, pro
           href={providerUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-400 hover:text-brand-300 transition-colors px-2.5 py-1 rounded-lg bg-brand-500/8 hover:bg-brand-500/15 border border-brand-500/15"
+          className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-brand-400 hover:text-brand-300 transition-colors px-2 py-0.5 rounded bg-brand-500/8 hover:bg-brand-500/15 border border-brand-500/15"
         >
           Get {providerName} Key <ExternalLink size={10} />
         </a>
@@ -535,7 +533,7 @@ function KeyInput({ label, required, optional, value, onChange, placeholder, pro
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`input-premium w-full font-mono text-xs ${fieldError ? 'border-red-500/50 focus:border-red-500' : ''}`}
+        className={`input-premium w-full mono ${fieldError ? 'border-red-500/50 focus:border-red-500' : ''}`}
       />
       {fieldError && (
         <p className="text-xs text-red-400 mt-1">{fieldError}</p>
@@ -575,12 +573,12 @@ function KeyInput({ label, required, optional, value, onChange, placeholder, pro
 function KeyStatusRow({ label, active, hint }) {
   return (
     <div className="flex items-center justify-between py-1">
-      <span className="text-xs text-surface-500">{label}</span>
+      <span className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider">{label}</span>
       <span className={`inline-flex items-center gap-2 text-xs font-medium ${active ? 'text-emerald-400' : 'text-surface-500'}`}>
         <motion.span
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className={`w-2 h-2 rounded-full ${active ? 'bg-emerald-400 shadow-sm shadow-emerald-400/40' : 'bg-surface-500'}`}
+          className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-400' : 'bg-surface-500'}`}
         />
         {active ? `Connected (${hint})` : 'Not set'}
       </span>
@@ -664,12 +662,12 @@ function VideoPreferencesTab() {
     <div className="space-y-6 max-w-lg">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-violet-600/10 flex items-center justify-center">
-          <Film size={20} className="text-violet-400" />
+        <div className="w-9 h-9 rounded bg-violet-500/10 flex items-center justify-center">
+          <Film size={16} className="text-violet-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">Video Preferences</h3>
-          <p className="text-xs text-surface-600">Customize subtitle style, captions & speech speed</p>
+          <h3 className="text-sm font-semibold text-white">Video Preferences</h3>
+          <p className="text-[11px] text-surface-600">Customize subtitle style, captions & speech speed</p>
         </div>
       </div>
 
@@ -679,7 +677,7 @@ function VideoPreferencesTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
           >
             {error}
           </motion.div>
@@ -689,7 +687,7 @@ function VideoPreferencesTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-emerald-500/8 border border-emerald-500/20 text-emerald-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2"
+            className="bg-emerald-500/6 border border-emerald-500/15 text-emerald-400 text-xs px-3 py-2.5 rounded flex items-center gap-2"
           >
             <Check size={16} /> Preferences saved — applied to your next video.
           </motion.div>
@@ -699,8 +697,8 @@ function VideoPreferencesTab() {
       {/* Subtitle Style */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <Type size={16} className="text-surface-500" />
-          <label className="text-sm font-medium text-white">Caption Style</label>
+          <Type size={14} className="text-surface-500" />
+          <label className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest">Caption Style</label>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {(availableStyles.length > 0 ? availableStyles : [
@@ -712,11 +710,10 @@ function VideoPreferencesTab() {
             <motion.button
               key={style.key}
               onClick={() => setSubtitleStyle(style.key)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              className={`relative p-3.5 rounded-xl border text-left transition-all ${
+              whileTap={{ scale: 0.98 }}
+              className={`relative p-3 rounded border text-left transition-all ${
                 subtitleStyle === style.key
-                  ? 'border-brand-500/60 bg-brand-500/8 ring-1 ring-brand-500/30'
+                  ? 'border-brand-500/50 bg-brand-500/8'
                   : 'border-surface-300/30 bg-surface-100/30 hover:border-surface-400/40'
               }`}
             >
@@ -742,11 +739,11 @@ function VideoPreferencesTab() {
       <div className="card p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-surface-200/50 flex items-center justify-center">
-              <Type size={14} className="text-surface-500" />
+            <div className="w-7 h-7 rounded bg-surface-200/50 flex items-center justify-center">
+              <Type size={12} className="text-surface-500" />
             </div>
             <div>
-              <p className="text-sm font-medium text-white">Burn captions into video</p>
+              <p className="text-xs font-medium text-white">Burn captions into video</p>
               <p className="text-xs text-surface-500">
                 {burnCaptions
                   ? 'Captions permanently embedded — visible on all platforms'
@@ -762,7 +759,7 @@ function VideoPreferencesTab() {
           >
             <motion.div
               animate={{ x: burnCaptions ? 20 : 2 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+              transition={{ type: 'tween', duration: 0.15 }}
               className="w-5 h-5 rounded-full bg-white shadow-sm absolute top-0.5"
             />
           </button>
@@ -772,8 +769,8 @@ function VideoPreferencesTab() {
       {/* Speech Speed */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
-          <Volume2 size={16} className="text-surface-500" />
-          <label className="text-sm font-medium text-white">Speech Speed</label>
+          <Volume2 size={14} className="text-surface-500" />
+          <label className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest">Speech Speed</label>
         </div>
         <div className="card p-4 space-y-3">
           <input
@@ -797,9 +794,9 @@ function VideoPreferencesTab() {
       </div>
 
       {/* Info box */}
-      <div className="card p-4 flex items-start gap-3">
-        <Sparkles size={16} className="text-violet-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-surface-600 leading-relaxed">
+      <div className="card p-3.5 flex items-start gap-2.5">
+        <Sparkles size={14} className="text-violet-400 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-surface-600 leading-relaxed">
           <strong className="text-surface-700">How it works:</strong> Audio is automatically polished with
           loudness normalization, silence trimming, and subtle ambient background music with voice-priority
           ducking. An SRT file is generated alongside every video for YouTube closed captions.
@@ -810,9 +807,9 @@ function VideoPreferencesTab() {
       <motion.button
         onClick={handleSave}
         disabled={saving}
-        whileHover={{ scale: 1.02, y: -1 }}
-        whileTap={{ scale: 0.97 }}
-        className="btn-primary flex items-center gap-2 px-6 py-2.5"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        className="btn-primary flex items-center gap-2 px-5 py-2 text-xs"
       >
         {saving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
         {saving ? 'Saving…' : 'Save Preferences'}
@@ -886,12 +883,12 @@ function YouTubeTab() {
   return (
     <div className="space-y-6 max-w-md">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center ring-1 ring-red-500/20">
-          <Youtube size={20} className="text-red-400" />
+        <div className="w-9 h-9 rounded bg-red-500/10 flex items-center justify-center">
+          <Youtube size={16} className="text-red-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">YouTube Connection</h3>
-          <p className="text-xs text-surface-600">Upload videos directly to your channel</p>
+          <h3 className="text-sm font-semibold text-white">YouTube Connection</h3>
+          <p className="text-[11px] text-surface-600">Upload videos directly to your channel</p>
         </div>
       </div>
 
@@ -901,7 +898,7 @@ function YouTubeTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
           >
             {error}
           </motion.div>
@@ -910,30 +907,30 @@ function YouTubeTab() {
 
       {connection?.connected ? (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="card border-emerald-500/15 p-5 space-y-4"
+          className="card border-emerald-500/15 p-4 space-y-3"
         >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center ring-1 ring-red-500/20">
-              <Youtube size={24} className="text-red-400" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded bg-red-500/10 flex items-center justify-center">
+              <Youtube size={16} className="text-red-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">
+              <p className="text-xs font-semibold text-white truncate">
                 {connection.channel_title || 'YouTube Channel'}
               </p>
-              <p className="text-xs text-surface-500 truncate">
+              <p className="text-[11px] text-surface-500 truncate">
                 {connection.provider_email || connection.channel_id}
               </p>
             </div>
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               Connected
             </span>
           </div>
 
           {connection.channel_id && (
-            <div className="bg-surface-200/40 rounded-xl p-4 space-y-2">
+            <div className="bg-surface-200/40 rounded p-3 space-y-2">
               <Row label="Channel ID" value={connection.channel_id} />
               {connection.connected_at && (
                 <Row label="Connected" value={new Date(connection.connected_at).toLocaleDateString()} />
@@ -944,32 +941,30 @@ function YouTubeTab() {
           <motion.button
             onClick={handleDisconnect}
             disabled={actionLoading}
-            whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full px-4 py-2.5 rounded-xl text-sm font-medium bg-red-500/8 text-red-400 border border-red-500/20 hover:bg-red-500/15 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full px-3 py-2 rounded text-xs font-medium bg-red-500/8 text-red-400 border border-red-500/20 hover:bg-red-500/15 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {actionLoading ? <RefreshCw size={14} className="animate-spin" /> : 'Disconnect YouTube'}
           </motion.button>
         </motion.div>
       ) : (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4 card p-5"
+          className="flex items-center gap-3 card p-4"
         >
-          <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center">
-            <Youtube size={24} className="text-red-400" />
+          <div className="w-9 h-9 rounded bg-red-500/10 flex items-center justify-center">
+            <Youtube size={16} className="text-red-400" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-white">No channel connected</p>
-            <p className="text-xs text-surface-500">Authorize via Google OAuth</p>
+            <p className="text-xs font-semibold text-white">No channel connected</p>
+            <p className="text-[11px] text-surface-500">Authorize via Google OAuth</p>
           </div>
           <motion.button
             onClick={handleConnect}
             disabled={actionLoading}
-            whileHover={{ scale: 1.03, y: -1 }}
-            whileTap={{ scale: 0.97 }}
-            className="px-5 py-2.5 rounded-xl text-sm font-medium bg-red-500 text-white hover:bg-red-400 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-red-500/20"
+            whileTap={{ scale: 0.98 }}
+            className="px-4 py-2 rounded text-xs font-medium bg-red-500 text-white hover:bg-red-400 transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {actionLoading ? <RefreshCw size={14} className="animate-spin" /> : 'Connect'}
           </motion.button>
@@ -988,12 +983,12 @@ function NotificationsTab() {
   return (
     <div className="space-y-6 max-w-md">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 flex items-center justify-center">
-          <Bell size={20} className="text-blue-400" />
+        <div className="w-9 h-9 rounded bg-blue-500/10 flex items-center justify-center">
+          <Bell size={16} className="text-blue-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">Notification Preferences</h3>
-          <p className="text-xs text-surface-600">Choose what you want to be notified about</p>
+          <h3 className="text-sm font-semibold text-white">Notification Preferences</h3>
+          <p className="text-[11px] text-surface-600">Choose what you want to be notified about</p>
         </div>
       </div>
 
@@ -1008,22 +1003,22 @@ function NotificationsTab() {
 
 function Toggle({ label, description, checked, onChange }) {
   return (
-    <div className="flex items-center justify-between py-4 border-b border-surface-300/20 last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-surface-300/20 last:border-0">
       <div>
-        <p className="text-sm font-medium text-white">{label}</p>
-        <p className="text-xs text-surface-500 mt-0.5">{description}</p>
+        <p className="text-xs font-medium text-white">{label}</p>
+        <p className="text-[11px] text-surface-500 mt-0.5">{description}</p>
       </div>
       <motion.button
         onClick={() => onChange(!checked)}
         whileTap={{ scale: 0.9 }}
-        className={`relative w-12 h-7 rounded-full transition-all ${
-          checked ? 'bg-gradient-to-r from-brand-500 to-brand-600 shadow-md shadow-brand-500/25' : 'bg-surface-400'
+        className={`relative w-11 h-6 rounded-full transition-colors duration-150 ${
+          checked ? 'bg-brand-500' : 'bg-surface-400'
         }`}
       >
         <motion.span
           animate={{ x: checked ? 20 : 0 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-          className="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm"
+          transition={{ type: 'tween', duration: 0.15 }}
+          className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm"
         />
       </motion.button>
     </div>
@@ -1076,12 +1071,12 @@ function PlanTab({ plan }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
-          <CreditCard size={20} className="text-brand-400" />
+        <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+          <CreditCard size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">Your Plan</h3>
-          <p className="text-xs text-surface-600">Upgrade or manage your subscription</p>
+          <h3 className="text-sm font-semibold text-white">Your Plan</h3>
+          <p className="text-[11px] text-surface-600">Upgrade or manage your subscription</p>
         </div>
       </div>
 
@@ -1091,34 +1086,33 @@ function PlanTab({ plan }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
           >
             {error}
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {plans.map((p, i) => (
           <motion.div
             key={p.key}
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.05 * i, ease }}
-            whileHover={{ y: -3, scale: 1.01 }}
-            className={`relative rounded-2xl border p-5 transition-all ${
+            transition={{ duration: 0.2, delay: 0.04 * i, ease }}
+            className={`relative rounded border p-4 transition-all ${
               plan === p.key
-                ? 'border-brand-500/50 bg-brand-600/8 shadow-lg shadow-brand-500/10'
+                ? 'border-brand-500/50 bg-brand-600/8'
                 : 'border-surface-300/40 bg-surface-200/30 hover:border-surface-400/60'
             }`}
           >
             {p.popular && (
-              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/20">
+              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded bg-brand-500 text-white">
                 Popular
               </span>
             )}
-            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center mb-3 shadow-sm`}>
-              <CreditCard size={14} className="text-white" />
+            <div className={`w-7 h-7 rounded bg-gradient-to-br ${p.color} flex items-center justify-center mb-2`}>
+              <CreditCard size={12} className="text-white" />
             </div>
             <p className="text-sm font-semibold text-white">{p.name}</p>
             <p className="mt-1">
@@ -1141,9 +1135,8 @@ function PlanTab({ plan }) {
               <motion.button
                 onClick={() => handlePlanAction(p.key)}
                 disabled={loading !== null}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                className={`mt-4 w-full px-3 py-2.5 rounded-xl text-xs font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2 ${
+                whileTap={{ scale: 0.98 }}
+                className={`mt-3 w-full px-3 py-2 rounded text-xs font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
                   p.key === 'free'
                     ? 'bg-surface-300/60 text-surface-700 hover:bg-surface-400/60'
                     : 'btn-primary'
@@ -1206,34 +1199,34 @@ function UsageTab() {
   return (
     <div className="space-y-6 max-w-md">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 flex items-center justify-center">
-          <BarChart3 size={20} className="text-emerald-400" />
+        <div className="w-9 h-9 rounded bg-emerald-500/10 flex items-center justify-center">
+          <BarChart3 size={16} className="text-emerald-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">Usage & Stats</h3>
-          <p className="text-xs text-surface-600">Your video generation activity</p>
+          <h3 className="text-sm font-semibold text-white">Usage & Stats</h3>
+          <p className="text-[11px] text-surface-600">Your video generation activity</p>
         </div>
       </div>
 
       {/* Monthly quota progress */}
-      <div className="card p-5 space-y-4">
+      <div className="card p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-surface-500 uppercase tracking-wider">
+          <span className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest">
             Monthly Quota ({plan.charAt(0).toUpperCase() + plan.slice(1)})
           </span>
-          <span className="text-sm text-white font-semibold">
+          <span className="text-xs text-white font-semibold tabular-nums">
             {monthlyUsed} / {monthlyLimit >= 999_999 ? '∞' : monthlyLimit}
           </span>
         </div>
-        <div className="w-full bg-surface-300/40 rounded-full h-2.5 overflow-hidden">
+        <div className="w-full bg-surface-300/40 rounded-sm h-1.5 overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${monthlyLimit >= 999_999 ? 5 : usagePct}%` }}
-            transition={{ duration: 1, delay: 0.2, ease }}
-            className={`h-2.5 rounded-full ${
-              usagePct >= 90 ? 'bg-gradient-to-r from-red-500 to-red-400' :
-              usagePct >= 70 ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
-              'bg-gradient-to-r from-brand-500 to-brand-400'
+            transition={{ duration: 0.8, delay: 0.15, ease }}
+            className={`h-1.5 rounded-sm ${
+              usagePct >= 90 ? 'bg-red-500' :
+              usagePct >= 70 ? 'bg-amber-500' :
+              'bg-brand-500'
             }`}
           />
         </div>
@@ -1244,7 +1237,7 @@ function UsageTab() {
         )}
       </div>
 
-      <div className="card p-5 space-y-3">
+      <div className="card p-4 space-y-2.5">
         <Row label="Total videos generated" value={String(total)} />
         <div className="h-px bg-surface-300/20" />
         <Row label="Successfully posted" value={String(posted)} />
@@ -1254,7 +1247,7 @@ function UsageTab() {
         <Row label="Failed" value={String(failed)} />
       </div>
 
-      <div className="card p-4 flex items-start gap-3">
+      <div className="card p-3.5 flex items-start gap-2.5">
         <Zap size={16} className="text-amber-400 shrink-0 mt-0.5" />
         <p className="text-xs text-surface-600 leading-relaxed">
           <strong className="text-surface-700">Bring Your Own Keys:</strong> Since you provide your own
@@ -1269,8 +1262,8 @@ function UsageTab() {
 function Row({ label, value }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-xs text-surface-500">{label}</span>
-      <span className="text-sm text-white font-medium">{value}</span>
+      <span className="text-[11px] text-surface-500">{label}</span>
+      <span className="text-xs text-white font-medium tabular-nums">{value}</span>
     </div>
   );
 }

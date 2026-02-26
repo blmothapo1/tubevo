@@ -20,11 +20,11 @@ export function SkeletonStatCards() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
       {[0, 1, 2].map((i) => (
-        <div key={i} className="card p-6 flex items-center gap-4">
-          <div className="skeleton w-12 h-12 rounded-xl" />
+        <div key={i} className="card p-5 flex items-center gap-3">
+          <div className="skeleton w-10 h-10 rounded" />
           <div className="flex-1 space-y-2">
             <div className="skeleton h-3 w-20" />
-            <div className="skeleton h-6 w-12" />
+            <div className="skeleton h-5 w-12" />
           </div>
         </div>
       ))}
@@ -36,13 +36,13 @@ export function SkeletonVideoList() {
   return (
     <div className="card divide-y divide-surface-300/50">
       {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-4 p-5">
-          <div className="skeleton w-28 h-16 rounded-xl hidden sm:block" />
+        <div key={i} className="flex items-center gap-3 p-4">
+          <div className="skeleton w-24 h-14 rounded hidden sm:block" />
           <div className="flex-1 space-y-2">
             <div className="skeleton h-4 w-3/4" />
             <div className="skeleton h-3 w-1/2" />
           </div>
-          <div className="skeleton h-6 w-20 rounded-full" />
+          <div className="skeleton h-5 w-16 rounded" />
         </div>
       ))}
     </div>

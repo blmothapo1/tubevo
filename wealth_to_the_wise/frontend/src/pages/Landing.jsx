@@ -56,19 +56,19 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-surface-50 overflow-hidden">
       {/* ── Navbar ── */}
-      <nav className="border-b border-surface-300/30 glass sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <img src={tubevoLogo} alt="Tubevo" className="h-10" />
-          <div className="flex items-center gap-3">
+      <nav className="border-b border-surface-300 glass sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <img src={tubevoLogo} alt="Tubevo" className="h-8" />
+          <div className="flex items-center gap-2">
             <Link
               to="/login"
-              className="text-sm text-surface-700 hover:text-white px-4 py-2 rounded-xl transition-all duration-200 hover:bg-surface-200/50"
+              className="text-xs text-surface-700 hover:text-white px-3 py-2 rounded transition-colors duration-150 hover:bg-surface-200"
             >
               Log in
             </Link>
             <Link
               to="/signup"
-              className="btn-primary text-sm !py-2 !px-5"
+              className="btn-primary text-xs !py-2 !px-4"
             >
               Get Started
             </Link>
@@ -77,11 +77,10 @@ export default function Landing() {
       </nav>
 
       {/* ── Hero ── */}
-      <section className="relative max-w-4xl mx-auto px-6 pt-20 sm:pt-32 pb-20 text-center">
-        {/* Ambient background glows */}
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-gradient-radial from-brand-600/10 via-brand-600/3 to-transparent rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-40 left-1/4 w-[300px] h-[300px] bg-accent-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-20 right-1/4 w-[250px] h-[250px] bg-violet-500/5 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative max-w-4xl mx-auto px-6 pt-20 sm:pt-28 pb-20 text-center">
+        {/* Ambient background glows — more subtle */}
+        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-radial from-brand-600/8 via-brand-600/2 to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-40 left-1/4 w-[250px] h-[250px] bg-accent-500/3 rounded-full blur-3xl pointer-events-none" />
 
         <motion.div
           initial="hidden"
@@ -89,46 +88,45 @@ export default function Landing() {
           variants={stagger}
           className="relative flex flex-col items-center"
         >
-          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-600/8 border border-brand-500/15 text-brand-300 text-xs font-medium px-4 py-1.5 rounded-full mb-10">
-            <Zap size={12} className="text-accent-400" /> Now in public beta
+          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 border border-brand-500/15 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded mb-10">
+            <Zap size={10} className="text-accent-400" /> Public Beta
           </motion.div>
 
-          <motion.h1 variants={fadeUp} className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight text-white leading-[1.1]">
+          <motion.h1 variants={fadeUp} className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white leading-[1.1]">
             Your YouTube Channel.
             <br />
             <span className="text-gradient">On Autopilot.</span>
           </motion.h1>
 
-          <motion.p variants={fadeUp} className="mt-8 sm:mt-10 text-base sm:text-lg text-surface-700 max-w-2xl leading-relaxed">
+          <motion.p variants={fadeUp} className="mt-8 text-sm sm:text-base text-surface-700 max-w-xl leading-relaxed">
             Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
           </motion.p>
 
-          <motion.div variants={fadeUp} className="mt-12 sm:mt-16 flex flex-col sm:flex-row items-center justify-center gap-5">
-            <Link to="/signup" className="btn-primary !px-8 !py-3.5 text-sm">
-              Get Started Free <ArrowRight size={16} />
+          <motion.div variants={fadeUp} className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link to="/signup" className="btn-primary !px-7 !py-3 text-sm">
+              Get Started Free <ArrowRight size={14} />
             </Link>
             <a
               href="#features"
-              className="text-sm text-surface-600 hover:text-surface-800 transition-colors duration-200 group"
+              className="text-xs text-surface-600 hover:text-surface-800 transition-colors duration-150"
             >
-              See how it works
-              <span className="inline-block ml-1 group-hover:translate-x-0.5 transition-transform duration-200">→</span>
+              See how it works →
             </a>
           </motion.div>
         </motion.div>
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="max-w-6xl mx-auto px-6 py-24 sm:py-32">
+      <section id="features" className="max-w-6xl mx-auto px-6 py-20 sm:py-28">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.5, ease }}
-          className="flex flex-col items-center text-center mb-20"
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.4, ease }}
+          className="flex flex-col items-center text-center mb-16"
         >
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-5">Everything you need</h2>
-          <p className="text-surface-700 max-w-lg mx-auto leading-relaxed">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 tracking-tight">Everything you need</h2>
+          <p className="text-surface-700 max-w-lg mx-auto text-sm leading-relaxed">
             From script to published video — every step is automated.
           </p>
         </motion.div>
@@ -138,36 +136,35 @@ export default function Landing() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={stagger}
-          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8"
+          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5"
         >
           {features.map(({ icon: Icon, title, desc, color, iconColor }) => (
             <motion.div
               key={title}
               variants={fadeUp}
-              whileHover={{ y: -4, transition: { duration: 0.25 } }}
-              className="card-elevated p-8 group cursor-default"
+              className="card p-6 cursor-default"
             >
-              <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}>
-                <Icon size={20} className={iconColor} />
+              <div className={`w-9 h-9 rounded bg-gradient-to-br ${color} flex items-center justify-center mb-4`}>
+                <Icon size={16} className={iconColor} />
               </div>
-              <h3 className="text-[15px] font-semibold text-white mb-3">{title}</h3>
-              <p className="text-sm text-surface-700 leading-relaxed">{desc}</p>
+              <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>
+              <p className="text-xs text-surface-700 leading-relaxed">{desc}</p>
             </motion.div>
           ))}
         </motion.div>
       </section>
 
       {/* ── Pricing ── */}
-      <section id="pricing" className="max-w-5xl mx-auto px-6 py-24 sm:py-32">
+      <section id="pricing" className="max-w-5xl mx-auto px-6 py-20 sm:py-28">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.5, ease }}
-          className="flex flex-col items-center text-center mb-20"
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.4, ease }}
+          className="flex flex-col items-center text-center mb-16"
         >
-          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-5">Simple pricing</h2>
-          <p className="text-surface-700 leading-relaxed">Start free. Scale when you're ready.</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 tracking-tight">Simple pricing</h2>
+          <p className="text-surface-700 text-sm leading-relaxed">Start free. Scale when you're ready.</p>
         </motion.div>
 
         <motion.div
@@ -175,38 +172,37 @@ export default function Landing() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={stagger}
-          className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8"
+          className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5"
         >
           {tiers.map((tier) => (
             <motion.div
               key={tier.name}
               variants={fadeUp}
-              whileHover={{ y: -4, transition: { duration: 0.25 } }}
-              className={`relative card-elevated p-8 flex flex-col ${
-                tier.popular ? 'border-brand-500/40 ring-1 ring-brand-500/15' : ''
+              className={`relative card p-6 flex flex-col ${
+                tier.popular ? 'border-brand-500/40 ring-1 ring-brand-500/10' : ''
               }`}
             >
               {tier.popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 gradient-brand text-white text-xs font-medium px-4 py-1 rounded-full shadow-soft">
+                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded">
                   Most popular
                 </span>
               )}
-              <h3 className="text-lg font-semibold text-white">{tier.name}</h3>
-              <div className="mt-6 mb-8">
-                <span className="text-4xl font-bold text-white tracking-tight">{tier.price}</span>
-                <span className="text-surface-600 text-sm ml-1">{tier.period}</span>
+              <h3 className="text-base font-semibold text-white">{tier.name}</h3>
+              <div className="mt-4 mb-6">
+                <span className="text-3xl font-bold text-white tracking-tight">{tier.price}</span>
+                <span className="text-surface-600 text-xs ml-1">{tier.period}</span>
               </div>
-              <ul className="space-y-4 flex-1">
+              <ul className="space-y-3 flex-1">
                 {tier.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-surface-700">
-                    <Check size={16} className="text-brand-400 mt-0.5 shrink-0" />
+                  <li key={f} className="flex items-start gap-2 text-xs text-surface-700">
+                    <Check size={14} className="text-brand-400 mt-0.5 shrink-0" />
                     {f}
                   </li>
                 ))}
               </ul>
               <Link
                 to="/signup"
-                className={`mt-8 text-center text-sm font-medium py-3 rounded-xl transition-all duration-250 block ${
+                className={`mt-6 text-center text-xs font-medium py-2.5 rounded transition-all duration-150 block ${
                   tier.popular
                     ? 'btn-primary w-full'
                     : 'btn-secondary w-full'
@@ -220,11 +216,11 @@ export default function Landing() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-surface-300/30 py-16 text-center">
-        <p className="text-sm text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
-        <div className="mt-4 flex items-center justify-center gap-8">
-          <Link to="/privacy" className="text-sm text-surface-600 hover:text-surface-800 transition-colors duration-200">Privacy Policy</Link>
-          <Link to="/terms" className="text-sm text-surface-600 hover:text-surface-800 transition-colors duration-200">Terms of Service</Link>
+      <footer className="border-t border-surface-300 py-12 text-center">
+        <p className="text-xs text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
+        <div className="mt-3 flex items-center justify-center gap-6">
+          <Link to="/privacy" className="text-xs text-surface-600 hover:text-surface-800 transition-colors duration-150">Privacy Policy</Link>
+          <Link to="/terms" className="text-xs text-surface-600 hover:text-surface-800 transition-colors duration-150">Terms of Service</Link>
         </div>
       </footer>
     </div>

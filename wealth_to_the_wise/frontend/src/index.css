@@ -1,35 +1,41 @@
 @import "tailwindcss";
 
-:root {
-  /* Brand — warm indigo that feels approachable */
-  --color-brand-50: #f0f0ff;
-  --color-brand-100: #e0e1ff;
-  --color-brand-200: #c7c8fe;
-  --color-brand-300: #a5a7fc;
-  --color-brand-400: #8183f8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
+/* ══════════════════════════════════════════════════════════════
+   STUDIO CONTROL PANEL — Design System
+   Deep charcoal · Layered panels · Electric blue accent
+   Tight typography · Minimal border-radius (4-6 px)
+   ══════════════════════════════════════════════════════════════ */
 
-  /* Accent — warm amber for highlights */
+:root {
+  /* Brand — electric blue, restrained */
+  --color-brand-50:  #eef4ff;
+  --color-brand-100: #d9e6ff;
+  --color-brand-200: #b3ccff;
+  --color-brand-300: #6e9cff;
+  --color-brand-400: #3b82f6;
+  --color-brand-500: #2563eb;
+  --color-brand-600: #1d4ed8;
+  --color-brand-700: #1e40af;
+  --color-brand-800: #1e3a8a;
+  --color-brand-900: #172554;
+
+  /* Accent — subtle warm amber, used sparingly */
   --color-accent-300: #fcd34d;
   --color-accent-400: #fbbf24;
   --color-accent-500: #f59e0b;
   --color-accent-600: #d97706;
 
-  /* Surface — rich, warm darks with a hint of navy */
-  --color-surface-50:  #0c0c14;
-  --color-surface-100: #13131d;
-  --color-surface-200: #1c1c28;
-  --color-surface-300: #262635;
-  --color-surface-400: #333346;
-  --color-surface-500: #45455c;
-  --color-surface-600: #5c5c78;
-  --color-surface-700: #8e8eaa;
-  --color-surface-800: #b5b5ce;
-  --color-surface-900: #e4e4f0;
+  /* Surface — pure charcoal, no navy tint */
+  --color-surface-50:  #0a0a0b;
+  --color-surface-100: #111113;
+  --color-surface-200: #1a1a1e;
+  --color-surface-300: #242429;
+  --color-surface-400: #2f2f36;
+  --color-surface-500: #3e3e47;
+  --color-surface-600: #62626e;
+  --color-surface-700: #8b8b97;
+  --color-surface-800: #b4b4be;
+  --color-surface-900: #e2e2e6;
 }
 
 * { box-sizing: border-box; margin: 0; }
@@ -45,104 +51,102 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  line-height: 1.6;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
 }
 
 input, select, textarea, button {
   font-family: inherit;
 }
 
-/* ── Premium glass effect ────────────────────────── */
+/* ── Panel glass — frosted charcoal ──────────────── */
 .glass {
-  background: rgba(19, 19, 29, 0.7);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  background: rgba(17, 17, 19, 0.82);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
 .glass-light {
-  background: rgba(19, 19, 29, 0.4);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  background: rgba(17, 17, 19, 0.5);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
 }
 
-/* ── Soft, layered shadows (Apple-inspired depth) ── */
+/* ── Flat shadows — no bloom, just depth layers ──── */
 .shadow-soft {
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 4px 12px rgba(0, 0, 0, 0.08),
-    0 16px 40px rgba(0, 0, 0, 0.04);
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.08);
 }
 .shadow-soft-lg {
   box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.04),
-    0 8px 24px rgba(0, 0, 0, 0.1),
-    0 24px 60px rgba(0, 0, 0, 0.06);
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 4px 16px rgba(0, 0, 0, 0.12);
 }
 .shadow-hover {
   box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.1),
-    0 12px 32px rgba(0, 0, 0, 0.08),
-    0 0 0 1px rgba(99, 102, 241, 0.08);
+    0 2px 8px rgba(0, 0, 0, 0.14),
+    0 0 0 1px rgba(37, 99, 235, 0.08);
 }
 
-/* ── Gradient utilities ────────────────────── */
+/* ── Gradient utilities — more muted ─────────────── */
 .glow-brand {
-  box-shadow: 0 0 24px rgba(99, 102, 241, 0.12), 0 0 64px rgba(99, 102, 241, 0.04);
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.1);
 }
 .glow-accent {
-  box-shadow: 0 0 24px rgba(251, 191, 36, 0.1), 0 0 64px rgba(251, 191, 36, 0.03);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.08);
 }
 .gradient-brand {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
 }
 .gradient-brand-accent {
-  background: linear-gradient(135deg, var(--color-brand-500), #8b5cf6, var(--color-accent-500));
+  background: linear-gradient(90deg, var(--color-brand-500), var(--color-brand-400), var(--color-accent-500));
 }
 .gradient-warm {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.05), rgba(245, 158, 11, 0.03));
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.06), rgba(59, 130, 246, 0.03), rgba(245, 158, 11, 0.02));
 }
 .text-gradient {
-  background: linear-gradient(135deg, #818cf8, #a78bfa, var(--color-accent-400));
+  background: linear-gradient(135deg, #60a5fa, #3b82f6, var(--color-accent-400));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* ── Card component ────────────────────── */
+/* ── Card component — sharp, layered panels ──────── */
 .card {
   background: var(--color-surface-100);
   border: 1px solid var(--color-surface-300);
-  border-radius: 16px;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 6px;
+  transition: border-color 0.15s ease;
 }
 .card:hover {
   border-color: var(--color-surface-400);
 }
 .card-elevated {
   background: var(--color-surface-100);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 16px;
+  border: 1px solid var(--color-surface-300);
+  border-radius: 6px;
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .card-elevated:hover {
-  transform: translateY(-2px);
+  border-color: var(--color-surface-400);
   box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.12),
-    0 12px 32px rgba(0, 0, 0, 0.08);
+    0 2px 4px rgba(0, 0, 0, 0.12),
+    0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
-/* ── Premium input styling ────────────────────── */
+/* ── Input styling — tight, monospace-ready ──────── */
 .input-premium {
   width: 100%;
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: 9px 12px;
+  border-radius: 4px;
   background: var(--color-surface-200);
-  border: 1.5px solid var(--color-surface-300);
+  border: 1px solid var(--color-surface-300);
   color: var(--color-surface-900);
-  font-size: 0.875rem;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.8125rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .input-premium::placeholder {
   color: var(--color-surface-600);
@@ -150,70 +154,62 @@ input, select, textarea, button {
 .input-premium:focus {
   outline: none;
   border-color: var(--color-brand-500);
-  box-shadow:
-    0 0 0 3px rgba(99, 102, 241, 0.15),
-    0 0 20px rgba(99, 102, 241, 0.06);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 .input-premium:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
-/* ── Premium button ────────────────────── */
+/* ── Button — flat, no glow ──────────────────────── */
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 12px;
-  font-size: 0.875rem;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
   font-weight: 500;
+  letter-spacing: 0.01em;
   color: white;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: var(--color-brand-500);
   border: none;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 0 24px rgba(99, 102, 241, 0.12);
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 4px 16px rgba(99, 102, 241, 0.25),
-    0 0 32px rgba(99, 102, 241, 0.1);
-  opacity: 0.95;
+  background: var(--color-brand-600);
 }
 .btn-primary:active {
-  transform: translateY(0);
+  background: var(--color-brand-700);
 }
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
-  transform: none;
 }
 
 .btn-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 12px;
-  font-size: 0.875rem;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-surface-800);
   background: var(--color-surface-200);
-  border: 1.5px solid var(--color-surface-300);
+  border: 1px solid var(--color-surface-300);
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 .btn-secondary:hover {
   background: var(--color-surface-300);
   border-color: var(--color-surface-400);
-  transform: translateY(-1px);
 }
 
-/* ── Skeleton loader animation ────────────────────── */
+/* ── Skeleton loader animation ───────────────────── */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -227,14 +223,14 @@ input, select, textarea, button {
   );
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
-/* ── Page transition fade ────────────────────── */
+/* ── Page transition fade ────────────────────────── */
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -242,20 +238,20 @@ input, select, textarea, button {
   }
 }
 .animate-fade-in-up {
-  animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: fadeInUp 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-/* ── Smooth pulse for status dots ────────────────────── */
+/* ── Smooth pulse for status dots ────────────────── */
 @keyframes soft-pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.4; }
 }
 .animate-soft-pulse {
   animation: soft-pulse 2s ease-in-out infinite;
 }
 
-/* ── Scrollbar ────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* ── Scrollbar — minimal ─────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-surface-400); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-surface-500); }
@@ -263,15 +259,15 @@ input, select, textarea, button {
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
-/* ── Focus-visible ring for accessibility ────────────────────── */
+/* ── Focus-visible ring for accessibility ────────── */
 :focus-visible {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
 }
 
 /* ══════════════════════════════════════════════════════════════
-   PREMIUM RESPONSIVE SPACING SYSTEM
-   Parents control spacing — cards never own their own margins.
+   RESPONSIVE SPACING SYSTEM
+   8px grid · Parents control spacing
    ══════════════════════════════════════════════════════════════ */
 
 /* Safe-area insets for notch devices (iPhone 14+, etc.) */
@@ -302,27 +298,50 @@ input, select, textarea, button {
   }
 }
 
-/* ── Premium card refinements ────────────────────── */
+/* ── Card radius (tight — 6px max) ───────────────── */
 .card,
 .card-elevated {
-  border-radius: 16px;
+  border-radius: 6px;
 }
 @media (max-width: 639px) {
   .card,
   .card-elevated {
-    border-radius: 14px;               /* Slightly tighter on small screens */
+    border-radius: 6px;
   }
 }
 
-/* ── Subtle premium background grain (Tesla feel) ── */
+/* ── Subtle panel grain texture ──────────────────── */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
-  opacity: 0.018;
+  opacity: 0.022;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   pointer-events: none;
+}
+
+/* ── Micro-label utility ─────────────────────────── */
+.label-micro {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-surface-600);
+}
+
+/* ── Thin divider ────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--color-surface-300);
+  border: none;
+}
+
+/* ── Monospace utility for API keys ──────────────── */
+.mono {
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
 }
 
 /* ── Onboarding modal mobile fullscreen fallback ── */
@@ -338,11 +357,11 @@ body::before {
 }
 .onboarding-mobile-modal .onboarding-card {
   width: 100%;
-  max-width: calc(100vw - 0px); /* full width on mobile */
+  max-width: calc(100vw - 0px);
   max-height: 70vh;
-  border-radius: 20px 20px 0 0;
+  border-radius: 6px 6px 0 0;
   overflow-y: auto;
-  margin: 0 16px; /* 16px safe edge padding */
+  margin: 0 16px;
   margin-bottom: 0;
 }
 @media (min-width: 640px) {
@@ -353,7 +372,7 @@ body::before {
   .onboarding-mobile-modal .onboarding-card {
     max-width: 420px;
     max-height: 85vh;
-    border-radius: 20px;
+    border-radius: 6px;
     margin: 0;
   }
 }

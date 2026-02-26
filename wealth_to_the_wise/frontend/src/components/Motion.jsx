@@ -7,12 +7,12 @@ import { motion } from 'framer-motion';
 const ease = [0.25, 0.1, 0.25, 1]; // Apple's ease curve
 
 /** Fade-in + slide up on mount — use for page-level containers */
-export function FadeIn({ children, className = '', delay = 0, y = 16, ...props }) {
+export function FadeIn({ children, className = '', delay = 0, y = 10, ...props }) {
   return (
     <motion.div
       initial={{ opacity: 0, y }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay, ease }}
+      transition={{ duration: 0.3, delay, ease }}
       className={className}
       {...props}
     >
@@ -47,8 +47,8 @@ export function StaggerItem({ children, className = '', ...props }) {
   return (
     <motion.div
       variants={{
-        hidden: { opacity: 0, y: 12 },
-        visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease } },
+        hidden: { opacity: 0, y: 8 },
+        visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease } },
       }}
       className={className}
       {...props}
@@ -59,12 +59,12 @@ export function StaggerItem({ children, className = '', ...props }) {
 }
 
 /** Scale on hover — for interactive cards */
-export function HoverLift({ children, className = '', scale = 1.02, ...props }) {
+export function HoverLift({ children, className = '', scale = 1.01, ...props }) {
   return (
     <motion.div
-      whileHover={{ y: -2, scale }}
+      whileHover={{ scale }}
       whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.25, ease }}
+      transition={{ duration: 0.15, ease }}
       className={className}
       {...props}
     >

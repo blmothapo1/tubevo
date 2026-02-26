@@ -64,33 +64,32 @@ function RenderProgressBar({ pct, step, startedAt }) {
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.3, ease }}
-      className="mt-4"
+      transition={{ duration: 0.2, ease }}
+      className="mt-3"
     >
       {/* Step label + ETA */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-brand-400 font-medium flex items-center gap-1.5">
-          <RefreshCw size={11} className="animate-spin" />
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] text-brand-400 font-medium flex items-center gap-1.5">
+          <RefreshCw size={10} className="animate-spin" />
           {step || 'Starting…'}
         </span>
         {eta && (
-          <span className="text-xs text-surface-600">{eta}</span>
+          <span className="text-[10px] text-surface-600 tabular-nums">{eta}</span>
         )}
       </div>
 
       {/* Progress bar track */}
-      <div className="h-2 rounded-full bg-surface-200/80 overflow-hidden border border-surface-300/40">
+      <div className="h-1.5 rounded-sm bg-surface-200 overflow-hidden border border-surface-300/30">
         <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-400"
+          className="h-full rounded-sm bg-brand-500"
           initial={{ width: 0 }}
           animate={{ width: `${clampedPct}%` }}
-          transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
-          style={{ boxShadow: '0 0 12px rgba(99, 102, 241, 0.4)' }}
+          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
         />
       </div>
 
       {/* Percentage */}
-      <div className="flex justify-end mt-1">
+      <div className="flex justify-end mt-0.5">
         <span className="text-[10px] text-surface-600 tabular-nums">{clampedPct}%</span>
       </div>
     </motion.div>
@@ -304,16 +303,16 @@ export default function Videos() {
   }
 
   return (
-    <FadeIn className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
+    <FadeIn className="max-w-5xl mx-auto space-y-5 sm:space-y-6">
       {/* Confetti on first successful video — additive */}
       <ConfettiCelebration show={showConfetti} onDone={() => setShowConfetti(false)} />
 
       {/* Header + Queue Indicator */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Videos</h1>
-          <p className="text-sm text-surface-600 mt-2">
-            Generate AI-powered videos and track their progress
+          <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Videos</h1>
+          <p className="text-xs text-surface-600 mt-1 uppercase tracking-wider font-medium">
+            Generate & track AI-powered videos
           </p>
         </div>
 
@@ -321,14 +320,14 @@ export default function Videos() {
         <AnimatePresence>
           {queueInfo && queueInfo.global_generating > 0 && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-500/8 border border-brand-500/20 shrink-0"
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-brand-500/6 border border-brand-500/15 shrink-0"
             >
-              <Layers size={14} className="text-brand-400" />
-              <span className="text-xs text-brand-400 font-medium">
-                {queueInfo.global_generating} job{queueInfo.global_generating !== 1 ? 's' : ''} rendering
+              <Layers size={12} className="text-brand-400" />
+              <span className="text-[10px] text-brand-400 font-semibold uppercase tracking-wider">
+                {queueInfo.global_generating} rendering
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-soft-pulse" />
             </motion.div>
@@ -339,22 +338,22 @@ export default function Videos() {
       {/* Generate Form */}
       <motion.form
         onSubmit={handleGenerate}
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1, ease }}
-        className="card-elevated p-6 sm:p-8"
+        transition={{ duration: 0.3, delay: 0.1, ease }}
+        className="card p-5 sm:p-6"
       >
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-lg shadow-brand-500/20">
-            <Wand2 size={20} className="text-white" />
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded bg-brand-500 flex items-center justify-center">
+            <Wand2 size={16} className="text-white" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-white">Generate a New Video</h3>
-            <p className="text-xs text-surface-600">Enter a topic and we'll create a full video with AI</p>
+            <h3 className="text-sm font-semibold text-white">Generate a New Video</h3>
+            <p className="text-[11px] text-surface-600">Enter a topic and we'll create a full video with AI</p>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-2.5">
           <input
             type="text"
             value={topic}
@@ -367,19 +366,19 @@ export default function Videos() {
           <motion.button
             type="submit"
             disabled={generating}
-            whileHover={!generating ? { scale: 1.02, y: -1 } : {}}
-            whileTap={!generating ? { scale: 0.97 } : {}}
+            whileHover={!generating ? { scale: 1.01 } : {}}
+            whileTap={!generating ? { scale: 0.99 } : {}}
             data-tour="generate-button"
-            className="btn-primary flex items-center justify-center gap-2 px-6 py-3 whitespace-nowrap"
+            className="btn-primary flex items-center justify-center gap-2 px-5 py-2.5 whitespace-nowrap"
           >
             {generating ? (
               <>
-                <RefreshCw size={16} className="animate-spin" />
+                <RefreshCw size={14} className="animate-spin" />
                 Generating…
               </>
             ) : (
               <>
-                <Send size={16} />
+                <Send size={14} />
                 Generate
               </>
             )}
@@ -402,21 +401,21 @@ export default function Videos() {
           {message.text && (
             <motion.div
               key={message.text}
-              initial={{ opacity: 0, y: -8, height: 0 }}
+              initial={{ opacity: 0, y: -6, height: 0 }}
               animate={{ opacity: 1, y: 0, height: 'auto' }}
-              exit={{ opacity: 0, y: -8, height: 0 }}
-              transition={{ duration: 0.3, ease }}
-              className={`mt-4 text-sm px-4 py-3 rounded-xl border ${
+              exit={{ opacity: 0, y: -6, height: 0 }}
+              transition={{ duration: 0.2, ease }}
+              className={`mt-3 text-xs px-3 py-2.5 rounded border ${
                 message.type === 'error'
-                  ? 'bg-red-500/8 border-red-500/20 text-red-400'
+                  ? 'bg-red-500/6 border-red-500/15 text-red-400'
                   : message.type === 'info'
-                  ? 'bg-brand-500/8 border-brand-500/20 text-brand-400'
-                  : 'bg-emerald-500/8 border-emerald-500/20 text-emerald-400'
+                  ? 'bg-brand-500/6 border-brand-500/15 text-brand-400'
+                  : 'bg-emerald-500/6 border-emerald-500/15 text-emerald-400'
               }`}
             >
               {message.type === 'info' && !generating ? (
-                <span className="inline-flex items-center gap-2">
-                  <RefreshCw size={14} className="animate-spin" />
+                <span className="inline-flex items-center gap-1.5">
+                  <RefreshCw size={12} className="animate-spin" />
                   {message.text}
                 </span>
               ) : (
@@ -432,22 +431,22 @@ export default function Videos() {
         <SkeletonVideoList />
       ) : videos.length === 0 ? (
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2, ease }}
-          className="card-elevated px-6 py-10 sm:p-12 text-center"
+          transition={{ duration: 0.3, delay: 0.2, ease }}
+          className="card px-5 py-10 sm:p-10 text-center"
           data-tour="video-list"
         >
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center mx-auto mb-4">
-            <Sparkles size={28} className="text-brand-400" />
+          <div className="w-14 h-14 rounded bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
+            <Sparkles size={24} className="text-brand-400" />
           </div>
-          <h3 className="text-base font-semibold text-white mb-2">No videos yet</h3>
-          <p className="text-sm text-surface-600 max-w-sm mx-auto">
+          <h3 className="text-sm font-semibold text-white mb-1.5">No videos yet</h3>
+          <p className="text-xs text-surface-600 max-w-sm mx-auto">
             Use the form above to generate your first AI-powered video. It takes about 2–3 minutes.
           </p>
         </motion.div>
       ) : (
-        <StaggerContainer className="card-elevated divide-y divide-surface-300/30" staggerDelay={0.04} data-tour="video-list">
+        <StaggerContainer className="card divide-y divide-surface-300/40" staggerDelay={0.03} data-tour="video-list">
           {videos.map((video) => {
             const cfg = statusConfig[video.status] || statusConfig.pending;
             const StatusIcon = cfg.icon;
@@ -457,18 +456,14 @@ export default function Videos() {
 
             return (
               <StaggerItem key={video.id}>
-                <motion.div
-                  className="px-5 py-4 sm:px-6 sm:py-5 transition-colors hover:bg-surface-200/30"
-                  whileHover={{ x: 2 }}
-                  transition={{ duration: 0.2, ease }}
-                >
-                  <div className="flex items-center gap-4">
+                <div className="px-4 py-3.5 sm:px-5 sm:py-4 transition-colors hover:bg-surface-200/30 duration-150">
+                  <div className="flex items-center gap-3">
                     {/* Thumbnail placeholder */}
-                    <div className="hidden sm:flex w-28 h-16 rounded-xl bg-surface-200/80 items-center justify-center shrink-0 overflow-hidden border border-surface-300/50">
+                    <div className="hidden sm:flex w-24 h-14 rounded bg-surface-200 items-center justify-center shrink-0 overflow-hidden border border-surface-300">
                       {video.status === 'generating' ? (
-                        <RefreshCw size={20} className="text-brand-400/60 animate-spin" />
+                        <RefreshCw size={16} className="text-brand-400/50 animate-spin" />
                       ) : (
-                        <Video size={20} className="text-surface-500" />
+                        <Video size={16} className="text-surface-500" />
                       )}
                     </div>
 
@@ -477,11 +472,11 @@ export default function Videos() {
                       <p className="text-sm font-medium text-white truncate">
                         {video.title || 'Untitled Video'}
                       </p>
-                      <p className="text-xs text-surface-600 mt-1 truncate">
+                      <p className="text-[11px] text-surface-600 mt-0.5 truncate">
                         {video.topic}
                       </p>
                       {video.error_message && (
-                        <p className="text-xs text-red-400 mt-1 truncate" title={video.error_message}>
+                        <p className="text-[11px] text-red-400 mt-0.5 truncate" title={video.error_message}>
                           {video.error_message}
                         </p>
                       )}
@@ -489,58 +484,52 @@ export default function Videos() {
 
                     {/* Status badge */}
                     <span
-                      className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full shrink-0 border ${cfg.color}`}
+                      className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded shrink-0 uppercase tracking-wider border ${cfg.color}`}
                     >
                       {video.status === 'generating' ? (
-                        <RefreshCw size={12} className="animate-spin" />
+                        <RefreshCw size={10} className="animate-spin" />
                       ) : (
-                        <StatusIcon size={12} />
+                        <StatusIcon size={10} />
                       )}
                       {cfg.label}
                     </span>
 
                     {/* Action buttons */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-0.5 shrink-0">
                       {/* YouTube link */}
                       {video.youtube_url && (
-                        <motion.a
+                        <a
                           href={video.youtube_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-2.5 rounded-xl text-brand-400 hover:bg-brand-500/10 transition-colors"
+                          className="p-2 rounded text-brand-400 hover:bg-brand-500/10 transition-colors duration-150"
                           title="Watch on YouTube"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
                         >
-                          <ExternalLink size={16} />
-                        </motion.a>
+                          <ExternalLink size={14} />
+                        </a>
                       )}
 
                       {/* Phase 6: Download MP4 button */}
                       {canDownload && (
-                        <motion.button
+                        <button
                           onClick={() => handleDownload(video.id, video.title)}
-                          className="p-2.5 rounded-xl text-blue-400 hover:bg-blue-500/10 transition-colors"
+                          className="p-2 rounded text-blue-400 hover:bg-blue-500/10 transition-colors duration-150"
                           title="Download MP4"
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
                         >
-                          <Download size={16} />
-                        </motion.button>
+                          <Download size={14} />
+                        </button>
                       )}
 
                       {/* Phase 6: Regenerate button */}
                       {canRegenerate && (
-                        <motion.button
+                        <button
                           onClick={() => handleRegenerate(video.id)}
                           disabled={generating || regeneratingId === video.id}
-                          className="p-2.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="p-2 rounded text-amber-400 hover:bg-amber-500/10 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
                           title="Regenerate"
-                          whileHover={!generating ? { scale: 1.1 } : {}}
-                          whileTap={!generating ? { scale: 0.95 } : {}}
                         >
-                          <RotateCcw size={16} className={regeneratingId === video.id ? 'animate-spin' : ''} />
-                        </motion.button>
+                          <RotateCcw size={14} className={regeneratingId === video.id ? 'animate-spin' : ''} />
+                        </button>
                       )}
                     </div>
                   </div>
@@ -552,11 +541,11 @@ export default function Videos() {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="mt-3 sm:ml-32"
+                        className="mt-2.5 sm:ml-28"
                       >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[11px] text-brand-400 font-medium flex items-center gap-1">
-                            <RefreshCw size={10} className="animate-spin" />
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-brand-400 font-medium flex items-center gap-1">
+                            <RefreshCw size={9} className="animate-spin" />
                             {progressStep || 'Starting…'}
                           </span>
                           <span className="text-[10px] text-surface-600 tabular-nums">
@@ -566,18 +555,17 @@ export default function Videos() {
                             )}
                           </span>
                         </div>
-                        <div className="h-1.5 rounded-full bg-surface-200/80 overflow-hidden border border-surface-300/30">
+                        <div className="h-1 rounded-sm bg-surface-200 overflow-hidden border border-surface-300/30">
                           <motion.div
-                            className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-400"
+                            className="h-full rounded-sm bg-brand-500"
                             animate={{ width: `${Math.min(100, progressPct || 0)}%` }}
-                            transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
-                            style={{ boxShadow: '0 0 8px rgba(99, 102, 241, 0.35)' }}
+                            transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
                           />
                         </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
+                </div>
               </StaggerItem>
             );
           })}

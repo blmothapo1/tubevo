@@ -54,24 +54,23 @@ export default function Schedule() {
   }, []);
 
   return (
-    <FadeIn className="max-w-4xl mx-auto space-y-8">
+    <FadeIn className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">
             Automation
           </h1>
-          <p className="text-sm text-surface-600 mt-2">
-            Schedule recurring video generation — set topics, frequency, and let Tubevo handle the rest
+          <p className="text-xs text-surface-600 mt-1 uppercase tracking-wider font-medium">
+            Schedule recurring video generation
           </p>
         </div>
         <motion.button
           onClick={() => setShowCreate(true)}
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="btn-primary flex items-center gap-2 text-sm shrink-0"
+          whileTap={{ scale: 0.98 }}
+          className="btn-primary flex items-center gap-2 text-xs uppercase tracking-wide shrink-0"
         >
-          <Plus size={16} />
+          <Plus size={14} />
           <span className="hidden sm:inline">New Schedule</span>
         </motion.button>
       </div>
@@ -83,7 +82,7 @@ export default function Schedule() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/8 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl"
+            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
           >
             {error}
             <button onClick={() => setError('')} className="ml-2 underline">dismiss</button>
@@ -145,26 +144,24 @@ export default function Schedule() {
 function EmptyState({ onCreateClick }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.15, ease }}
-      className="card-elevated p-12 text-center"
+      transition={{ duration: 0.25, delay: 0.1, ease }}
+      className="card p-10 text-center"
     >
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-500/10">
-        <CalendarClock size={28} className="text-brand-400" />
+      <div className="w-12 h-12 rounded bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
+        <CalendarClock size={22} className="text-brand-400" />
       </div>
-      <h3 className="text-base font-semibold text-white mb-2">
+      <h3 className="text-sm font-semibold text-white mb-1.5">
         No schedules yet
       </h3>
-      <p className="text-sm text-surface-600 max-w-sm mx-auto mb-6">
+      <p className="text-xs text-surface-600 max-w-sm mx-auto mb-5">
         Create your first automation schedule to generate and post videos on autopilot.
-        Add topics, pick a frequency, and Tubevo will handle the rest.
       </p>
       <motion.button
         onClick={onCreateClick}
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.97 }}
-        className="btn-primary inline-flex items-center gap-2 text-sm"
+        whileTap={{ scale: 0.98 }}
+        className="btn-primary inline-flex items-center gap-2 text-xs uppercase tracking-wide"
       >
         <Plus size={16} />
         Create your first schedule
@@ -229,30 +226,30 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.97, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
-        className="card-elevated p-6 sm:p-8 w-full max-w-lg max-h-[85vh] overflow-y-auto"
+        exit={{ opacity: 0, scale: 0.97, y: 12 }}
+        transition={{ type: 'tween', duration: 0.2 }}
+        className="card p-5 sm:p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center">
-              <Sparkles size={20} className="text-brand-400" />
+            <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+              <Sparkles size={16} className="text-brand-400" />
             </div>
-            <h2 className="text-lg font-semibold text-white">New Schedule</h2>
+            <h2 className="text-sm font-semibold text-white">New Schedule</h2>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/50 transition-all">
-            <X size={18} />
+          <button onClick={onClose} className="p-1.5 rounded text-surface-600 hover:text-white hover:bg-surface-300/50 transition-colors">
+            <X size={16} />
           </button>
         </div>
 
         <div className="space-y-5">
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-2">Schedule Name</label>
+            <label className="block text-[10px] font-semibold text-surface-500 mb-1.5 uppercase tracking-wider">Schedule Name</label>
             <input
               type="text"
               value={name}
@@ -264,14 +261,14 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
 
           {/* Frequency */}
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-2">Frequency</label>
+            <label className="block text-[10px] font-semibold text-surface-500 mb-1.5 uppercase tracking-wider">Frequency</label>
             <div className="grid grid-cols-2 gap-2">
               {FREQUENCIES.map((f) => (
                 <motion.button
                   key={f.value}
-                  whileTap={{ scale: 0.97 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => setFrequency(f.value)}
-                  className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all border ${
+                  className={`px-3 py-2 rounded text-xs font-medium transition-colors border ${
                     frequency === f.value
                       ? 'bg-brand-600/15 border-brand-500/40 text-brand-300'
                       : 'bg-surface-200/30 border-surface-300/30 text-surface-700 hover:border-surface-400/50'
@@ -285,8 +282,8 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
 
           {/* Preferred Hour */}
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-2">
-              <Clock size={14} className="inline mr-1.5 -mt-0.5" />
+            <label className="block text-[10px] font-semibold text-surface-500 mb-1.5 uppercase tracking-wider">
+              <Clock size={12} className="inline mr-1 -mt-0.5" />
               Preferred Time (UTC)
             </label>
             <select
@@ -302,8 +299,8 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
 
           {/* Topics */}
           <div>
-            <label className="block text-sm font-medium text-surface-700 mb-2">
-              <ListChecks size={14} className="inline mr-1.5 -mt-0.5" />
+            <label className="block text-[10px] font-semibold text-surface-500 mb-1.5 uppercase tracking-wider">
+              <ListChecks size={12} className="inline mr-1 -mt-0.5" />
               Topic Queue ({topics.length})
             </label>
             <div className="flex gap-2">
@@ -330,15 +327,15 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
                     key={i}
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center justify-between gap-2 bg-surface-200/40 border border-surface-300/30 rounded-lg px-3 py-2"
+                    className="flex items-center justify-between gap-2 bg-surface-200/40 border border-surface-300/30 rounded px-3 py-1.5"
                   >
-                    <span className="text-sm text-surface-800 truncate">
-                      <span className="text-surface-500 text-xs mr-2">#{i + 1}</span>
+                    <span className="text-xs text-surface-800 truncate">
+                      <span className="text-surface-500 text-[10px] mr-2 tabular-nums">#{i + 1}</span>
                       {t}
                     </span>
                     <button
                       onClick={() => removeTopic(i)}
-                      className="p-1 rounded-md text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all shrink-0"
+                      className="p-1 rounded text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
                     >
                       <X size={14} />
                     </button>
@@ -346,27 +343,26 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
                 ))}
               </div>
             )}
-            <p className="text-xs text-surface-500 mt-2">
+            <p className="text-[11px] text-surface-500 mt-1.5">
               Topics are processed in order and cycle back to the beginning when all are used.
             </p>
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 mt-8 pt-5 border-t border-surface-300/30">
+        <div className="flex justify-end gap-2.5 mt-6 pt-4 border-t border-surface-300/30">
           <motion.button
             onClick={onClose}
-            whileTap={{ scale: 0.97 }}
-            className="btn-secondary text-sm"
+            whileTap={{ scale: 0.98 }}
+            className="btn-secondary text-xs"
           >
             Cancel
           </motion.button>
           <motion.button
             onClick={handleCreate}
             disabled={saving || topics.length === 0}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            className="btn-primary text-sm flex items-center gap-2"
+            whileTap={{ scale: 0.98 }}
+            className="btn-primary text-xs flex items-center gap-1.5"
           >
             {saving ? (
               <RotateCcw size={14} className="animate-spin" />
@@ -444,25 +440,25 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
   return (
     <motion.div
       layout
-      className={`card-elevated overflow-hidden transition-all ${
+      className={`card overflow-hidden transition-all ${
         schedule.is_active ? 'border-brand-500/20' : 'border-surface-300/30 opacity-70'
       }`}
     >
       {/* Top accent */}
       {schedule.is_active && (
-        <div className="h-[2px] bg-gradient-to-r from-brand-500 to-accent-400 opacity-60" />
+        <div className="h-[1px] bg-brand-500 opacity-40" />
       )}
 
       {/* Header */}
-      <div className="p-5 sm:p-6">
+      <div className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            <div className={`w-9 h-9 rounded flex items-center justify-center shrink-0 ${
               schedule.is_active
-                ? 'bg-gradient-to-br from-brand-500/20 to-brand-600/10'
+                ? 'bg-brand-500/10'
                 : 'bg-surface-300/30'
             }`}>
-              <CalendarClock size={18} className={schedule.is_active ? 'text-brand-400' : 'text-surface-500'} />
+              <CalendarClock size={16} className={schedule.is_active ? 'text-brand-400' : 'text-surface-500'} />
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-white truncate">{schedule.name}</h3>
@@ -479,16 +475,16 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
               onClick={toggleActive}
               disabled={toggling}
               whileTap={{ scale: 0.9 }}
-              className={`relative w-11 h-6 rounded-full transition-all ${
+              className={`relative w-11 h-6 rounded-full transition-colors duration-150 ${
                 schedule.is_active
-                  ? 'bg-gradient-to-r from-brand-500 to-brand-600 shadow-md shadow-brand-500/25'
+                  ? 'bg-brand-500'
                   : 'bg-surface-400'
               }`}
               title={schedule.is_active ? 'Pause schedule' : 'Activate schedule'}
             >
               <motion.span
                 animate={{ x: schedule.is_active ? 20 : 0 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                transition={{ type: 'tween', duration: 0.15 }}
                 className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm"
               />
             </motion.button>
@@ -497,7 +493,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
             <motion.button
               onClick={() => setExpanded(!expanded)}
               whileTap={{ scale: 0.95 }}
-              className="p-1.5 rounded-lg text-surface-600 hover:text-white hover:bg-surface-300/40 transition-all"
+              className="p-1.5 rounded text-surface-600 hover:text-white hover:bg-surface-300/40 transition-colors"
             >
               <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
                 <ChevronDown size={16} />
@@ -507,17 +503,17 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
         </div>
 
         {/* Status row */}
-        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs">
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
           {/* Next topic */}
-          <span className="flex items-center gap-1.5 bg-surface-200/40 border border-surface-300/30 rounded-lg px-2.5 py-1.5 text-surface-700">
-            <Zap size={12} className="text-brand-400" />
-            Next: <span className="text-white font-medium truncate max-w-[150px]">{currentTopic}</span>
+          <span className="flex items-center gap-1.5 bg-surface-200/40 border border-surface-300/30 rounded px-2 py-1 text-surface-700">
+            <Zap size={11} className="text-brand-400" />
+            Next: <span className="text-white font-medium truncate max-w-[140px]">{currentTopic}</span>
           </span>
 
           {/* Next run */}
           {schedule.next_run_at && schedule.is_active && (
-            <span className="flex items-center gap-1.5 bg-surface-200/40 border border-surface-300/30 rounded-lg px-2.5 py-1.5 text-surface-700">
-              <Clock size={12} className="text-accent-400" />
+            <span className="flex items-center gap-1.5 bg-surface-200/40 border border-surface-300/30 rounded px-2 py-1 text-surface-700">
+              <Clock size={11} className="text-accent-400" />
               {new Date(schedule.next_run_at).toLocaleDateString('en-US', {
                 month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
               })}
@@ -525,8 +521,8 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
           )}
 
           {!schedule.is_active && (
-            <span className="flex items-center gap-1.5 bg-surface-200/40 border border-surface-300/30 rounded-lg px-2.5 py-1.5 text-yellow-400">
-              <Pause size={12} />
+            <span className="flex items-center gap-1.5 bg-surface-200/40 border border-surface-300/30 rounded px-2 py-1 text-yellow-400">
+              <Pause size={11} />
               Paused
             </span>
           )}
@@ -539,9 +535,9 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
               <span>Topic {schedule.topic_index + 1} of {topics.length}</span>
               <span>{progress}% through queue</span>
             </div>
-            <div className="h-1 bg-surface-300/40 rounded-full overflow-hidden">
+            <div className="h-1 bg-surface-300/40 rounded-sm overflow-hidden">
               <motion.div
-                className="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full"
+                className="h-full bg-brand-500 rounded-sm"
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.max(progress, 3)}%` }}
                 transition={{ duration: 0.6, ease }}
@@ -561,21 +557,21 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
             transition={{ duration: 0.3, ease }}
             className="overflow-hidden"
           >
-            <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-0 space-y-4 border-t border-surface-300/20">
+            <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0 space-y-3 border-t border-surface-300/20">
               {/* Topics list */}
-              <div className="pt-4">
-                <p className="text-xs font-medium text-surface-600 mb-2">Topic Queue</p>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto scrollbar-thin">
+              <div className="pt-3">
+                <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest mb-2">Topic Queue</p>
+                <div className="space-y-1 max-h-48 overflow-y-auto scrollbar-thin">
                   {topics.map((topic, i) => (
                     <div
                       key={i}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors ${
                         i === schedule.topic_index
                           ? 'bg-brand-600/10 border border-brand-500/20 text-brand-300'
                           : 'bg-surface-200/30 border border-surface-300/20 text-surface-700'
                       }`}
                     >
-                      <span className={`text-[10px] font-bold w-5 ${
+                      <span className={`text-[10px] font-bold w-4 tabular-nums ${
                         i === schedule.topic_index ? 'text-brand-400' : 'text-surface-500'
                       }`}>
                         {i + 1}
@@ -592,12 +588,11 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
               </div>
 
               {/* Actions */}
-              <div className="flex flex-wrap gap-2 pt-2">
+              <div className="flex flex-wrap gap-2 pt-1.5">
                 <motion.button
                   onClick={triggerNow}
                   disabled={triggering || topics.length === 0}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
+                  whileTap={{ scale: 0.98 }}
                   className="btn-primary text-xs flex items-center gap-1.5"
                 >
                   {triggering ? (
@@ -611,7 +606,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
                   onClick={handleDelete}
                   disabled={deleting}
                   whileTap={{ scale: 0.97 }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded text-xs font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors"
                 >
                   <Trash2 size={12} />
                   {deleting ? 'Deleting…' : 'Delete'}
