@@ -62,12 +62,12 @@ export default function GoogleCallback() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-50">
-      <div className="card p-6 max-w-md w-full text-center space-y-4">
+      <div className="card p-6 max-w-md w-full text-center space-y-5">
         {status === 'connecting' && (
           <>
             <Spinner className="w-8 h-8 mx-auto text-brand-500" />
-            <h2 className="text-sm font-semibold text-white">Connecting YouTube…</h2>
-            <p className="text-xs text-surface-700">
+            <h2 className="text-[14px] font-semibold text-white">Connecting YouTube…</h2>
+            <p className="text-[13px] text-surface-700">
               Please wait while we link your Google account.
             </p>
           </>
@@ -75,13 +75,13 @@ export default function GoogleCallback() {
 
         {status === 'success' && (
           <>
-            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/15 flex items-center justify-center">
+            <div className="w-12 h-12 mx-auto rounded-[10px] bg-emerald-500/15 flex items-center justify-center">
               <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-sm font-semibold text-white">YouTube Connected!</h2>
-            <p className="text-xs text-surface-700">
+            <h2 className="text-[14px] font-semibold text-white">YouTube Connected!</h2>
+            <p className="text-[13px] text-surface-700">
               Redirecting you to Settings…
             </p>
           </>
@@ -89,16 +89,16 @@ export default function GoogleCallback() {
 
         {status === 'error' && (
           <>
-            <div className="w-12 h-12 mx-auto rounded-full bg-red-500/15 flex items-center justify-center">
+            <div className="w-12 h-12 mx-auto rounded-[10px] bg-red-500/15 flex items-center justify-center">
               <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </div>
-            <h2 className="text-sm font-semibold text-white">Connection Failed</h2>
-            <p className="text-xs text-red-400">{error}</p>
+            <h2 className="text-[14px] font-semibold text-white">Connection Failed</h2>
+            <p className="text-[13px] text-red-400">{error}</p>
             <button
               onClick={() => navigate('/settings?tab=youtube', { replace: true })}
-              className="mt-3 px-4 py-2 rounded text-xs font-medium bg-surface-300 text-surface-800 hover:bg-surface-400 transition-colors"
+              className="mt-3 px-4 py-2 rounded-[8px] text-[13px] font-medium bg-surface-300 text-surface-800 hover:bg-surface-400 transition-colors"
             >
               Back to Settings
             </button>

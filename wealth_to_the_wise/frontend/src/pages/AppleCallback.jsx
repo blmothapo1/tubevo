@@ -22,5 +22,5 @@ export default function AppleCallback() {
     }
   }, [navigate]);
 
-  return <div className="flex items-center justify-center min-h-screen">Signing in with Apple...</div>;
+  return <div className="flex items-center justify-center min-h-screen text-[14px] text-surface-700">Signing in with Apple…</div>;
 }
