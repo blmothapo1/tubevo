@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Mic, Upload, Target, CalendarClock, Zap, Check, ArrowRight,
+  Sparkles, Mic, Upload, Target, CalendarClock, Zap, Check, ArrowRight, Loader2,
 } from 'lucide-react';
 
 const ease = [0.25, 0.1, 0.25, 1];
@@ -52,6 +53,34 @@ const fadeUp = {
 };
 
 export default function Landing() {
+  const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistState, setWaitlistState] = useState('idle'); // idle | loading | success
+  const [waitlistError, setWaitlistError] = useState('');
+
+  const handleWaitlistSubmit = (e) => {
+    e.preventDefault();
+    setWaitlistError('');
+
+    const email = waitlistEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setWaitlistError('Please enter a valid email address.');
+      return;
+    }
+
+    // Check if already submitted
+    const stored = localStorage.getItem('tubevo_waitlist_email');
+    if (stored === email) {
+      setWaitlistState('success');
+      return;
+    }
+
+    setWaitlistState('loading');
+    setTimeout(() => {
+      localStorage.setItem('tubevo_waitlist_email', email);
+      setWaitlistState('success');
+    }, 1500);
+  };
+
   return (
     <div className="min-h-screen bg-surface-50 overflow-hidden">
       {/* ── Navbar ── */}
@@ -101,10 +130,72 @@ export default function Landing() {
             Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
           </motion.p>
 
-          <motion.div variants={fadeUp} className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/signup" className="btn-primary !h-[48px] !px-8 !text-[16px] !rounded-[12px] inline-flex items-center gap-2 !font-semibold">
-              Get Started Free <ArrowRight size={16} />
-            </Link>
+          <motion.div variants={fadeUp} className="mt-12 w-full max-w-[480px]">
+            <AnimatePresence mode="wait">
+              {waitlistState === 'success' ? (
+                <motion.div
+                  key="success"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease }}
+                  className="flex items-center justify-center gap-2.5 px-6 py-4 rounded-[12px]"
+                  style={{
+                    background: 'rgba(52,211,153,0.08)',
+                    border: '1px solid rgba(52,211,153,0.2)',
+                  }}
+                >
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <Check size={12} className="text-emerald-400" />
+                  </div>
+                  <span className="text-[14px] text-surface-900 font-medium">
+                    You're on the list! We'll notify you at launch.
+                  </span>
+                </motion.div>
+              ) : (
+                <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                  <form onSubmit={handleWaitlistSubmit} className="flex flex-col sm:flex-row items-stretch gap-3">
+                    <input
+                      type="email"
+                      placeholder="Enter your email"
+                      value={waitlistEmail}
+                      onChange={(e) => { setWaitlistEmail(e.target.value); setWaitlistError(''); }}
+                      className="flex-1 min-w-0 rounded-[10px] px-3.5 py-2.5 text-[14px] text-white placeholder:text-surface-600 outline-none transition-all duration-150"
+                      style={{
+                        background: 'var(--color-surface-well)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                      }}
+                      onFocus={(e) => { e.target.style.border = '1px solid rgba(99,102,241,0.5)'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; }}
+                      onBlur={(e) => { e.target.style.border = '1px solid rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={waitlistState === 'loading'}
+                      className="btn-primary !rounded-[10px] !px-5 !py-2.5 !text-[14px] !font-semibold inline-flex items-center justify-center gap-2 shrink-0 disabled:opacity-70"
+                    >
+                      {waitlistState === 'loading' ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : null}
+                      {waitlistState === 'loading' ? 'Joining…' : 'Join the Waitlist'}
+                    </button>
+                  </form>
+                  {waitlistError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-2 text-[12px] text-red-400 text-center"
+                    >
+                      {waitlistError}
+                    </motion.p>
+                  )}
+                  <p className="mt-4 text-[12px] text-surface-700 text-center">
+                    Join 1,247 creators already on the waitlist
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+
+          <motion.div variants={fadeUp} className="mt-6">
             <a
               href="#features"
               className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150"
