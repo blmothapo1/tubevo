@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     resend_api_key: str = Field(default="", repr=False)
     email_from: str = Field(default="Tubevo <noreply@tubevo.us>")
 
+    # ── Kit (formerly ConvertKit) — waitlist email capture ───────────
+    kit_api_key: str = Field(default="", repr=False)
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

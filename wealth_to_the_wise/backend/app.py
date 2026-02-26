@@ -37,7 +37,7 @@ from backend.config import get_settings, logger as config_logger  # noqa: F401 â
 from backend.database import create_tables, dispose_engine
 from backend.middleware import RequestLoggingMiddleware
 from backend.rate_limit import limiter
-from backend.routers import api_keys, auth, billing, health, schedules, videos, youtube
+from backend.routers import api_keys, auth, billing, health, schedules, videos, waitlist, youtube
 from backend.scheduler_worker import scheduler_loop
 
 logger = logging.getLogger("tubevo.backend.app")
@@ -129,6 +129,7 @@ def create_app() -> FastAPI:
     app.include_router(videos.router)
     app.include_router(youtube.router)
     app.include_router(schedules.router)
+    app.include_router(waitlist.router)
 
     return app
 

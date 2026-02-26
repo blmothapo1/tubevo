@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Mic, Upload, Target, CalendarClock, Zap, Check, ArrowRight, Loader2,
 } from 'lucide-react';
+import api from '../lib/api';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
@@ -57,7 +58,7 @@ export default function Landing() {
   const [waitlistState, setWaitlistState] = useState('idle'); // idle | loading | success
   const [waitlistError, setWaitlistError] = useState('');
 
-  const handleWaitlistSubmit = (e) => {
+  const handleWaitlistSubmit = async (e) => {
     e.preventDefault();
     setWaitlistError('');
 
@@ -75,10 +76,15 @@ export default function Landing() {
     }
 
     setWaitlistState('loading');
-    setTimeout(() => {
+    try {
+      await api.post('/api/waitlist/subscribe', { email });
       localStorage.setItem('tubevo_waitlist_email', email);
       setWaitlistState('success');
-    }, 1500);
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setWaitlistError(typeof detail === 'string' ? detail : 'Something went wrong. Please try again.');
+      setWaitlistState('idle');
+    }
   };
 
   return (
