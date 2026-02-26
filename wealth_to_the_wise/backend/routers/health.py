@@ -35,11 +35,18 @@ async def health_check(request: Request) -> HealthResponse:
 @router.get("/health/debug-kit")
 async def debug_kit(request: Request) -> dict:
     """Temporary debug endpoint — check Kit API key availability on Railway."""
+    import os
     from backend.config import get_settings
     settings = get_settings()
     key = settings.kit_api_key
+
+    # Also check raw env vars for any KIT-related vars
+    kit_env_vars = {k: v[:4] + "..." for k, v in os.environ.items() if "KIT" in k.upper()}
+
     return {
         "kit_key_set": bool(key),
         "kit_key_length": len(key) if key else 0,
         "kit_key_prefix": key[:4] + "..." if key and len(key) > 4 else "empty",
+        "kit_env_vars_found": kit_env_vars,
+        "total_env_var_count": len(os.environ),
     }
