@@ -82,6 +82,12 @@ html {
   scroll-behavior: smooth;
 }
 
+html, body, #root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
 body {
   background-color: var(--color-surface-50);
   color: var(--color-surface-900);
@@ -92,6 +98,16 @@ body {
   font-size: 14px;
   line-height: 1.6;
   letter-spacing: -0.005em;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#root > * {
+  width: 100%;
 }
 
 input, select, textarea, button {

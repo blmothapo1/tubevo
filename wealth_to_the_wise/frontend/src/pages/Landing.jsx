@@ -96,9 +96,9 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-50 overflow-hidden">
+    <div className="min-h-screen w-full bg-surface-50 overflow-hidden">
       {/* ── Navbar ── */}
-      <nav className="glass sticky top-0 z-50">
+      <nav className="glass sticky top-0 z-50 w-full">
         <div className="max-w-6xl mx-auto px-6 h-[56px] flex items-center justify-between">
           <span className="text-[20px] font-semibold text-white" style={{ fontFamily: "'Poppins', sans-serif" }}>Tubevo</span>
           <div className="flex items-center gap-2">
@@ -119,214 +119,222 @@ export default function Landing() {
       </nav>
 
       {/* ── Hero ── */}
-      <section className="relative max-w-4xl mx-auto px-6 pt-24 sm:pt-32 pb-24 text-center">
-        {/* Ambient background glows — more subtle */}
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-radial from-brand-600/8 via-brand-600/2 to-transparent rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-40 left-1/4 w-[250px] h-[250px] bg-accent-500/3 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative w-full">
+        <div className="max-w-4xl mx-auto px-6 pt-24 sm:pt-32 md:pt-40 pb-24 md:pb-32 text-center">
+          {/* Ambient background glows — more subtle */}
+          <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-radial from-brand-600/8 via-brand-600/2 to-transparent rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute top-40 left-1/4 w-[250px] h-[250px] bg-accent-500/3 rounded-full blur-3xl pointer-events-none" />
 
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={stagger}
-          className="relative flex flex-col items-center"
-        >
-          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-[6px] mb-10">
-            <Zap size={10} className="text-accent-400" /> Public Beta
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={stagger}
+            className="relative flex flex-col items-center"
+          >
+            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-[6px] mb-10">
+              <Zap size={10} className="text-accent-400" /> Public Beta
+            </motion.div>
+
+            <motion.h1 variants={fadeUp} className="text-4xl sm:text-[48px] md:text-[56px] font-bold tracking-[-0.03em] text-white leading-[1.08]">
+              Your YouTube Channel.
+              <br />
+              <span className="text-gradient">On Autopilot.</span>
+            </motion.h1>
+
+            <motion.p variants={fadeUp} className="mt-8 text-base sm:text-[18px] text-surface-700 max-w-xl leading-relaxed font-normal">
+              Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
+            </motion.p>
+
+            <motion.div variants={fadeUp} className="mt-12 w-full max-w-[480px]">
+              <AnimatePresence mode="wait">
+                {waitlistState === 'success' ? (
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease }}
+                    className="flex items-center justify-center gap-2.5 px-6 py-4 rounded-[12px]"
+                    style={{
+                      background: 'rgba(52,211,153,0.08)',
+                      border: '1px solid rgba(52,211,153,0.2)',
+                    }}
+                  >
+                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                      <Check size={12} className="text-emerald-400" />
+                    </div>
+                    <span className="text-[14px] text-surface-900 font-medium">
+                      You're on the list! We'll notify you at launch.
+                    </span>
+                  </motion.div>
+                ) : (
+                  <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <form onSubmit={handleWaitlistSubmit} className="flex flex-col sm:flex-row items-stretch gap-3">
+                      <input
+                        type="email"
+                        placeholder="Enter your email"
+                        value={waitlistEmail}
+                        onChange={(e) => { setWaitlistEmail(e.target.value); setWaitlistError(''); }}
+                        className="flex-1 min-w-0 rounded-[10px] px-3.5 py-2.5 text-[14px] text-white placeholder:text-surface-600 outline-none transition-all duration-150"
+                        style={{
+                          background: 'var(--color-surface-well)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                        }}
+                        onFocus={(e) => { e.target.style.border = '1px solid rgba(99,102,241,0.5)'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; }}
+                        onBlur={(e) => { e.target.style.border = '1px solid rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={waitlistState === 'loading'}
+                        className="btn-primary !rounded-[10px] !px-5 !py-2.5 !text-[14px] !font-semibold inline-flex items-center justify-center gap-2 shrink-0 disabled:opacity-70"
+                      >
+                        {waitlistState === 'loading' ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : null}
+                        {waitlistState === 'loading' ? 'Joining…' : 'Join the Waitlist'}
+                      </button>
+                    </form>
+                    {waitlistError && (
+                      <motion.p
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-2 text-[12px] text-red-400 text-center"
+                      >
+                        {waitlistError}
+                      </motion.p>
+                    )}
+                    <p className="mt-4 text-[12px] text-surface-700 text-center">
+                      {waitlistCount !== null && waitlistCount > 0
+                        ? `Join ${waitlistCount.toLocaleString()} creator${waitlistCount === 1 ? '' : 's'} already on the waitlist`
+                        : 'Be the first to know when we launch'}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+
+            <motion.div variants={fadeUp} className="mt-6">
+              <a
+                href="#features"
+                className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150"
+              >
+                See how it works →
+              </a>
+            </motion.div>
           </motion.div>
-
-          <motion.h1 variants={fadeUp} className="text-4xl sm:text-[48px] md:text-[56px] font-bold tracking-[-0.03em] text-white leading-[1.08]">
-            Your YouTube Channel.
-            <br />
-            <span className="text-gradient">On Autopilot.</span>
-          </motion.h1>
-
-          <motion.p variants={fadeUp} className="mt-8 text-base sm:text-[18px] text-surface-700 max-w-xl leading-relaxed font-normal">
-            Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
-          </motion.p>
-
-          <motion.div variants={fadeUp} className="mt-12 w-full max-w-[480px]">
-            <AnimatePresence mode="wait">
-              {waitlistState === 'success' ? (
-                <motion.div
-                  key="success"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease }}
-                  className="flex items-center justify-center gap-2.5 px-6 py-4 rounded-[12px]"
-                  style={{
-                    background: 'rgba(52,211,153,0.08)',
-                    border: '1px solid rgba(52,211,153,0.2)',
-                  }}
-                >
-                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
-                    <Check size={12} className="text-emerald-400" />
-                  </div>
-                  <span className="text-[14px] text-surface-900 font-medium">
-                    You're on the list! We'll notify you at launch.
-                  </span>
-                </motion.div>
-              ) : (
-                <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                  <form onSubmit={handleWaitlistSubmit} className="flex flex-col sm:flex-row items-stretch gap-3">
-                    <input
-                      type="email"
-                      placeholder="Enter your email"
-                      value={waitlistEmail}
-                      onChange={(e) => { setWaitlistEmail(e.target.value); setWaitlistError(''); }}
-                      className="flex-1 min-w-0 rounded-[10px] px-3.5 py-2.5 text-[14px] text-white placeholder:text-surface-600 outline-none transition-all duration-150"
-                      style={{
-                        background: 'var(--color-surface-well)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                      }}
-                      onFocus={(e) => { e.target.style.border = '1px solid rgba(99,102,241,0.5)'; e.target.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.12)'; }}
-                      onBlur={(e) => { e.target.style.border = '1px solid rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
-                    />
-                    <button
-                      type="submit"
-                      disabled={waitlistState === 'loading'}
-                      className="btn-primary !rounded-[10px] !px-5 !py-2.5 !text-[14px] !font-semibold inline-flex items-center justify-center gap-2 shrink-0 disabled:opacity-70"
-                    >
-                      {waitlistState === 'loading' ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : null}
-                      {waitlistState === 'loading' ? 'Joining…' : 'Join the Waitlist'}
-                    </button>
-                  </form>
-                  {waitlistError && (
-                    <motion.p
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mt-2 text-[12px] text-red-400 text-center"
-                    >
-                      {waitlistError}
-                    </motion.p>
-                  )}
-                  <p className="mt-4 text-[12px] text-surface-700 text-center">
-                    {waitlistCount !== null && waitlistCount > 0
-                      ? `Join ${waitlistCount.toLocaleString()} creator${waitlistCount === 1 ? '' : 's'} already on the waitlist`
-                      : 'Be the first to know when we launch'}
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-
-          <motion.div variants={fadeUp} className="mt-6">
-            <a
-              href="#features"
-              className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150"
-            >
-              See how it works →
-            </a>
-          </motion.div>
-        </motion.div>
+        </div>
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="max-w-6xl mx-auto px-6 py-[120px]">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.4, ease }}
-          className="flex flex-col items-center text-center mb-16"
-        >
-          <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-3 tracking-tight">Everything you need</h2>
-          <p className="text-surface-700 max-w-lg mx-auto text-[15px] leading-relaxed">
-            From script to published video — every step is automated.
-          </p>
-        </motion.div>
+      <section id="features" className="w-full">
+        <div className="max-w-6xl mx-auto px-6 py-[80px] md:py-[120px]">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-80px' }}
+            transition={{ duration: 0.4, ease }}
+            className="flex flex-col items-center text-center mb-16"
+          >
+            <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-3 tracking-tight">Everything you need</h2>
+            <p className="text-surface-700 max-w-lg mx-auto text-[15px] leading-relaxed">
+              From script to published video — every step is automated.
+            </p>
+          </motion.div>
 
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '-60px' }}
-          variants={stagger}
-          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6"
-        >
-          {features.map(({ icon: Icon, title, desc, color, iconColor }) => (
-            <motion.div
-              key={title}
-              variants={fadeUp}
-              className="card p-6 cursor-default"
-            >
-              <div className={`w-10 h-10 rounded-[10px] bg-gradient-to-br ${color} flex items-center justify-center mb-4`}>
-                <Icon size={18} className={iconColor} />
-              </div>
-              <h3 className="text-[15px] font-semibold text-white mb-2">{title}</h3>
-              <p className="text-[13px] text-surface-700 leading-relaxed">{desc}</p>
-            </motion.div>
-          ))}
-        </motion.div>
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-60px' }}
+            variants={stagger}
+            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6"
+          >
+            {features.map(({ icon: Icon, title, desc, color, iconColor }) => (
+              <motion.div
+                key={title}
+                variants={fadeUp}
+                className="card p-6 cursor-default"
+              >
+                <div className={`w-10 h-10 rounded-[10px] bg-gradient-to-br ${color} flex items-center justify-center mb-4`}>
+                  <Icon size={18} className={iconColor} />
+                </div>
+                <h3 className="text-[15px] font-semibold text-white mb-2">{title}</h3>
+                <p className="text-[13px] text-surface-700 leading-relaxed">{desc}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
       </section>
 
       {/* ── Pricing ── */}
-      <section id="pricing" className="max-w-5xl mx-auto px-6 py-[120px]">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.4, ease }}
-          className="flex flex-col items-center text-center mb-16"
-        >
-          <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-3 tracking-tight">Simple pricing</h2>
-          <p className="text-surface-700 text-[15px] leading-relaxed">Start free. Scale when you're ready.</p>
-        </motion.div>
+      <section id="pricing" className="w-full">
+        <div className="max-w-5xl mx-auto px-6 py-[80px] md:py-[120px]">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-80px' }}
+            transition={{ duration: 0.4, ease }}
+            className="flex flex-col items-center text-center mb-16"
+          >
+            <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-3 tracking-tight">Simple pricing</h2>
+            <p className="text-surface-700 text-[15px] leading-relaxed">Start free. Scale when you're ready.</p>
+          </motion.div>
 
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: '-60px' }}
-          variants={stagger}
-          className="grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6"
-        >
-          {tiers.map((tier) => (
-            <motion.div
-              key={tier.name}
-              variants={fadeUp}
-              className={`relative card p-6 flex flex-col ${
-                tier.popular ? 'ring-1 ring-brand-500/30 border-brand-500/20' : ''
-              }`}
-            >
-              {tier.popular && (
-                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-[6px]">
-                  Most popular
-                </span>
-              )}
-              <h3 className="text-[16px] font-semibold text-white">{tier.name}</h3>
-              <div className="mt-4 mb-6">
-                <span className="text-[32px] font-bold text-white tracking-tight">{tier.price}</span>
-                <span className="text-surface-600 text-[13px] ml-1">{tier.period}</span>
-              </div>
-              <ul className="space-y-3 flex-1">
-                {tier.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-[13px] text-surface-700">
-                    <Check size={14} className="text-brand-400 mt-0.5 shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                to="/signup"
-                className={`mt-6 text-center text-[13px] font-semibold py-3 rounded-[10px] transition-all duration-150 block ${
-                  tier.popular
-                    ? 'btn-primary w-full'
-                    : 'btn-secondary w-full'
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: '-60px' }}
+            variants={stagger}
+            className="grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6"
+          >
+            {tiers.map((tier) => (
+              <motion.div
+                key={tier.name}
+                variants={fadeUp}
+                className={`relative card p-6 flex flex-col ${
+                  tier.popular ? 'ring-1 ring-brand-500/30 border-brand-500/20' : ''
                 }`}
               >
-                {tier.cta}
-              </Link>
-            </motion.div>
-          ))}
-        </motion.div>
+                {tier.popular && (
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-[6px]">
+                    Most popular
+                  </span>
+                )}
+                <h3 className="text-[16px] font-semibold text-white">{tier.name}</h3>
+                <div className="mt-4 mb-6">
+                  <span className="text-[32px] font-bold text-white tracking-tight">{tier.price}</span>
+                  <span className="text-surface-600 text-[13px] ml-1">{tier.period}</span>
+                </div>
+                <ul className="space-y-3 flex-1">
+                  {tier.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-[13px] text-surface-700">
+                      <Check size={14} className="text-brand-400 mt-0.5 shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  to="/signup"
+                  className={`mt-6 text-center text-[13px] font-semibold py-3 rounded-[10px] transition-all duration-150 block ${
+                    tier.popular
+                      ? 'btn-primary w-full'
+                      : 'btn-secondary w-full'
+                  }`}
+                >
+                  {tier.cta}
+                </Link>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="py-16 text-center">
-        <p className="text-[13px] text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
-        <div className="mt-3 flex items-center justify-center gap-6">
-          <Link to="/privacy" className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150">Privacy Policy</Link>
-          <Link to="/terms" className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150">Terms of Service</Link>
+      <footer className="w-full">
+        <div className="max-w-6xl mx-auto px-6 py-16 text-center">
+          <p className="text-[13px] text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
+          <div className="mt-3 flex items-center justify-center gap-6">
+            <Link to="/privacy" className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150">Privacy Policy</Link>
+            <Link to="/terms" className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150">Terms of Service</Link>
+          </div>
         </div>
       </footer>
     </div>
