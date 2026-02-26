@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -57,6 +57,13 @@ export default function Landing() {
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistState, setWaitlistState] = useState('idle'); // idle | loading | success
   const [waitlistError, setWaitlistError] = useState('');
+  const [waitlistCount, setWaitlistCount] = useState(null);
+
+  useEffect(() => {
+    api.get('/api/waitlist/count')
+      .then(res => setWaitlistCount(res.data.count))
+      .catch(() => {});
+  }, []);
 
   const handleWaitlistSubmit = async (e) => {
     e.preventDefault();
@@ -80,6 +87,7 @@ export default function Landing() {
       await api.post('/api/waitlist/subscribe', { email });
       localStorage.setItem('tubevo_waitlist_email', email);
       setWaitlistState('success');
+      setWaitlistCount(prev => (prev ?? 0) + 1);
     } catch (err) {
       const detail = err.response?.data?.detail;
       setWaitlistError(typeof detail === 'string' ? detail : 'Something went wrong. Please try again.');
@@ -194,7 +202,9 @@ export default function Landing() {
                     </motion.p>
                   )}
                   <p className="mt-4 text-[12px] text-surface-700 text-center">
-                    Join 1,247 creators already on the waitlist
+                    {waitlistCount !== null && waitlistCount > 0
+                      ? `Join ${waitlistCount.toLocaleString()} creator${waitlistCount === 1 ? '' : 's'} already on the waitlist`
+                      : 'Be the first to know when we launch'}
                   </p>
                 </motion.div>
               )}

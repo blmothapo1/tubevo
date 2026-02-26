@@ -301,3 +301,36 @@ class ContentMemory(Base):
 
     def __repr__(self) -> str:
         return f"<ContentMemory user={self.user_id} topic='{self.topic[:40]}' fp={self.topic_fingerprint}>"
+
+
+class WaitlistSignup(Base):
+    """Landing-page waitlist email capture.
+
+    Emails are always persisted here first, then optionally synced to Kit
+    (ConvertKit).  This ensures no leads are lost even if the Kit API is
+    down or the key is invalid.
+    """
+
+    __tablename__ = "waitlist_signups"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    email: Mapped[str] = mapped_column(
+        String(320), unique=True, nullable=False, index=True,
+    )
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    # Kit sync state: pending | synced | failed
+    kit_sync_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending",
+    )
+    kit_subscriber_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # ── Timestamps ───────────────────────────────────────────────────
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<WaitlistSignup {self.email} kit={self.kit_sync_status}>"

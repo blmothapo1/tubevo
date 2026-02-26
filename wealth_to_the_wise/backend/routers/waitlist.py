@@ -2,8 +2,11 @@
 """
 Public waitlist endpoint — /api/waitlist/*
 
-Accepts email sign-ups from the landing page and forwards them to Kit
-(formerly ConvertKit) via the kit_service. No authentication required.
+Accepts email sign-ups from the landing page, persists them in the
+local database (so no leads are ever lost), and then attempts to
+forward them to Kit (formerly ConvertKit) as a best-effort sync.
+
+No authentication required.
 """
 
 from __future__ import annotations
@@ -11,9 +14,13 @@ from __future__ import annotations
 import logging
 
 from email_validator import EmailNotValidError, validate_email
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.database import get_db
+from backend.models import WaitlistSignup
 from backend.rate_limit import limiter
 from backend.services.kit_service import subscribe_to_waitlist
 
@@ -35,6 +42,10 @@ class WaitlistResponse(BaseModel):
     subscriber_id: str | None = None
 
 
+class WaitlistCountResponse(BaseModel):
+    count: int
+
+
 # ── POST /api/waitlist/subscribe ─────────────────────────────────────
 
 @router.post("/subscribe", response_model=WaitlistResponse)
@@ -42,11 +53,17 @@ class WaitlistResponse(BaseModel):
 async def waitlist_subscribe(
     request: Request,
     body: WaitlistRequest,
+    db: AsyncSession = Depends(get_db),
 ):
     """Subscribe an email to the Tubevo waitlist.
 
     Public endpoint — no authentication required.
     Rate-limited to 10 requests per hour per IP.
+
+    Flow:
+    1. Validate the email
+    2. Save to local DB (idempotent — duplicates return success)
+    3. Best-effort sync to Kit (non-blocking on failure)
     """
     # ── Validate email ───────────────────────────────────────────────
     try:
@@ -58,23 +75,65 @@ async def waitlist_subscribe(
             detail=f"Invalid email address: {exc}",
         )
 
-    # ── Subscribe via Kit ────────────────────────────────────────────
-    kit_result = await subscribe_to_waitlist(
-        email=clean_email,
-        name=body.name,
+    # ── Check for duplicate ──────────────────────────────────────────
+    existing = await db.execute(
+        select(WaitlistSignup).where(WaitlistSignup.email == clean_email)
     )
+    signup = existing.scalar_one_or_none()
 
-    if kit_result["success"]:
-        logger.info("Waitlist signup: %s", clean_email)
+    if signup:
+        logger.info("Waitlist duplicate (already signed up): %s", clean_email)
         return WaitlistResponse(
             success=True,
-            message="You're on the list! We'll notify you at launch.",
-            subscriber_id=kit_result.get("subscriber_id"),
+            message="You're already on the list! We'll notify you at launch.",
+            subscriber_id=signup.kit_subscriber_id,
         )
 
-    # Kit returned an error — log it but give the user a friendly message
-    logger.warning("Waitlist signup failed for %s: %s", clean_email, kit_result.get("error"))
-    raise HTTPException(
-        status_code=status.HTTP_502_BAD_GATEWAY,
-        detail=kit_result.get("error", "Failed to join the waitlist. Please try again."),
+    # ── Save to DB first (never lose a lead) ─────────────────────────
+    signup = WaitlistSignup(
+        email=clean_email,
+        name=body.name,
+        kit_sync_status="pending",
     )
+    db.add(signup)
+    await db.flush()  # get the ID before Kit call
+    logger.info("Waitlist signup saved to DB: %s", clean_email)
+
+    # ── Best-effort Kit sync ─────────────────────────────────────────
+    kit_result = await subscribe_to_waitlist(email=clean_email, name=body.name)
+
+    if kit_result["success"]:
+        signup.kit_sync_status = "synced"
+        signup.kit_subscriber_id = kit_result.get("subscriber_id")
+        logger.info("Waitlist Kit sync OK: %s → id=%s", clean_email, signup.kit_subscriber_id)
+    else:
+        signup.kit_sync_status = "failed"
+        logger.warning(
+            "Waitlist Kit sync failed for %s: %s (email saved locally)",
+            clean_email,
+            kit_result.get("error"),
+        )
+
+    # Commit happens automatically via get_db dependency
+    return WaitlistResponse(
+        success=True,
+        message="You're on the list! We'll notify you at launch.",
+        subscriber_id=signup.kit_subscriber_id,
+    )
+
+
+# ── GET /api/waitlist/count ──────────────────────────────────────────
+
+@router.get("/count", response_model=WaitlistCountResponse)
+async def waitlist_count(
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the total number of waitlist signups.
+
+    Public endpoint — used by the landing page to show a live count.
+    """
+    result = await db.execute(
+        select(func.count()).select_from(WaitlistSignup)
+    )
+    count = result.scalar() or 0
+    return WaitlistCountResponse(count=count)
