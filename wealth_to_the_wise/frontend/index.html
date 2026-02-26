@@ -11,6 +11,10 @@
     <meta property="og:type" content="website" />
     <link rel="canonical" href="https://tubevo.us" />
     <title>Tubevo — YouTube on Autopilot</title>
+    <script>
+      // No-flash: apply theme before React renders
+      (function(){try{var p=localStorage.getItem('tubevo-theme-preference');var t=(p==='dark'||p==='light')?p:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',t)}catch(e){document.documentElement.setAttribute('data-theme','dark')}})();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import Landing from './pages/Landing';
@@ -17,8 +18,14 @@ import ResetPassword from './pages/ResetPassword';
 
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
+import { initTheme } from './theme/theme';
 
 export default function App() {
+  useEffect(() => {
+    const cleanup = initTheme();
+    return cleanup;
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>

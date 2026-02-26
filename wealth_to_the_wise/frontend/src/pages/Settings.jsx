@@ -29,8 +29,12 @@ import {
   Film,
   Type,
   Volume2,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import useOnboarding from '../hooks/useOnboarding';
+import { getStoredPreference, setPreference as setThemePreference } from '../theme/theme';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
@@ -212,6 +216,9 @@ function AccountTab({ fullName, setFullName, email }) {
 
       {/* Replay Tutorial — additive section */}
       <ReplayTutorialSection />
+
+      {/* Appearance — theme toggle */}
+      <AppearanceSection />
     </div>
   );
 }
@@ -240,6 +247,53 @@ function ReplayTutorialSection() {
         <PlayCircle size={16} />
         Replay Tutorial
       </motion.button>
+    </div>
+  );
+}
+
+/* ── Appearance — Theme Toggle ─────────────────────────────────── */
+const THEME_OPTIONS = [
+  { key: 'system', label: 'System', icon: Monitor },
+  { key: 'dark', label: 'Dark', icon: Moon },
+  { key: 'light', label: 'Light', icon: Sun },
+];
+
+function AppearanceSection() {
+  const [pref, setPref] = useState(getStoredPreference);
+
+  function handleChange(key) {
+    setPref(key);
+    setThemePreference(key);
+  }
+
+  return (
+    <div className="pt-5 mt-5">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+          <Sun size={16} className="text-brand-400" />
+        </div>
+        <div>
+          <h3 className="text-xs font-semibold text-white">Appearance</h3>
+          <p className="text-[11px] text-surface-600">Choose your preferred theme</p>
+        </div>
+      </div>
+      <div className="flex gap-1 p-1 rounded-lg bg-surface-100 w-fit">
+        {THEME_OPTIONS.map(({ key, label, icon: Icon }) => (
+          <motion.button
+            key={key}
+            onClick={() => handleChange(key)}
+            whileTap={{ scale: 0.97 }}
+            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              pref === key
+                ? 'text-white bg-brand-500'
+                : 'text-surface-600 hover:text-surface-800'
+            }`}
+          >
+            <Icon size={14} />
+            {label}
+          </motion.button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -52,6 +52,29 @@
   --radius-lg: 12px;
 }
 
+/* ── Light theme overrides ───────────────────────── */
+[data-theme="light"] {
+  /* Surface — warm pearl, layered */
+  --color-surface-50:  #f5f5f7;   /* base (app bg) */
+  --color-surface-100: #ebebee;   /* s1 (canvas panels) */
+  --color-surface-200: #ffffff;   /* s2 (cards/modules) */
+  --color-surface-300: #f0f0f3;   /* s3 (popovers/modals) */
+  --color-surface-400: #d6d6db;
+  --color-surface-500: #a8a8b3;
+  --color-surface-600: #86868f;
+  --color-surface-700: #56565e;
+  --color-surface-800: #333338;
+  --color-surface-900: #1d1d1f;
+
+  /* Well — inset surface for inputs */
+  --color-well: #e8e8ec;
+
+  /* Elevation shadows — lighter for light mode */
+  --shadow-s1: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-s2: 0 2px 8px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.04);
+  --shadow-s3: 0 8px 32px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.06);
+}
+
 * { box-sizing: border-box; margin: 0; }
 
 html {
@@ -79,8 +102,18 @@ input, select, textarea, button {
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
+[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
 .glass-light {
   background: rgba(17, 17, 19, 0.5);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+}
+[data-theme="light"] .glass-light {
+  background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(12px) saturate(130%);
   -webkit-backdrop-filter: blur(12px) saturate(130%);
 }
@@ -176,6 +209,9 @@ input, select, textarea, button {
   margin-bottom: 16px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
+[data-theme="light"] .module-header {
+  border-bottom-color: rgba(0,0,0,0.06);
+}
 
 /* ── Input styling — well/inset style ────────────── */
 .input-premium {
@@ -188,6 +224,9 @@ input, select, textarea, button {
   font-size: 0.8125rem;
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.25);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+[data-theme="light"] .input-premium {
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
 }
 .input-premium::placeholder {
   color: var(--color-surface-600);
@@ -362,6 +401,9 @@ body::before {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   pointer-events: none;
 }
+[data-theme="light"] body::before {
+  opacity: 0.012;
+}
 
 /* ── Micro-label utility ─────────────────────────── */
 .label-micro {
@@ -377,6 +419,9 @@ body::before {
   height: 1px;
   background: rgba(255, 255, 255, 0.04);
   border: none;
+}
+[data-theme="light"] .divider {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* ── Monospace utility for API keys ──────────────── */
