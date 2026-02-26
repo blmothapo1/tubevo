@@ -75,6 +75,12 @@
   --shadow-s3: 0 8px 32px rgba(0,0,0,0.12), 0 0 1px rgba(0,0,0,0.06);
 }
 
+/* ── Light-mode color flips for Tailwind built-ins ── */
+/* text-white → dark in light mode (headings, labels, values) */
+[data-theme="light"] {
+  --color-white: #1d1d1f;
+}
+
 * { box-sizing: border-box; margin: 0; }
 
 html {
@@ -165,6 +171,9 @@ input, select, textarea, button {
 .card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28), 0 0 1px rgba(0, 0, 0, 0.1);
 }
+[data-theme="light"] .card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0, 0, 0, 0.04);
+}
 .card-elevated {
   background: var(--color-surface-200);
   border: none;
@@ -176,6 +185,11 @@ input, select, textarea, button {
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.3),
     0 0 1px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .card-elevated:hover {
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.1),
+    0 0 1px rgba(0, 0, 0, 0.05);
 }
 
 /* ── Surface classes — explicit layer hierarchy ──── */
