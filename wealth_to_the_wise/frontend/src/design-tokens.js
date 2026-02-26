@@ -1,5 +1,5 @@
 /**
- * Tubevo Design Tokens — "Apple Materials" System
+ * Tubevo Design Tokens — "Apple × Tesla" Polish System
  *
  * Surface hierarchy:
  *   base   → the app background (near-black, slightly warm)
@@ -7,11 +7,11 @@
  *   s2     → cards / modules that "float" above the canvas
  *   s3     → popovers, tooltips, modals (strongest elevation)
  *
- * No hard borders — separation via:
+ * Separation via:
  *   1. surface color delta between layers
- *   2. subtle shadow/elevation
- *   3. spacing (8/12 grid)
- *   4. corner radius (8px panels, 6px inner elements)
+ *   2. rgba borders (no hard dividers)
+ *   3. spacing (4px base grid)
+ *   4. corner radius (16px cards, 10px inputs, 6px small elements)
  */
 
 // ── Color Palette ───────────────────────────────────────
@@ -69,9 +69,10 @@ export const spacing = {
 
 // ── Radius ──────────────────────────────────────────────
 export const radius = {
-  sm:   '4px',   // inputs, small elements
-  md:   '8px',   // cards, panels (primary)
-  lg:   '12px',  // modals, overlays
+  sm:   '6px',   // small elements, badges
+  md:   '10px',  // inputs, inner elements
+  lg:   '16px',  // cards, panels (primary)
+  xl:   '20px',  // modals, overlays
   full: '9999px',// pills, avatars
 };
 
@@ -85,17 +86,17 @@ export const elevation = {
 
 // ── Typography ──────────────────────────────────────────
 export const fonts = {
-  sans:  'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
+  sans:  '-apple-system, "SF Pro Display", "Helvetica Neue", system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   mono:  '"SF Mono", "Fira Code", "JetBrains Mono", "Cascadia Code", ui-monospace, monospace',
 };
 
 export const text = {
-  micro:   { size: '0.625rem', weight: 600, tracking: '0.08em', transform: 'uppercase' },
-  caption: { size: '0.6875rem', weight: 500, tracking: '0.02em' },
-  body:    { size: '0.8125rem', weight: 400, tracking: '-0.003em' },
-  label:   { size: '0.75rem',   weight: 500, tracking: '0.01em' },
-  heading: { size: '1.25rem',   weight: 600, tracking: '-0.02em' },
-  display: { size: '2rem',      weight: 700, tracking: '-0.03em' },
+  micro:   { size: '10px',  weight: 600, tracking: '0.08em', transform: 'uppercase' },
+  caption: { size: '11px',  weight: 500, tracking: '0.02em' },
+  body:    { size: '14px',  weight: 400, tracking: '-0.003em' },
+  label:   { size: '12px',  weight: 500, tracking: '0.01em' },
+  heading: { size: '20px',  weight: 600, tracking: '-0.02em' },
+  display: { size: '32px',  weight: 700, tracking: '-0.03em' },
 };
 
 // ── Transitions ─────────────────────────────────────────

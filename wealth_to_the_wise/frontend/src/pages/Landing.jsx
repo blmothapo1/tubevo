@@ -44,31 +44,31 @@ const tiers = [
 ];
 
 const stagger = {
-  visible: { transition: { staggerChildren: 0.08 } },
+  visible: { transition: { staggerChildren: 0.06 } },
 };
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease } },
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease } },
 };
 
 export default function Landing() {
   return (
     <div className="min-h-screen bg-surface-50 overflow-hidden">
       {/* ── Navbar ── */}
-      <nav className="glass shadow-soft-lg sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+      <nav className="glass sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 h-[56px] flex items-center justify-between">
           <img src={tubevoLogo} alt="Tubevo" className="h-8" />
           <div className="flex items-center gap-2">
             <Link
               to="/login"
-              className="text-xs text-surface-700 hover:text-white px-3 py-2 rounded transition-colors duration-150 hover:bg-surface-200"
+              className="text-[13px] text-surface-700 hover:text-white px-3 py-2 rounded-[8px] transition-colors duration-150 hover:bg-white/[0.04]"
             >
               Log in
             </Link>
             <Link
               to="/signup"
-              className="btn-primary text-xs !py-2 !px-4"
+              className="btn-primary text-[13px] !py-2 !px-5 !rounded-[10px]"
             >
               Get Started
             </Link>
@@ -77,7 +77,7 @@ export default function Landing() {
       </nav>
 
       {/* ── Hero ── */}
-      <section className="relative max-w-4xl mx-auto px-6 pt-20 sm:pt-28 pb-20 text-center">
+      <section className="relative max-w-4xl mx-auto px-6 pt-24 sm:pt-32 pb-24 text-center">
         {/* Ambient background glows — more subtle */}
         <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-radial from-brand-600/8 via-brand-600/2 to-transparent rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-40 left-1/4 w-[250px] h-[250px] bg-accent-500/3 rounded-full blur-3xl pointer-events-none" />
@@ -88,27 +88,27 @@ export default function Landing() {
           variants={stagger}
           className="relative flex flex-col items-center"
         >
-          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg mb-10">
+          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-[6px] mb-10">
             <Zap size={10} className="text-accent-400" /> Public Beta
           </motion.div>
 
-          <motion.h1 variants={fadeUp} className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white leading-[1.1]">
+          <motion.h1 variants={fadeUp} className="text-4xl sm:text-[48px] md:text-[56px] font-bold tracking-[-0.03em] text-white leading-[1.08]">
             Your YouTube Channel.
             <br />
             <span className="text-gradient">On Autopilot.</span>
           </motion.h1>
 
-          <motion.p variants={fadeUp} className="mt-8 text-sm sm:text-base text-surface-700 max-w-xl leading-relaxed">
+          <motion.p variants={fadeUp} className="mt-8 text-base sm:text-[18px] text-surface-700 max-w-xl leading-relaxed font-normal">
             Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
           </motion.p>
 
           <motion.div variants={fadeUp} className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/signup" className="btn-primary !px-7 !py-3 text-sm">
-              Get Started Free <ArrowRight size={14} />
+            <Link to="/signup" className="btn-primary !h-[48px] !px-8 !text-[16px] !rounded-[12px] inline-flex items-center gap-2 !font-semibold">
+              Get Started Free <ArrowRight size={16} />
             </Link>
             <a
               href="#features"
-              className="text-xs text-surface-600 hover:text-surface-800 transition-colors duration-150"
+              className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150"
             >
               See how it works →
             </a>
@@ -117,7 +117,7 @@ export default function Landing() {
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="max-w-6xl mx-auto px-6 py-20 sm:py-28">
+      <section id="features" className="max-w-6xl mx-auto px-6 py-[120px]">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -125,8 +125,8 @@ export default function Landing() {
           transition={{ duration: 0.4, ease }}
           className="flex flex-col items-center text-center mb-16"
         >
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 tracking-tight">Everything you need</h2>
-          <p className="text-surface-700 max-w-lg mx-auto text-sm leading-relaxed">
+          <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-3 tracking-tight">Everything you need</h2>
+          <p className="text-surface-700 max-w-lg mx-auto text-[15px] leading-relaxed">
             From script to published video — every step is automated.
           </p>
         </motion.div>
@@ -136,7 +136,7 @@ export default function Landing() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={stagger}
-          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5"
+          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6"
         >
           {features.map(({ icon: Icon, title, desc, color, iconColor }) => (
             <motion.div
@@ -144,18 +144,18 @@ export default function Landing() {
               variants={fadeUp}
               className="card p-6 cursor-default"
             >
-              <div className={`w-9 h-9 rounded bg-gradient-to-br ${color} flex items-center justify-center mb-4`}>
-                <Icon size={16} className={iconColor} />
+              <div className={`w-10 h-10 rounded-[10px] bg-gradient-to-br ${color} flex items-center justify-center mb-4`}>
+                <Icon size={18} className={iconColor} />
               </div>
-              <h3 className="text-sm font-semibold text-white mb-2">{title}</h3>
-              <p className="text-xs text-surface-700 leading-relaxed">{desc}</p>
+              <h3 className="text-[15px] font-semibold text-white mb-2">{title}</h3>
+              <p className="text-[13px] text-surface-700 leading-relaxed">{desc}</p>
             </motion.div>
           ))}
         </motion.div>
       </section>
 
       {/* ── Pricing ── */}
-      <section id="pricing" className="max-w-5xl mx-auto px-6 py-20 sm:py-28">
+      <section id="pricing" className="max-w-5xl mx-auto px-6 py-[120px]">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -163,8 +163,8 @@ export default function Landing() {
           transition={{ duration: 0.4, ease }}
           className="flex flex-col items-center text-center mb-16"
         >
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 tracking-tight">Simple pricing</h2>
-          <p className="text-surface-700 text-sm leading-relaxed">Start free. Scale when you're ready.</p>
+          <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-3 tracking-tight">Simple pricing</h2>
+          <p className="text-surface-700 text-[15px] leading-relaxed">Start free. Scale when you're ready.</p>
         </motion.div>
 
         <motion.div
@@ -172,29 +172,29 @@ export default function Landing() {
           whileInView="visible"
           viewport={{ once: true, margin: '-60px' }}
           variants={stagger}
-          className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5"
+          className="grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6"
         >
           {tiers.map((tier) => (
             <motion.div
               key={tier.name}
               variants={fadeUp}
               className={`relative card p-6 flex flex-col ${
-                tier.popular ? 'ring-1 ring-brand-500/15' : ''
+                tier.popular ? 'ring-1 ring-brand-500/30 border-brand-500/20' : ''
               }`}
             >
               {tier.popular && (
-                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded">
+                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-[6px]">
                   Most popular
                 </span>
               )}
-              <h3 className="text-base font-semibold text-white">{tier.name}</h3>
+              <h3 className="text-[16px] font-semibold text-white">{tier.name}</h3>
               <div className="mt-4 mb-6">
-                <span className="text-3xl font-bold text-white tracking-tight">{tier.price}</span>
-                <span className="text-surface-600 text-xs ml-1">{tier.period}</span>
+                <span className="text-[32px] font-bold text-white tracking-tight">{tier.price}</span>
+                <span className="text-surface-600 text-[13px] ml-1">{tier.period}</span>
               </div>
               <ul className="space-y-3 flex-1">
                 {tier.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-xs text-surface-700">
+                  <li key={f} className="flex items-start gap-2 text-[13px] text-surface-700">
                     <Check size={14} className="text-brand-400 mt-0.5 shrink-0" />
                     {f}
                   </li>
@@ -202,7 +202,7 @@ export default function Landing() {
               </ul>
               <Link
                 to="/signup"
-                className={`mt-6 text-center text-xs font-medium py-2.5 rounded transition-all duration-150 block ${
+                className={`mt-6 text-center text-[13px] font-semibold py-3 rounded-[10px] transition-all duration-150 block ${
                   tier.popular
                     ? 'btn-primary w-full'
                     : 'btn-secondary w-full'
@@ -216,11 +216,11 @@ export default function Landing() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="py-12 text-center">
-        <p className="text-xs text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
+      <footer className="py-16 text-center">
+        <p className="text-[13px] text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
         <div className="mt-3 flex items-center justify-center gap-6">
-          <Link to="/privacy" className="text-xs text-surface-600 hover:text-surface-800 transition-colors duration-150">Privacy Policy</Link>
-          <Link to="/terms" className="text-xs text-surface-600 hover:text-surface-800 transition-colors duration-150">Terms of Service</Link>
+          <Link to="/privacy" className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150">Privacy Policy</Link>
+          <Link to="/terms" className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150">Terms of Service</Link>
         </div>
       </footer>
     </div>

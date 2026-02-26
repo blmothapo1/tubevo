@@ -58,10 +58,10 @@ export default function Schedule() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">
+          <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">
             Automation
           </h1>
-          <p className="text-xs text-surface-600 mt-1 uppercase tracking-wider font-medium">
+          <p className="text-[12px] text-surface-600 mt-1 uppercase tracking-[0.08em] font-medium">
             Schedule recurring video generation
           </p>
         </div>
@@ -147,15 +147,15 @@ function EmptyState({ onCreateClick }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: 0.1, ease }}
-      className="card p-10 text-center"
+      className="card p-12 text-center"
     >
-      <div className="w-12 h-12 rounded bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
+      <div className="w-12 h-12 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
         <CalendarClock size={22} className="text-brand-400" />
       </div>
-      <h3 className="text-sm font-semibold text-white mb-1.5">
+      <h3 className="text-[14px] font-semibold text-white mb-1.5">
         No schedules yet
       </h3>
-      <p className="text-xs text-surface-600 max-w-sm mx-auto mb-5">
+      <p className="text-[13px] text-surface-600 max-w-sm mx-auto mb-5">
         Create your first automation schedule to generate and post videos on autopilot.
       </p>
       <motion.button
@@ -230,16 +230,16 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: 12 }}
         transition={{ type: 'tween', duration: 0.2 }}
-        className="card p-5 sm:p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto"
+        className="card p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto !rounded-[20px]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
               <Sparkles size={16} className="text-brand-400" />
             </div>
-            <h2 className="text-sm font-semibold text-white">New Schedule</h2>
+            <h2 className="text-[14px] font-semibold text-white">New Schedule</h2>
           </div>
           <button onClick={onClose} className="p-1.5 rounded text-surface-600 hover:text-white hover:bg-surface-300/50 transition-colors">
             <X size={16} />
@@ -450,10 +450,10 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
       )}
 
       {/* Header */}
-      <div className="p-4 sm:p-5">
+      <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className={`w-9 h-9 rounded flex items-center justify-center shrink-0 ${
+            <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0 ${
               schedule.is_active
                 ? 'bg-brand-500/10'
                 : 'bg-surface-300/30'
@@ -461,8 +461,8 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
               <CalendarClock size={16} className={schedule.is_active ? 'text-brand-400' : 'text-surface-500'} />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-white truncate">{schedule.name}</h3>
-              <p className="text-xs text-surface-600 mt-0.5">
+              <h3 className="text-[14px] font-semibold text-white truncate">{schedule.name}</h3>
+              <p className="text-[12px] text-surface-600 mt-0.5">
                 {schedule.frequency_label} · {topics.length} topic{topics.length !== 1 ? 's' : ''}
                 {schedule.total_runs > 0 && ` · ${schedule.total_runs} run${schedule.total_runs !== 1 ? 's' : ''}`}
               </p>
@@ -475,7 +475,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
               onClick={toggleActive}
               disabled={toggling}
               whileTap={{ scale: 0.9 }}
-              className={`relative w-11 h-6 rounded-full transition-colors duration-150 ${
+              className={`relative w-[44px] h-[24px] rounded-full transition-colors duration-150 ${
                 schedule.is_active
                   ? 'bg-brand-500'
                   : 'bg-surface-400'
@@ -485,7 +485,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
               <motion.span
                 animate={{ x: schedule.is_active ? 20 : 0 }}
                 transition={{ type: 'tween', duration: 0.15 }}
-                className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm"
+                className="absolute top-[2px] left-[2px] w-5 h-5 bg-white rounded-full shadow-sm"
               />
             </motion.button>
 
@@ -535,9 +535,9 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
               <span>Topic {schedule.topic_index + 1} of {topics.length}</span>
               <span>{progress}% through queue</span>
             </div>
-            <div className="h-1 bg-surface-300/40 rounded-sm overflow-hidden">
+            <div className="h-[3px] bg-surface-300/40 rounded-full overflow-hidden">
               <motion.div
-                className="h-full bg-brand-500 rounded-sm"
+                className="h-full bg-brand-500 rounded-full"
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.max(progress, 3)}%` }}
                 transition={{ duration: 0.6, ease }}
@@ -557,7 +557,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
             transition={{ duration: 0.3, ease }}
             className="overflow-hidden"
           >
-            <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0 space-y-3">
+            <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-0 space-y-3">
               {/* Topics list */}
               <div className="pt-3">
                 <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest mb-2">Topic Queue</p>

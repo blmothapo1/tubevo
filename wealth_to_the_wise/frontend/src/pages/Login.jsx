@@ -47,19 +47,19 @@ export default function Login() {
           <p className="mt-2.5 text-xs text-surface-600 uppercase tracking-wider font-medium">Welcome back</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="card p-6 space-y-5">
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
+              className="bg-red-500/6 text-red-400 text-[13px] px-3 py-2.5 rounded-[10px]"
             >
               {error}
             </motion.div>
           )}
 
           <div>
-            <label className="block text-[10px] font-semibold text-surface-600 mb-1.5 uppercase tracking-wider">Email</label>
+            <label className="block text-[11px] font-semibold text-surface-600 mb-1.5 uppercase tracking-[0.06em]">Email</label>
             <input
               type="email"
               required
@@ -71,7 +71,7 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-[10px] font-semibold text-surface-600 mb-1.5 uppercase tracking-wider">Password</label>
+            <label className="block text-[11px] font-semibold text-surface-600 mb-1.5 uppercase tracking-[0.06em]">Password</label>
             <input
               type="password"
               required
@@ -92,13 +92,13 @@ export default function Login() {
             disabled={loading}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
-            className="btn-primary w-full !py-2.5"
+            className="btn-primary w-full"
           >
             {loading ? <Spinner className="w-4 h-4" /> : 'Log in'}
           </motion.button>
         </form>
 
-        <p className="text-center text-xs text-surface-600 mt-6">
+        <p className="text-center text-[13px] text-surface-600 mt-6">
           Don't have an account?{' '}
           <Link to="/signup" className="text-brand-400 hover:text-brand-300 font-medium transition-colors duration-150">
             Sign up

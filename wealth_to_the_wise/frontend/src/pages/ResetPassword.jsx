@@ -75,12 +75,12 @@ export default function ResetPassword() {
             animate={{ opacity: 1, y: 0 }}
             className="card p-6 text-center space-y-3"
           >
-            <div className="w-10 h-10 rounded bg-green-500/10 flex items-center justify-center mx-auto">
+            <div className="w-10 h-10 rounded-[10px] bg-green-500/10 flex items-center justify-center mx-auto">
               <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="text-sm font-semibold text-white">Password reset!</h3>
+            <h3 className="text-[14px] font-semibold text-white">Password reset!</h3>
             <p className="text-xs text-surface-600">
               Your password has been updated. Redirecting to login…
             </p>
@@ -92,25 +92,25 @@ export default function ResetPassword() {
             </Link>
           </motion.div>
         ) : (
-          <form onSubmit={handleSubmit} className="card p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="card p-6 space-y-5">
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
+                className="bg-red-500/6 text-red-400 text-[13px] px-3 py-2.5 rounded-[10px]"
               >
                 {error}
               </motion.div>
             )}
 
             {!token && (
-              <div className="bg-yellow-500/6 text-yellow-400 text-xs px-3 py-2.5 rounded-lg">
+              <div className="bg-yellow-500/6 text-yellow-400 text-[13px] px-3 py-2.5 rounded-[10px]">
                 No reset token found. Please use the link from your email.
               </div>
             )}
 
             <div>
-              <label className="block text-[10px] font-semibold text-surface-600 mb-1.5 uppercase tracking-wider">New password</label>
+              <label className="block text-[11px] font-semibold text-surface-600 mb-1.5 uppercase tracking-[0.06em]">New password</label>
               <input
                 type="password"
                 required
@@ -123,7 +123,7 @@ export default function ResetPassword() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-semibold text-surface-600 mb-1.5 uppercase tracking-wider">Confirm password</label>
+              <label className="block text-[11px] font-semibold text-surface-600 mb-1.5 uppercase tracking-[0.06em]">Confirm password</label>
               <input
                 type="password"
                 required
@@ -140,14 +140,14 @@ export default function ResetPassword() {
               disabled={loading || !token}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
-              className="btn-primary w-full !py-2.5"
+              className="btn-primary w-full"
             >
               {loading ? <Spinner className="w-4 h-4" /> : 'Reset password'}
             </motion.button>
           </form>
         )}
 
-        <p className="text-center text-xs text-surface-600 mt-6">
+        <p className="text-center text-[13px] text-surface-600 mt-6">
           <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors duration-150">
             ← Back to login
           </Link>

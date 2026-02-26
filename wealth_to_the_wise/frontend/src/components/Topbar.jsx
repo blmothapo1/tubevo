@@ -29,13 +29,13 @@ export default function Topbar({ onMenuToggle }) {
     .slice(0, 2);
 
   return (
-    <header className="h-14 glass shadow-soft-lg sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 lg:px-8 safe-area-inset">
+    <header className="h-[56px] glass sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 lg:px-8 safe-area-inset">
       <div className="flex items-center gap-3 min-w-0">
         {/* Hamburger menu — visible on all screen sizes */}
         <button
           onClick={onMenuToggle}
           data-tour="menu-button"
-          className="p-1.5 -ml-1.5 rounded text-surface-600 hover:text-white hover:bg-surface-300/60 transition-colors duration-150"
+          className="p-1.5 -ml-1.5 rounded-[6px] text-surface-600 hover:text-white hover:bg-white/[0.04] transition-colors duration-150"
         >
           <Menu size={18} />
         </button>
@@ -44,7 +44,7 @@ export default function Topbar({ onMenuToggle }) {
         <img src={tubevoLogo} alt="Tubevo" className="h-7 sm:h-8 shrink-0" />
 
         {/* YouTube connection status pill */}
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium tracking-wide uppercase transition-colors duration-150 ${
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11px] font-medium tracking-wide uppercase transition-colors duration-150 ${
           connected
             ? 'bg-emerald-500/8 text-emerald-400'
             : 'bg-surface-200 text-surface-600'
@@ -73,7 +73,7 @@ export default function Topbar({ onMenuToggle }) {
         <span className="text-xs text-surface-600 truncate max-w-[140px] hidden sm:inline">
           {user?.full_name || user?.email}
         </span>
-        <div className="w-8 h-8 rounded bg-brand-500 flex items-center justify-center text-[11px] font-semibold text-white/90 select-none">
+        <div className="w-8 h-8 rounded-[8px] bg-brand-500 flex items-center justify-center text-[11px] font-semibold text-white/90 select-none">
           {initials}
         </div>
       </div>

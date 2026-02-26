@@ -68,28 +68,28 @@ export default function Settings() {
   return (
     <FadeIn className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Settings</h1>
-        <p className="text-xs text-surface-600 mt-1 uppercase tracking-wider font-medium">Manage your account and preferences</p>
+        <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">Settings</h1>
+        <p className="text-[12px] text-surface-600 mt-1 uppercase tracking-[0.08em] font-medium">Manage your account and preferences</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-0.5 card p-1 overflow-x-auto scrollbar-none">
+      {/* Pill-style Tabs */}
+      <div className="flex gap-0.5 bg-surface-100 rounded-[10px] p-1 overflow-x-auto scrollbar-none">
         {tabs.map(({ key, label, icon: Icon }) => (
           <motion.button
             key={key}
             onClick={() => setActiveTab(key)}
             whileTap={{ scale: 0.98 }}
             {...(key === 'apikeys' ? { 'data-tour': 'settings-apikeys-tab' } : {})}
-            className={`relative flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-medium transition-all whitespace-nowrap ${
+            className={`relative flex items-center gap-1.5 px-3 sm:px-3.5 h-[32px] rounded-[8px] text-[11px] sm:text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === key
                 ? 'text-white'
-                : 'text-surface-600 hover:text-surface-800 hover:bg-surface-200/40'
+                : 'text-surface-600 hover:text-surface-800 hover:bg-white/[0.04]'
             }`}
           >
             {activeTab === key && (
               <motion.div
                 layoutId="settings-tab-bg"
-                className="absolute inset-0 bg-brand-500 rounded-lg"
+                className="absolute inset-0 bg-surface-300 rounded-[8px]"
                 transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
               />
             )}
@@ -109,7 +109,7 @@ export default function Settings() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.2, ease }}
-          className="card p-5 sm:p-6"
+          className="card p-6"
         >
           {activeTab === 'account' && (
             <AccountTab fullName={fullName} setFullName={setFullName} email={email} />
@@ -152,11 +152,11 @@ function AccountTab({ fullName, setFullName, email }) {
   return (
     <div className="space-y-5 max-w-md">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
           <User size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">Account Details</h3>
+          <h3 className="text-[14px] font-semibold text-white">Account Details</h3>
           <p className="text-[11px] text-surface-600">Update your profile information</p>
         </div>
       </div>
@@ -230,11 +230,11 @@ function ReplayTutorialSection() {
   return (
     <div className="pt-5 mt-5">
       <div className="flex items-center gap-3 mb-2.5">
-        <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
           <PlayCircle size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-xs font-semibold text-white">Guided Tutorial</h3>
+          <h3 className="text-[13px] font-semibold text-white">Guided Tutorial</h3>
           <p className="text-[11px] text-surface-600">Walk through the app features step by step</p>
         </div>
       </div>
@@ -269,23 +269,23 @@ function AppearanceSection() {
   return (
     <div className="pt-5 mt-5">
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
           <Sun size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-xs font-semibold text-white">Appearance</h3>
+          <h3 className="text-[13px] font-semibold text-white">Appearance</h3>
           <p className="text-[11px] text-surface-600">Choose your preferred theme</p>
         </div>
       </div>
-      <div className="flex gap-1 p-1 rounded-lg bg-surface-100 w-fit">
+      <div className="flex gap-1 p-1 rounded-[10px] bg-surface-100 w-fit">
         {THEME_OPTIONS.map(({ key, label, icon: Icon }) => (
           <motion.button
             key={key}
             onClick={() => handleChange(key)}
             whileTap={{ scale: 0.97 }}
-            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors ${
               pref === key
-                ? 'text-white bg-brand-500'
+                ? 'text-white bg-surface-300'
                 : 'text-surface-600 hover:text-surface-800'
             }`}
           >
@@ -403,11 +403,11 @@ function ApiKeysTab() {
     <div className="space-y-5 max-w-xl">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded bg-amber-500/10 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-[10px] bg-amber-500/10 flex items-center justify-center">
           <Key size={16} className="text-amber-400" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">Your API Keys</h3>
+          <h3 className="text-[14px] font-semibold text-white">Your API Keys</h3>
           <p className="text-[11px] text-surface-600">
             A private password that lets Tubevo use AI services on your behalf.
           </p>
@@ -716,11 +716,11 @@ function VideoPreferencesTab() {
     <div className="space-y-6 max-w-lg">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded bg-violet-500/10 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-[10px] bg-violet-500/10 flex items-center justify-center">
           <Film size={16} className="text-violet-400" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">Video Preferences</h3>
+          <h3 className="text-[14px] font-semibold text-white">Video Preferences</h3>
           <p className="text-[11px] text-surface-600">Customize subtitle style, captions & speech speed</p>
         </div>
       </div>
@@ -807,14 +807,14 @@ function VideoPreferencesTab() {
           </div>
           <button
             onClick={() => setBurnCaptions(!burnCaptions)}
-            className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
+            className={`relative w-[44px] h-[24px] rounded-full transition-colors duration-200 ${
               burnCaptions ? 'bg-brand-500' : 'bg-surface-300/50'
             }`}
           >
             <motion.div
               animate={{ x: burnCaptions ? 20 : 2 }}
               transition={{ type: 'tween', duration: 0.15 }}
-              className="w-5 h-5 rounded-full bg-white shadow-sm absolute top-0.5"
+              className="w-5 h-5 rounded-full bg-white shadow-sm absolute top-[2px]"
             />
           </button>
         </div>
@@ -937,11 +937,11 @@ function YouTubeTab() {
   return (
     <div className="space-y-6 max-w-md">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded bg-red-500/10 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-[10px] bg-red-500/10 flex items-center justify-center">
           <Youtube size={16} className="text-red-400" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">YouTube Connection</h3>
+          <h3 className="text-[14px] font-semibold text-white">YouTube Connection</h3>
           <p className="text-[11px] text-surface-600">Upload videos directly to your channel</p>
         </div>
       </div>
@@ -966,18 +966,18 @@ function YouTubeTab() {
           className="card p-4 space-y-3"
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded bg-red-500/10 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-[10px] bg-red-500/10 flex items-center justify-center">
               <Youtube size={16} className="text-red-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-white truncate">
+              <p className="text-[13px] font-semibold text-white truncate">
                 {connection.channel_title || 'YouTube Channel'}
               </p>
               <p className="text-[11px] text-surface-500 truncate">
                 {connection.provider_email || connection.channel_id}
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400">
+            <span className="badge badge-posted flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               Connected
             </span>
@@ -1007,11 +1007,11 @@ function YouTubeTab() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-3 card p-4"
         >
-          <div className="w-9 h-9 rounded bg-red-500/10 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-[10px] bg-red-500/10 flex items-center justify-center">
             <Youtube size={16} className="text-red-400" />
           </div>
           <div className="flex-1">
-            <p className="text-xs font-semibold text-white">No channel connected</p>
+            <p className="text-[13px] font-semibold text-white">No channel connected</p>
             <p className="text-[11px] text-surface-500">Authorize via Google OAuth</p>
           </div>
           <motion.button
@@ -1037,11 +1037,11 @@ function NotificationsTab() {
   return (
     <div className="space-y-6 max-w-md">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded bg-blue-500/10 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-[10px] bg-blue-500/10 flex items-center justify-center">
           <Bell size={16} className="text-blue-400" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">Notification Preferences</h3>
+          <h3 className="text-[14px] font-semibold text-white">Notification Preferences</h3>
           <p className="text-[11px] text-surface-600">Choose what you want to be notified about</p>
         </div>
       </div>
@@ -1057,22 +1057,22 @@ function NotificationsTab() {
 
 function Toggle({ label, description, checked, onChange }) {
   return (
-    <div className="flex items-center justify-between py-3 last:pb-0">
+    <div className="setting-row flex items-center justify-between">
       <div>
-        <p className="text-xs font-medium text-white">{label}</p>
+        <p className="text-[13px] font-medium text-white">{label}</p>
         <p className="text-[11px] text-surface-500 mt-0.5">{description}</p>
       </div>
       <motion.button
         onClick={() => onChange(!checked)}
         whileTap={{ scale: 0.9 }}
-        className={`relative w-11 h-6 rounded-full transition-colors duration-150 ${
+        className={`relative w-[44px] h-[24px] rounded-full transition-colors duration-150 shrink-0 ${
           checked ? 'bg-brand-500' : 'bg-surface-400'
         }`}
       >
         <motion.span
           animate={{ x: checked ? 20 : 0 }}
           transition={{ type: 'tween', duration: 0.15 }}
-          className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm"
+          className="absolute top-[2px] left-[2px] w-5 h-5 bg-white rounded-full shadow-sm"
         />
       </motion.button>
     </div>
@@ -1125,11 +1125,11 @@ function PlanTab({ plan }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
           <CreditCard size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">Your Plan</h3>
+          <h3 className="text-[14px] font-semibold text-white">Your Plan</h3>
           <p className="text-[11px] text-surface-600">Upgrade or manage your subscription</p>
         </div>
       </div>
@@ -1253,11 +1253,11 @@ function UsageTab() {
   return (
     <div className="space-y-6 max-w-md">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded bg-emerald-500/10 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-[10px] bg-emerald-500/10 flex items-center justify-center">
           <BarChart3 size={16} className="text-emerald-400" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-white">Usage & Stats</h3>
+          <h3 className="text-[14px] font-semibold text-white">Usage & Stats</h3>
           <p className="text-[11px] text-surface-600">Your video generation activity</p>
         </div>
       </div>
@@ -1272,12 +1272,12 @@ function UsageTab() {
             {monthlyUsed} / {monthlyLimit >= 999_999 ? '∞' : monthlyLimit}
           </span>
         </div>
-        <div className="w-full bg-surface-300/40 rounded-sm h-1.5 overflow-hidden">
+        <div className="w-full bg-surface-300/40 rounded-full h-[3px] overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${monthlyLimit >= 999_999 ? 5 : usagePct}%` }}
             transition={{ duration: 0.8, delay: 0.15, ease }}
-            className={`h-1.5 rounded-sm ${
+            className={`h-[3px] rounded-full ${
               usagePct >= 90 ? 'bg-red-500' :
               usagePct >= 70 ? 'bg-amber-500' :
               'bg-brand-500'

@@ -25,11 +25,11 @@ import {
 const ease = [0.25, 0.1, 0.25, 1];
 
 const statusConfig = {
-  pending:    { label: 'Pending',      color: 'bg-amber-500/15 text-amber-400',     icon: Clock },
-  generating: { label: 'Generating…',  color: 'bg-brand-500/15 text-brand-400',     icon: Film },
-  completed:  { label: 'Completed',    color: 'bg-blue-500/15 text-blue-400',        icon: CheckCircle },
-  posted:     { label: 'Posted',       color: 'bg-emerald-500/15 text-emerald-400', icon: Upload },
-  failed:     { label: 'Failed',       color: 'bg-red-500/15 text-red-400',           icon: AlertTriangle },
+  pending:    { label: 'Pending',      badge: 'badge-pending',     icon: Clock },
+  generating: { label: 'Generating…',  badge: 'badge-generating',  icon: Film },
+  completed:  { label: 'Completed',    badge: 'badge-completed',   icon: CheckCircle },
+  posted:     { label: 'Posted',       badge: 'badge-posted',      icon: Upload },
+  failed:     { label: 'Failed',       badge: 'badge-failed',      icon: AlertTriangle },
 };
 
 // ── Pipeline step labels for ETA estimation ──
@@ -79,9 +79,9 @@ function RenderProgressBar({ pct, step, startedAt }) {
       </div>
 
       {/* Progress bar track */}
-      <div className="h-1.5 rounded-sm bg-surface-200 overflow-hidden">
+      <div className="h-[3px] rounded-full bg-surface-200 overflow-hidden">
         <motion.div
-          className="h-full rounded-sm bg-brand-500"
+          className="h-full rounded-full bg-brand-500"
           initial={{ width: 0 }}
           animate={{ width: `${clampedPct}%` }}
           transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
@@ -310,8 +310,8 @@ export default function Videos() {
       {/* Header + Queue Indicator */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">Videos</h1>
-          <p className="text-xs text-surface-600 mt-1 uppercase tracking-wider font-medium">
+          <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">Videos</h1>
+          <p className="text-[12px] text-surface-600 mt-1 uppercase tracking-[0.08em] font-medium">
             Generate & track AI-powered videos
           </p>
         </div>
@@ -323,7 +323,7 @@ export default function Videos() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-brand-500/6 shrink-0"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] bg-brand-500/6 shrink-0"
             >
               <Layers size={12} className="text-brand-400" />
               <span className="text-[10px] text-brand-400 font-semibold uppercase tracking-wider">
@@ -341,14 +341,14 @@ export default function Videos() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1, ease }}
-        className="card p-5 sm:p-6"
+        className="card p-6"
       >
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded bg-brand-500 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-[10px] bg-brand-500 flex items-center justify-center">
             <Wand2 size={16} className="text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">Generate a New Video</h3>
+            <h3 className="text-[14px] font-semibold text-white">Generate a New Video</h3>
             <p className="text-[11px] text-surface-600">Enter a topic and we'll create a full video with AI</p>
           </div>
         </div>
@@ -434,14 +434,14 @@ export default function Videos() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.2, ease }}
-          className="card px-5 py-10 sm:p-10 text-center"
+          className="card px-6 py-12 text-center"
           data-tour="video-list"
         >
-          <div className="w-14 h-14 rounded bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
+          <div className="w-14 h-14 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
             <Sparkles size={24} className="text-brand-400" />
           </div>
-          <h3 className="text-sm font-semibold text-white mb-1.5">No videos yet</h3>
-          <p className="text-xs text-surface-600 max-w-sm mx-auto">
+          <h3 className="text-[14px] font-semibold text-white mb-1.5">No videos yet</h3>
+          <p className="text-[13px] text-surface-600 max-w-sm mx-auto">
             Use the form above to generate your first AI-powered video. It takes about 2–3 minutes.
           </p>
         </motion.div>
@@ -456,10 +456,10 @@ export default function Videos() {
 
             return (
               <StaggerItem key={video.id}>
-                <div className="px-4 py-3.5 sm:px-5 sm:py-4 transition-colors hover:bg-surface-200/30 duration-150">
+                <div className="px-5 py-4 transition-colors hover:bg-white/[0.02] duration-150">
                   <div className="flex items-center gap-3">
                     {/* Thumbnail placeholder */}
-                    <div className="hidden sm:flex w-24 h-14 rounded-lg bg-surface-200 items-center justify-center shrink-0 overflow-hidden">
+                    <div className="hidden sm:flex w-24 h-14 rounded-[10px] bg-surface-200 items-center justify-center shrink-0 overflow-hidden">
                       {video.status === 'generating' ? (
                         <RefreshCw size={16} className="text-brand-400/50 animate-spin" />
                       ) : (
@@ -484,7 +484,7 @@ export default function Videos() {
 
                     {/* Status badge */}
                     <span
-                      className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg shrink-0 uppercase tracking-wider ${cfg.color}`}
+                      className={`badge ${cfg.badge} flex items-center gap-1 shrink-0`}
                     >
                       {video.status === 'generating' ? (
                         <RefreshCw size={10} className="animate-spin" />
@@ -555,9 +555,9 @@ export default function Videos() {
                             )}
                           </span>
                         </div>
-                        <div className="h-1 rounded-sm bg-surface-200 overflow-hidden">
+                        <div className="h-[3px] rounded-full bg-surface-200 overflow-hidden">
                           <motion.div
-                            className="h-full rounded-sm bg-brand-500"
+                            className="h-full rounded-full bg-brand-500"
                             animate={{ width: `${Math.min(100, progressPct || 0)}%` }}
                             transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
                           />

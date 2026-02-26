@@ -110,7 +110,7 @@ export default function Onboarding() {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.3, ease }}
-        className={`w-14 h-14 rounded flex items-center justify-center mx-auto mb-5 ring-1 ${
+        className={`w-14 h-14 rounded-[10px] flex items-center justify-center mx-auto mb-5 ring-1 ${
           ytConnected
             ? 'bg-emerald-500/8 ring-emerald-500/20'
             : 'bg-red-500/8 ring-red-500/20'
@@ -234,7 +234,7 @@ export default function Onboarding() {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.3, ease }}
-        className="w-14 h-14 rounded bg-brand-500 flex items-center justify-center mx-auto mb-5"
+        className="w-14 h-14 rounded-[10px] bg-brand-500 flex items-center justify-center mx-auto mb-5"
       >
         <Rocket size={28} className="text-white" />
       </motion.div>
@@ -269,18 +269,18 @@ export default function Onboarding() {
       {/* Ambient background glows — subtle */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-brand-600/3 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="w-full max-w-lg relative z-10">
-        {/* Progress — step counter style */}
-        <div className="flex items-center justify-center gap-1.5 mb-8">
+      <div className="w-full max-w-[480px] relative z-10">
+        {/* Progress — step circles + progress bar */}
+        <div className="flex items-center justify-center gap-2 mb-8">
           {[0, 1, 2, 3].map((i) => (
             <motion.div
               key={i}
               animate={{
-                width: i <= step ? 36 : 20,
+                scale: i === step ? 1.1 : 1,
                 opacity: i <= step ? 1 : 0.3,
               }}
               transition={{ duration: 0.25, ease }}
-              className={`h-1 rounded-sm ${
+              className={`w-[8px] h-[8px] rounded-full ${
                 i <= step ? 'bg-brand-500' : 'bg-surface-400'
               }`}
             />
@@ -290,8 +290,17 @@ export default function Onboarding() {
           </span>
         </div>
 
+        {/* Progress bar */}
+        <div className="w-full h-[3px] bg-surface-300/40 rounded-full overflow-hidden mb-8">
+          <motion.div
+            className="h-full rounded-full bg-brand-500"
+            animate={{ width: `${((step + 1) / 4) * 100}%` }}
+            transition={{ duration: 0.4, ease }}
+          />
+        </div>
+
         {/* Content Card */}
-        <div className="card p-5 sm:p-8 min-h-[340px] sm:min-h-[380px] flex items-center justify-center overflow-hidden">
+        <div className="card p-8 sm:p-10 !rounded-[20px] min-h-[340px] sm:min-h-[380px] flex items-center justify-center overflow-hidden">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={step}

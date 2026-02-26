@@ -51,12 +51,12 @@ export default function ForgotPassword() {
             animate={{ opacity: 1, y: 0 }}
             className="card p-6 text-center space-y-3"
           >
-            <div className="w-10 h-10 rounded bg-brand-500/10 flex items-center justify-center mx-auto">
+            <div className="w-10 h-10 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto">
               <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <h3 className="text-sm font-semibold text-white">Check your email</h3>
+            <h3 className="text-[14px] font-semibold text-white">Check your email</h3>
             <p className="text-xs text-surface-600">
               If an account exists for <strong className="text-surface-800">{email}</strong>,
               we've sent a reset link. Expires in 1 hour.
@@ -69,23 +69,23 @@ export default function ForgotPassword() {
             </Link>
           </motion.div>
         ) : (
-          <form onSubmit={handleSubmit} className="card p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="card p-6 space-y-5">
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
+                className="bg-red-500/6 text-red-400 text-[13px] px-3 py-2.5 rounded-[10px]"
               >
                 {error}
               </motion.div>
             )}
 
-            <p className="text-xs text-surface-700">
+            <p className="text-[13px] text-surface-700">
               Enter your email and we'll send you a link to reset your password.
             </p>
 
             <div>
-              <label className="block text-[10px] font-semibold text-surface-600 mb-1.5 uppercase tracking-wider">Email</label>
+              <label className="block text-[11px] font-semibold text-surface-600 mb-1.5 uppercase tracking-[0.06em]">Email</label>
               <input
                 type="email"
                 required
@@ -101,14 +101,14 @@ export default function ForgotPassword() {
               disabled={loading}
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
-              className="btn-primary w-full !py-2.5"
+              className="btn-primary w-full"
             >
               {loading ? <Spinner className="w-4 h-4" /> : 'Send reset link'}
             </motion.button>
           </form>
         )}
 
-        <p className="text-center text-xs text-surface-600 mt-6">
+        <p className="text-center text-[13px] text-surface-600 mt-6">
           Remember your password?{' '}
           <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors duration-150">
             Log in

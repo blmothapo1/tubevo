@@ -90,15 +90,15 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5 sm:space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       {/* Header with personalized greeting */}
       <FadeIn>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight">
+            <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">
               {greeting}, {firstName}
             </h1>
-            <p className="text-xs text-surface-600 mt-1 uppercase tracking-wider font-medium">Pipeline overview</p>
+            <p className="text-[12px] text-surface-600 mt-1 uppercase tracking-[0.08em] font-medium">Pipeline overview</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -106,16 +106,16 @@ export default function Dashboard() {
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               onClick={fetchData}
-              className="p-2 rounded text-surface-600 hover:text-surface-800 hover:bg-surface-200 transition-colors duration-150"
+              className="p-2 rounded-[8px] text-surface-600 hover:text-surface-800 hover:bg-white/[0.04] transition-colors duration-150"
               title="Refresh"
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={16} />
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
               onClick={() => setAutomationOn(!automationOn)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium tracking-wide uppercase transition-all duration-150 ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-[8px] text-[12px] font-medium tracking-wide uppercase transition-all duration-150 ${
                 automationOn
                   ? 'bg-emerald-500/10 text-emerald-400'
                   : 'bg-surface-200 text-surface-700 hover:bg-surface-300'
@@ -129,16 +129,16 @@ export default function Dashboard() {
       </FadeIn>
 
       {/* Stats Row */}
-      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {statCards.map(({ label, value, icon: Icon, gradient, iconColor }) => (
           <StaggerItem key={label}>
-            <div className="card p-4 sm:p-5 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+            <div className="card p-5 flex items-center gap-4 border-l-[3px] border-l-brand-500">
+              <div className={`w-10 h-10 rounded-[10px] bg-gradient-to-br ${gradient} flex items-center justify-center`}>
                 <Icon size={18} className={iconColor} />
               </div>
               <div>
-                <p className="text-[10px] text-surface-600 font-semibold uppercase tracking-widest">{label}</p>
-                <p className="text-xl font-bold text-white mt-0.5 tabular-nums tracking-tight">{value}</p>
+                <p className="text-[12px] text-surface-600 font-medium uppercase tracking-[0.08em]">{label}</p>
+                <p className="text-[32px] font-bold text-white mt-0.5 tabular-nums tracking-tight leading-none">{value}</p>
               </div>
             </div>
           </StaggerItem>
@@ -147,24 +147,24 @@ export default function Dashboard() {
 
       {/* Monthly Quota */}
       <FadeIn delay={0.2}>
-        <div className="card p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-2.5">
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <TrendingUp size={12} className="text-surface-600" />
-              <span className="text-[10px] text-surface-600 font-semibold uppercase tracking-widest">
+              <TrendingUp size={14} className="text-surface-600" />
+              <span className="text-[12px] text-surface-600 font-medium uppercase tracking-[0.08em]">
                 Monthly Quota · {plan.charAt(0).toUpperCase() + plan.slice(1)}
               </span>
             </div>
-            <span className="text-xs font-semibold text-white tabular-nums">
+            <span className="text-[13px] font-semibold text-white tabular-nums">
               {monthlyUsed} / {monthlyLimit >= 999_999 ? '∞' : monthlyLimit}
             </span>
           </div>
-          <div className="w-full bg-surface-300/50 rounded-sm h-1.5 overflow-hidden">
+          <div className="w-full bg-surface-300/50 rounded-full h-[3px] overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${monthlyLimit >= 999_999 ? 3 : usagePct}%` }}
               transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.3 }}
-              className={`h-1.5 rounded-sm ${usagePct >= 90 ? 'bg-red-500' : usagePct >= 70 ? 'bg-amber-500' : 'bg-brand-500'}`}
+              className={`h-[3px] rounded-full ${usagePct >= 90 ? 'bg-red-500' : usagePct >= 70 ? 'bg-amber-500' : 'bg-brand-500'}`}
             />
           </div>
         </div>
@@ -176,10 +176,10 @@ export default function Dashboard() {
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
-          className="bg-emerald-500/6 rounded-lg px-5 py-3 flex items-center gap-2.5"
+          className="bg-emerald-500/6 rounded-[10px] px-5 py-3 flex items-center gap-2.5"
         >
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-soft-pulse" />
-          <p className="text-xs text-emerald-300">
+          <p className="text-[13px] text-emerald-300">
             Pipeline active — videos are being generated and queued automatically.
           </p>
         </motion.div>
@@ -188,16 +188,16 @@ export default function Dashboard() {
       {/* Recent Activity */}
       <FadeIn delay={0.3}>
         <div>
-          <h2 className="text-[10px] font-semibold text-surface-600 uppercase tracking-widest mb-3 sm:mb-4">
+          <h2 className="text-[12px] font-semibold text-surface-600 uppercase tracking-[0.08em] mb-4">
             Recent Activity
           </h2>
           {activity.length === 0 ? (
-            <div className="card px-5 py-10 sm:px-6 sm:py-14 text-center">
-              <div className="w-12 h-12 rounded bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
+            <div className="card px-6 py-12 text-center">
+              <div className="w-12 h-12 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
                 <Sparkles size={20} className="text-brand-400" />
               </div>
-              <p className="text-sm font-medium text-surface-800 mb-1">No videos yet</p>
-              <p className="text-xs text-surface-600">
+              <p className="text-[14px] font-medium text-surface-800 mb-1">No videos yet</p>
+              <p className="text-[13px] text-surface-600">
                 Head to the{' '}
                 <a href="/videos" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
                   Videos
@@ -217,24 +217,24 @@ export default function Dashboard() {
                     initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.03, duration: 0.2 }}
-                    className="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5 hover:bg-surface-200/40 transition-colors duration-150"
+                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-white/[0.02] transition-colors duration-150"
                   >
-                    <div className="w-8 h-8 rounded bg-surface-200 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-[8px] bg-surface-200 flex items-center justify-center shrink-0">
                       <Icon size={14} className={cfg.color} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-surface-900 truncate">{item.title}</p>
+                      <p className="text-[14px] font-medium text-surface-900 truncate">{item.title}</p>
                       <p className="text-[11px] text-surface-600 mt-0.5">{timeSince(item.created_at)}</p>
                     </div>
                     <span
-                      className={`text-[10px] font-semibold px-2.5 py-1 rounded uppercase tracking-wider capitalize ${
+                      className={`badge ${
                         item.status === 'posted'
-                          ? 'bg-emerald-500/8 text-emerald-400'
+                          ? 'badge-posted'
                           : item.status === 'failed'
-                          ? 'bg-red-500/8 text-red-400'
+                          ? 'badge-failed'
                           : item.status === 'generating'
-                          ? 'bg-brand-500/8 text-brand-400'
-                          : 'bg-amber-500/8 text-amber-400'
+                          ? 'badge-generating'
+                          : 'badge-pending'
                       }`}
                     >
                       {item.status}

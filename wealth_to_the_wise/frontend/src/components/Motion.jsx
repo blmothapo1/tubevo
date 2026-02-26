@@ -7,12 +7,12 @@ import { motion } from 'framer-motion';
 const ease = [0.25, 0.1, 0.25, 1]; // Apple's ease curve
 
 /** Fade-in + slide up on mount — use for page-level containers */
-export function FadeIn({ children, className = '', delay = 0, y = 10, ...props }) {
+export function FadeIn({ children, className = '', delay = 0, y = 8, ...props }) {
   return (
     <motion.div
       initial={{ opacity: 0, y }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay, ease }}
+      transition={{ duration: 0.25, delay, ease }}
       className={className}
       {...props}
     >
@@ -22,7 +22,7 @@ export function FadeIn({ children, className = '', delay = 0, y = 10, ...props }
 }
 
 /** Staggered children animation — wrap a list and each child auto-staggers */
-export function StaggerContainer({ children, className = '', staggerDelay = 0.06, ...props }) {
+export function StaggerContainer({ children, className = '', staggerDelay = 0.04, ...props }) {
   return (
     <motion.div
       initial="hidden"
