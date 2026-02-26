@@ -115,10 +115,10 @@ export default function Dashboard() {
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
               onClick={() => setAutomationOn(!automationOn)}
-              className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-medium tracking-wide uppercase transition-all duration-150 ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium tracking-wide uppercase transition-all duration-150 ${
                 automationOn
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                  : 'bg-surface-200 text-surface-700 border border-surface-300 hover:bg-surface-300'
+                  ? 'bg-emerald-500/10 text-emerald-400'
+                  : 'bg-surface-200 text-surface-700 hover:bg-surface-300'
               }`}
             >
               {automationOn ? <Pause size={14} /> : <Play size={14} />}
@@ -176,7 +176,7 @@ export default function Dashboard() {
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           exit={{ opacity: 0, height: 0 }}
-          className="bg-emerald-500/6 border border-emerald-500/15 rounded px-5 py-3 flex items-center gap-2.5"
+          className="bg-emerald-500/6 rounded-lg px-5 py-3 flex items-center gap-2.5"
         >
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-soft-pulse" />
           <p className="text-xs text-emerald-300">
@@ -206,7 +206,7 @@ export default function Dashboard() {
               </p>
             </div>
           ) : (
-            <div className="card divide-y divide-surface-300/50 overflow-hidden">
+            <div className="card overflow-hidden">
               {activity.map((item, i) => {
                 const cfg = statusIcons[item.status] || statusIcons.pending;
                 const Icon = cfg.icon;

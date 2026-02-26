@@ -25,11 +25,11 @@ import {
 const ease = [0.25, 0.1, 0.25, 1];
 
 const statusConfig = {
-  pending:    { label: 'Pending',      color: 'bg-amber-500/15 text-amber-400 border-amber-500/20',     icon: Clock },
-  generating: { label: 'Generating…',  color: 'bg-brand-500/15 text-brand-400 border-brand-500/20',     icon: Film },
-  completed:  { label: 'Completed',    color: 'bg-blue-500/15 text-blue-400 border-blue-500/20',        icon: CheckCircle },
-  posted:     { label: 'Posted',       color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20', icon: Upload },
-  failed:     { label: 'Failed',       color: 'bg-red-500/15 text-red-400 border-red-500/20',           icon: AlertTriangle },
+  pending:    { label: 'Pending',      color: 'bg-amber-500/15 text-amber-400',     icon: Clock },
+  generating: { label: 'Generating…',  color: 'bg-brand-500/15 text-brand-400',     icon: Film },
+  completed:  { label: 'Completed',    color: 'bg-blue-500/15 text-blue-400',        icon: CheckCircle },
+  posted:     { label: 'Posted',       color: 'bg-emerald-500/15 text-emerald-400', icon: Upload },
+  failed:     { label: 'Failed',       color: 'bg-red-500/15 text-red-400',           icon: AlertTriangle },
 };
 
 // ── Pipeline step labels for ETA estimation ──
@@ -79,7 +79,7 @@ function RenderProgressBar({ pct, step, startedAt }) {
       </div>
 
       {/* Progress bar track */}
-      <div className="h-1.5 rounded-sm bg-surface-200 overflow-hidden border border-surface-300/30">
+      <div className="h-1.5 rounded-sm bg-surface-200 overflow-hidden">
         <motion.div
           className="h-full rounded-sm bg-brand-500"
           initial={{ width: 0 }}
@@ -323,7 +323,7 @@ export default function Videos() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-brand-500/6 border border-brand-500/15 shrink-0"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-brand-500/6 shrink-0"
             >
               <Layers size={12} className="text-brand-400" />
               <span className="text-[10px] text-brand-400 font-semibold uppercase tracking-wider">
@@ -405,12 +405,12 @@ export default function Videos() {
               animate={{ opacity: 1, y: 0, height: 'auto' }}
               exit={{ opacity: 0, y: -6, height: 0 }}
               transition={{ duration: 0.2, ease }}
-              className={`mt-3 text-xs px-3 py-2.5 rounded border ${
+              className={`mt-3 text-xs px-3 py-2.5 rounded-lg ${
                 message.type === 'error'
-                  ? 'bg-red-500/6 border-red-500/15 text-red-400'
+                  ? 'bg-red-500/6 text-red-400'
                   : message.type === 'info'
-                  ? 'bg-brand-500/6 border-brand-500/15 text-brand-400'
-                  : 'bg-emerald-500/6 border-emerald-500/15 text-emerald-400'
+                  ? 'bg-brand-500/6 text-brand-400'
+                  : 'bg-emerald-500/6 text-emerald-400'
               }`}
             >
               {message.type === 'info' && !generating ? (
@@ -446,7 +446,7 @@ export default function Videos() {
           </p>
         </motion.div>
       ) : (
-        <StaggerContainer className="card divide-y divide-surface-300/40" staggerDelay={0.03} data-tour="video-list">
+        <StaggerContainer className="card" staggerDelay={0.03} data-tour="video-list">
           {videos.map((video) => {
             const cfg = statusConfig[video.status] || statusConfig.pending;
             const StatusIcon = cfg.icon;
@@ -459,7 +459,7 @@ export default function Videos() {
                 <div className="px-4 py-3.5 sm:px-5 sm:py-4 transition-colors hover:bg-surface-200/30 duration-150">
                   <div className="flex items-center gap-3">
                     {/* Thumbnail placeholder */}
-                    <div className="hidden sm:flex w-24 h-14 rounded bg-surface-200 items-center justify-center shrink-0 overflow-hidden border border-surface-300">
+                    <div className="hidden sm:flex w-24 h-14 rounded-lg bg-surface-200 items-center justify-center shrink-0 overflow-hidden">
                       {video.status === 'generating' ? (
                         <RefreshCw size={16} className="text-brand-400/50 animate-spin" />
                       ) : (
@@ -484,7 +484,7 @@ export default function Videos() {
 
                     {/* Status badge */}
                     <span
-                      className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded shrink-0 uppercase tracking-wider border ${cfg.color}`}
+                      className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg shrink-0 uppercase tracking-wider ${cfg.color}`}
                     >
                       {video.status === 'generating' ? (
                         <RefreshCw size={10} className="animate-spin" />
@@ -555,7 +555,7 @@ export default function Videos() {
                             )}
                           </span>
                         </div>
-                        <div className="h-1 rounded-sm bg-surface-200 overflow-hidden border border-surface-300/30">
+                        <div className="h-1 rounded-sm bg-surface-200 overflow-hidden">
                           <motion.div
                             className="h-full rounded-sm bg-brand-500"
                             animate={{ width: `${Math.min(100, progressPct || 0)}%` }}

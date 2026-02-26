@@ -385,7 +385,7 @@ export default function OnboardingTutorial({ onComplete }) {
 
   // ── Shared tooltip card content (used in both positioned + modal) ──
   const renderTooltipContent = () => (
-    <div className="bg-surface-100 border border-surface-300/70 rounded overflow-hidden">
+    <div className="bg-surface-100 surface-modal overflow-hidden">
       {/* Progress bar */}
       <div className="h-1 bg-surface-300/50">
         <motion.div
@@ -440,7 +440,7 @@ export default function OnboardingTutorial({ onComplete }) {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={goPrev}
-                className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium text-surface-700 bg-surface-200/80 border border-surface-300 hover:bg-surface-300/80 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-surface-700 bg-surface-200/80 hover:bg-surface-300/80 transition-colors"
               >
                 <ChevronLeft size={14} />
                 Back
@@ -526,10 +526,10 @@ export default function OnboardingTutorial({ onComplete }) {
               )}
             </mask>
 
-            {/* Glow filter for the spotlight ring */}
+            {/* Soft halo filter for the spotlight ring */}
             <filter id="spotlight-glow">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feFlood floodColor="#2563eb" floodOpacity="0.4" result="color" />
+              <feGaussianBlur stdDeviation="8" result="blur" />
+              <feFlood floodColor="#2563eb" floodOpacity="0.15" result="color" />
               <feComposite in="color" in2="blur" operator="in" result="glow" />
               <feMerge>
                 <feMergeNode in="glow" />
@@ -562,9 +562,10 @@ export default function OnboardingTutorial({ onComplete }) {
               ry="8"
               fill="none"
               stroke="#2563eb"
-              strokeWidth="1"
+              strokeWidth="0.5"
+              strokeOpacity="0.4"
               filter="url(#spotlight-glow)"
-              className=""
+              className="animate-halo-pulse"
             />
           )}
         </svg>

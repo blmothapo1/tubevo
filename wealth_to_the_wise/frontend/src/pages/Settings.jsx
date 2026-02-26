@@ -76,7 +76,7 @@ export default function Settings() {
             onClick={() => setActiveTab(key)}
             whileTap={{ scale: 0.98 }}
             {...(key === 'apikeys' ? { 'data-tour': 'settings-apikeys-tab' } : {})}
-            className={`relative flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded text-[11px] sm:text-xs font-medium transition-all whitespace-nowrap ${
+            className={`relative flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-lg text-[11px] sm:text-xs font-medium transition-all whitespace-nowrap ${
               activeTab === key
                 ? 'text-white'
                 : 'text-surface-600 hover:text-surface-800 hover:bg-surface-200/40'
@@ -85,7 +85,7 @@ export default function Settings() {
             {activeTab === key && (
               <motion.div
                 layoutId="settings-tab-bg"
-                className="absolute inset-0 bg-brand-500 rounded"
+                className="absolute inset-0 bg-brand-500 rounded-lg"
                 transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
               />
             )}
@@ -163,7 +163,7 @@ function AccountTab({ fullName, setFullName, email }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
+            className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
           >
             {error}
           </motion.div>
@@ -173,7 +173,7 @@ function AccountTab({ fullName, setFullName, email }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-emerald-500/6 border border-emerald-500/15 text-emerald-400 text-xs px-3 py-2.5 rounded flex items-center gap-2"
+            className="bg-emerald-500/6 text-emerald-400 text-xs px-3 py-2.5 rounded-lg flex items-center gap-2"
           >
             <Check size={14} /> Changes saved successfully.
           </motion.div>
@@ -221,7 +221,7 @@ function ReplayTutorialSection() {
   const { replayTutorial } = useOnboarding();
 
   return (
-    <div className="pt-5 mt-5 border-t border-surface-300/30">
+    <div className="pt-5 mt-5">
       <div className="flex items-center gap-3 mb-2.5">
         <div className="w-9 h-9 rounded bg-brand-500/10 flex items-center justify-center">
           <PlayCircle size={16} className="text-brand-400" />
@@ -235,7 +235,7 @@ function ReplayTutorialSection() {
         onClick={replayTutorial}
         whileHover={{ scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
-        className="flex items-center gap-2 px-4 py-2 rounded text-xs font-medium text-brand-400 bg-brand-500/8 border border-brand-500/15 hover:bg-brand-500/15 transition-colors"
+        className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-brand-400 bg-brand-500/8 hover:bg-brand-500/15 transition-colors"
       >
         <PlayCircle size={16} />
         Replay Tutorial
@@ -398,7 +398,7 @@ function ApiKeysTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
+            className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
           >
             {error}
           </motion.div>
@@ -408,7 +408,7 @@ function ApiKeysTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-emerald-500/6 border border-emerald-500/15 text-emerald-400 text-xs px-3 py-2.5 rounded flex items-center gap-2"
+            className="bg-emerald-500/6 text-emerald-400 text-xs px-3 py-2.5 rounded-lg flex items-center gap-2"
           >
             <Check size={14} /> Keys saved and encrypted securely.
           </motion.div>
@@ -523,7 +523,7 @@ function KeyInput({ label, required, optional, value, onChange, placeholder, pro
           href={providerUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-brand-400 hover:text-brand-300 transition-colors px-2 py-0.5 rounded bg-brand-500/8 hover:bg-brand-500/15 border border-brand-500/15"
+          className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-brand-400 hover:text-brand-300 transition-colors px-2 py-0.5 rounded-lg bg-brand-500/8 hover:bg-brand-500/15"
         >
           Get {providerName} Key <ExternalLink size={10} />
         </a>
@@ -677,7 +677,7 @@ function VideoPreferencesTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
+            className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
           >
             {error}
           </motion.div>
@@ -687,7 +687,7 @@ function VideoPreferencesTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-emerald-500/6 border border-emerald-500/15 text-emerald-400 text-xs px-3 py-2.5 rounded flex items-center gap-2"
+            className="bg-emerald-500/6 text-emerald-400 text-xs px-3 py-2.5 rounded-lg flex items-center gap-2"
           >
             <Check size={16} /> Preferences saved — applied to your next video.
           </motion.div>
@@ -711,10 +711,10 @@ function VideoPreferencesTab() {
               key={style.key}
               onClick={() => setSubtitleStyle(style.key)}
               whileTap={{ scale: 0.98 }}
-              className={`relative p-3 rounded border text-left transition-all ${
+              className={`relative p-3 rounded-lg text-left transition-all ${
                 subtitleStyle === style.key
-                  ? 'border-brand-500/50 bg-brand-500/8'
-                  : 'border-surface-300/30 bg-surface-100/30 hover:border-surface-400/40'
+                  ? 'bg-brand-500/8'
+                  : 'bg-surface-100/30 hover:bg-surface-200/50'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
@@ -898,7 +898,7 @@ function YouTubeTab() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
+            className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
           >
             {error}
           </motion.div>
@@ -909,7 +909,7 @@ function YouTubeTab() {
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="card border-emerald-500/15 p-4 space-y-3"
+          className="card p-4 space-y-3"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded bg-red-500/10 flex items-center justify-center">
@@ -923,7 +923,7 @@ function YouTubeTab() {
                 {connection.provider_email || connection.channel_id}
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
               Connected
             </span>
@@ -942,7 +942,7 @@ function YouTubeTab() {
             onClick={handleDisconnect}
             disabled={actionLoading}
             whileTap={{ scale: 0.98 }}
-            className="w-full px-3 py-2 rounded text-xs font-medium bg-red-500/8 text-red-400 border border-red-500/20 hover:bg-red-500/15 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full px-3 py-2 rounded-lg text-xs font-medium bg-red-500/8 text-red-400 hover:bg-red-500/15 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {actionLoading ? <RefreshCw size={14} className="animate-spin" /> : 'Disconnect YouTube'}
           </motion.button>
@@ -1003,7 +1003,7 @@ function NotificationsTab() {
 
 function Toggle({ label, description, checked, onChange }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-surface-300/20 last:border-0">
+    <div className="flex items-center justify-between py-3 last:pb-0">
       <div>
         <p className="text-xs font-medium text-white">{label}</p>
         <p className="text-[11px] text-surface-500 mt-0.5">{description}</p>
@@ -1086,7 +1086,7 @@ function PlanTab({ plan }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
+            className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
           >
             {error}
           </motion.div>
@@ -1100,10 +1100,10 @@ function PlanTab({ plan }) {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: 0.04 * i, ease }}
-            className={`relative rounded border p-4 transition-all ${
+            className={`relative rounded-lg p-4 transition-all ${
               plan === p.key
-                ? 'border-brand-500/50 bg-brand-600/8'
-                : 'border-surface-300/40 bg-surface-200/30 hover:border-surface-400/60'
+                ? 'bg-brand-600/8'
+                : 'bg-surface-200/30 hover:bg-surface-200/50'
             }`}
           >
             {p.popular && (
@@ -1239,11 +1239,11 @@ function UsageTab() {
 
       <div className="card p-4 space-y-2.5">
         <Row label="Total videos generated" value={String(total)} />
-        <div className="h-px bg-surface-300/20" />
+        <div className="h-px bg-white/4" />
         <Row label="Successfully posted" value={String(posted)} />
-        <div className="h-px bg-surface-300/20" />
+        <div className="h-px bg-white/4" />
         <Row label="Currently generating" value={String(pending)} />
-        <div className="h-px bg-surface-300/20" />
+        <div className="h-px bg-white/4" />
         <Row label="Failed" value={String(failed)} />
       </div>
 

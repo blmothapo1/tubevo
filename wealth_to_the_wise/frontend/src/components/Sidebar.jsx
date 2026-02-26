@@ -33,11 +33,9 @@ export default function Sidebar({ open, onClose }) {
 
       {/* Sidebar panel — overlay on all screen sizes */}
       <aside
-        className={`fixed left-0 top-0 bottom-0 w-60 max-w-[80vw] glass border-r border-surface-300 flex flex-col z-40 transition-transform duration-200 ease-out
+        className={`fixed left-0 top-0 bottom-0 w-60 max-w-[80vw] glass shadow-soft-lg flex flex-col z-40 transition-transform duration-200 ease-out
           ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        {/* Top accent line */}
-        <div className="h-[1px] gradient-brand-accent opacity-50" />
 
         {/* Logo area */}
         <div className="px-5 py-5 flex items-center justify-between">
@@ -64,7 +62,7 @@ export default function Sidebar({ open, onClose }) {
                 {isActive && (
                   <motion.div
                     layoutId="sidebar-active"
-                    className="absolute inset-0 rounded bg-brand-500/10 border border-brand-500/15"
+                    className="absolute inset-0 rounded bg-brand-500/10"
                     transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
                   />
                 )}

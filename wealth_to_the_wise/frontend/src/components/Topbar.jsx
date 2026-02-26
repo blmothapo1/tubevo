@@ -29,7 +29,7 @@ export default function Topbar({ onMenuToggle }) {
     .slice(0, 2);
 
   return (
-    <header className="h-14 border-b border-surface-300 glass sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 lg:px-8 safe-area-inset">
+    <header className="h-14 glass shadow-soft-lg sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 lg:px-8 safe-area-inset">
       <div className="flex items-center gap-3 min-w-0">
         {/* Hamburger menu — visible on all screen sizes */}
         <button
@@ -44,10 +44,10 @@ export default function Topbar({ onMenuToggle }) {
         <img src={tubevoLogo} alt="Tubevo" className="h-7 sm:h-8 shrink-0" />
 
         {/* YouTube connection status pill */}
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium tracking-wide uppercase transition-colors duration-150 ${
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium tracking-wide uppercase transition-colors duration-150 ${
           connected
-            ? 'bg-emerald-500/8 border border-emerald-500/20 text-emerald-400'
-            : 'bg-surface-200 border border-surface-300 text-surface-600'
+            ? 'bg-emerald-500/8 text-emerald-400'
+            : 'bg-surface-200 text-surface-600'
         }`}>
           {connected ? (
             <>

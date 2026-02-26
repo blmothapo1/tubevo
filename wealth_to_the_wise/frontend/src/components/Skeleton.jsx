@@ -34,7 +34,7 @@ export function SkeletonStatCards() {
 
 export function SkeletonVideoList() {
   return (
-    <div className="card divide-y divide-surface-300/50">
+    <div className="card">
       {[0, 1, 2, 3].map((i) => (
         <div key={i} className="flex items-center gap-3 p-4">
           <div className="skeleton w-24 h-14 rounded hidden sm:block" />

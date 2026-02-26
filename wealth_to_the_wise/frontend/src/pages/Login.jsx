@@ -52,7 +52,7 @@ export default function Login() {
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
+              className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
             >
               {error}
             </motion.div>

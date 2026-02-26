@@ -56,7 +56,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-surface-50 overflow-hidden">
       {/* ── Navbar ── */}
-      <nav className="border-b border-surface-300 glass sticky top-0 z-50">
+      <nav className="glass shadow-soft-lg sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
           <img src={tubevoLogo} alt="Tubevo" className="h-8" />
           <div className="flex items-center gap-2">
@@ -88,7 +88,7 @@ export default function Landing() {
           variants={stagger}
           className="relative flex flex-col items-center"
         >
-          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 border border-brand-500/15 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded mb-10">
+          <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-lg mb-10">
             <Zap size={10} className="text-accent-400" /> Public Beta
           </motion.div>
 
@@ -179,7 +179,7 @@ export default function Landing() {
               key={tier.name}
               variants={fadeUp}
               className={`relative card p-6 flex flex-col ${
-                tier.popular ? 'border-brand-500/40 ring-1 ring-brand-500/10' : ''
+                tier.popular ? 'ring-1 ring-brand-500/15' : ''
               }`}
             >
               {tier.popular && (
@@ -216,7 +216,7 @@ export default function Landing() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-surface-300 py-12 text-center">
+      <footer className="py-12 text-center">
         <p className="text-xs text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
         <div className="mt-3 flex items-center justify-center gap-6">
           <Link to="/privacy" className="text-xs text-surface-600 hover:text-surface-800 transition-colors duration-150">Privacy Policy</Link>

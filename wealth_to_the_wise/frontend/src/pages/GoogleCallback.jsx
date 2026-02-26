@@ -62,7 +62,7 @@ export default function GoogleCallback() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-surface-50">
-      <div className="bg-surface-100 border border-surface-300 rounded p-6 max-w-md w-full text-center space-y-4">
+      <div className="card p-6 max-w-md w-full text-center space-y-4">
         {status === 'connecting' && (
           <>
             <Spinner className="w-8 h-8 mx-auto text-brand-500" />

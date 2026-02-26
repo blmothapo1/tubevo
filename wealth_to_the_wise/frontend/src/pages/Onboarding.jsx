@@ -131,7 +131,7 @@ export default function Onboarding() {
           : 'Link your YouTube channel so Tubevo can upload videos on your behalf.'}
       </p>
       {ytConnected ? (
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded bg-emerald-500/8 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/8 text-emerald-400 text-xs font-medium">
           <CheckCircle2 size={14} />
           {ytChannel}
         </div>
@@ -180,10 +180,10 @@ export default function Onboarding() {
               key={n}
               onClick={() => toggleNiche(n)}
               whileTap={{ scale: 0.97 }}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-all border ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 active
-                  ? 'bg-brand-500 border-brand-500/50 text-white'
-                  : 'bg-surface-200 border-surface-300 text-surface-700 hover:border-surface-400 hover:text-surface-800'
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-surface-200 text-surface-700 hover:bg-surface-300 hover:text-surface-800'
               }`}
             >
               {active && <Check size={12} className="inline mr-1 -mt-0.5" />}
@@ -204,10 +204,10 @@ export default function Onboarding() {
             key={f.value}
             onClick={() => setFrequency(f.value)}
             whileTap={{ scale: 0.99 }}
-            className={`w-full text-left px-4 py-3 rounded border transition-all ${
+            className={`w-full text-left px-4 py-3 rounded-lg transition-all ${
               frequency === f.value
-                ? 'bg-brand-500/8 border-brand-500/40 text-white'
-                : 'bg-surface-200/60 border-surface-300 text-surface-700 hover:border-surface-400'
+                ? 'bg-brand-500/8 text-white'
+                : 'bg-surface-200/60 text-surface-700 hover:bg-surface-300/60'
             }`}
           >
             <span className="text-xs font-semibold flex items-center gap-2">
@@ -247,7 +247,7 @@ export default function Onboarding() {
           <span className="text-surface-500 uppercase tracking-wider text-[10px] font-semibold">Niches</span>
           <span className="text-white font-medium text-right max-w-[60%] truncate">{selectedNiches.join(', ') || 'None'}</span>
         </div>
-        <div className="h-px bg-surface-300/30" />
+        <div className="h-px bg-white/4" />
         <div className="flex justify-between text-xs">
           <span className="text-surface-500 uppercase tracking-wider text-[10px] font-semibold">Frequency</span>
           <span className="text-white font-medium capitalize">{frequency.replace('_', ' ') || 'Not set'}</span>

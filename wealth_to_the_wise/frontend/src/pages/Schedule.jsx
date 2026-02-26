@@ -82,7 +82,7 @@ export default function Schedule() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-red-500/6 border border-red-500/15 text-red-400 text-xs px-3 py-2.5 rounded"
+            className="bg-red-500/6 text-red-400 text-xs px-3 py-2.5 rounded-lg"
           >
             {error}
             <button onClick={() => setError('')} className="ml-2 underline">dismiss</button>
@@ -268,10 +268,10 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
                   key={f.value}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setFrequency(f.value)}
-                  className={`px-3 py-2 rounded text-xs font-medium transition-colors border ${
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
                     frequency === f.value
-                      ? 'bg-brand-600/15 border-brand-500/40 text-brand-300'
-                      : 'bg-surface-200/30 border-surface-300/30 text-surface-700 hover:border-surface-400/50'
+                      ? 'bg-brand-600/15 text-brand-300'
+                      : 'bg-surface-200/30 text-surface-700 hover:bg-surface-300/40'
                   }`}
                 >
                   {f.label}
@@ -327,7 +327,7 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
                     key={i}
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center justify-between gap-2 bg-surface-200/40 border border-surface-300/30 rounded px-3 py-1.5"
+                    className="flex items-center justify-between gap-2 bg-surface-200/40 rounded-lg px-3 py-1.5"
                   >
                     <span className="text-xs text-surface-800 truncate">
                       <span className="text-surface-500 text-[10px] mr-2 tabular-nums">#{i + 1}</span>
@@ -350,7 +350,7 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-2.5 mt-6 pt-4 border-t border-surface-300/30">
+        <div className="flex justify-end gap-2.5 mt-6 pt-4">
           <motion.button
             onClick={onClose}
             whileTap={{ scale: 0.98 }}
@@ -441,7 +441,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
     <motion.div
       layout
       className={`card overflow-hidden transition-all ${
-        schedule.is_active ? 'border-brand-500/20' : 'border-surface-300/30 opacity-70'
+        !schedule.is_active ? 'opacity-70' : ''
       }`}
     >
       {/* Top accent */}
@@ -505,14 +505,14 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
         {/* Status row */}
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
           {/* Next topic */}
-          <span className="flex items-center gap-1.5 bg-surface-200/40 border border-surface-300/30 rounded px-2 py-1 text-surface-700">
+          <span className="flex items-center gap-1.5 bg-surface-200/40 rounded-lg px-2 py-1 text-surface-700">
             <Zap size={11} className="text-brand-400" />
             Next: <span className="text-white font-medium truncate max-w-[140px]">{currentTopic}</span>
           </span>
 
           {/* Next run */}
           {schedule.next_run_at && schedule.is_active && (
-            <span className="flex items-center gap-1.5 bg-surface-200/40 border border-surface-300/30 rounded px-2 py-1 text-surface-700">
+            <span className="flex items-center gap-1.5 bg-surface-200/40 rounded-lg px-2 py-1 text-surface-700">
               <Clock size={11} className="text-accent-400" />
               {new Date(schedule.next_run_at).toLocaleDateString('en-US', {
                 month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -521,7 +521,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
           )}
 
           {!schedule.is_active && (
-            <span className="flex items-center gap-1.5 bg-surface-200/40 border border-surface-300/30 rounded px-2 py-1 text-yellow-400">
+            <span className="flex items-center gap-1.5 bg-surface-200/40 rounded-lg px-2 py-1 text-yellow-400">
               <Pause size={11} />
               Paused
             </span>
@@ -557,7 +557,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
             transition={{ duration: 0.3, ease }}
             className="overflow-hidden"
           >
-            <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0 space-y-3 border-t border-surface-300/20">
+            <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0 space-y-3">
               {/* Topics list */}
               <div className="pt-3">
                 <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest mb-2">Topic Queue</p>
@@ -565,10 +565,10 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
                   {topics.map((topic, i) => (
                     <div
                       key={i}
-                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded text-xs transition-colors ${
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
                         i === schedule.topic_index
-                          ? 'bg-brand-600/10 border border-brand-500/20 text-brand-300'
-                          : 'bg-surface-200/30 border border-surface-300/20 text-surface-700'
+                          ? 'bg-brand-600/10 text-brand-300'
+                          : 'bg-surface-200/30 text-surface-700'
                       }`}
                     >
                       <span className={`text-[10px] font-bold w-4 tabular-nums ${
@@ -606,7 +606,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
                   onClick={handleDelete}
                   disabled={deleting}
                   whileTap={{ scale: 0.97 }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded text-xs font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors"
                 >
                   <Trash2 size={12} />
                   {deleting ? 'Deleting…' : 'Delete'}
