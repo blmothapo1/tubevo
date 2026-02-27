@@ -99,9 +99,9 @@ export default function Landing() {
     <div style={{ width: '100%', minHeight: '100vh', overflow: 'hidden' }} className="bg-surface-50">
       {/* ── Navbar ── */}
       <nav className="glass sticky top-0 z-50" style={{ width: '100%' }}>
-        <div className="landing-container h-[56px] flex items-center justify-between">
+        <div className="landing-container h-[64px] flex items-center justify-between">
           <span className="text-[20px] font-semibold text-white" style={{ fontFamily: "'Poppins', sans-serif" }}>Tubevo</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Link
               to="/login"
               className="text-[13px] text-surface-700 hover:text-white px-3 py-2 rounded-[8px] transition-colors duration-150 hover:bg-white/[0.04]"
@@ -120,7 +120,7 @@ export default function Landing() {
 
       {/* ── Hero ── */}
       <section className="relative" style={{ width: '100%' }}>
-        <div className="landing-container--narrow pt-24 sm:pt-32 md:pt-40 pb-24 md:pb-32 text-center">
+        <div className="landing-container--narrow pt-28 sm:pt-36 md:pt-44 pb-28 md:pb-36 text-center">
           {/* Ambient background glows — more subtle */}
           <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-radial from-brand-600/8 via-brand-600/2 to-transparent rounded-full blur-3xl pointer-events-none" />
           <div className="absolute top-40 left-1/4 w-[250px] h-[250px] bg-accent-500/3 rounded-full blur-3xl pointer-events-none" />
@@ -131,21 +131,21 @@ export default function Landing() {
             variants={stagger}
             className="relative flex flex-col items-center"
           >
-            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-[6px] mb-10">
+            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-[6px] mb-12">
               <Zap size={10} className="text-accent-400" /> Public Beta
             </motion.div>
 
-            <motion.h1 variants={fadeUp} className="text-4xl sm:text-[48px] md:text-[56px] font-bold tracking-[-0.03em] text-white leading-[1.08]">
+            <motion.h1 variants={fadeUp} className="text-4xl sm:text-[48px] md:text-[56px] font-bold tracking-[-0.03em] text-white leading-[1.15]">
               Your YouTube Channel.
               <br />
               <span className="text-gradient">On Autopilot.</span>
             </motion.h1>
 
-            <motion.p variants={fadeUp} className="mt-8 text-base sm:text-[18px] text-surface-700 max-w-xl leading-relaxed font-normal">
+            <motion.p variants={fadeUp} className="mt-10 text-base sm:text-[18px] text-surface-700 max-w-xl leading-[1.7] font-normal">
               Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
             </motion.p>
 
-            <motion.div variants={fadeUp} className="mt-12 w-full max-w-[480px]">
+            <motion.div variants={fadeUp} className="mt-14 w-full max-w-[480px]">
               <AnimatePresence mode="wait">
                 {waitlistState === 'success' ? (
                   <motion.div
@@ -168,13 +168,13 @@ export default function Landing() {
                   </motion.div>
                 ) : (
                   <motion.div key="form" initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-                    <form onSubmit={handleWaitlistSubmit} className="flex flex-col sm:flex-row items-stretch gap-3">
+                    <form onSubmit={handleWaitlistSubmit} className="flex flex-col sm:flex-row items-stretch gap-4">
                       <input
                         type="email"
                         placeholder="Enter your email"
                         value={waitlistEmail}
                         onChange={(e) => { setWaitlistEmail(e.target.value); setWaitlistError(''); }}
-                        className="flex-1 min-w-0 rounded-[10px] px-3.5 py-2.5 text-[14px] text-white placeholder:text-surface-600 outline-none transition-all duration-150"
+                        className="flex-1 min-w-0 rounded-[10px] px-4 py-3 text-[14px] text-white placeholder:text-surface-600 outline-none transition-all duration-150"
                         style={{
                           background: 'var(--color-surface-well)',
                           border: '1px solid rgba(255,255,255,0.08)',
@@ -185,7 +185,7 @@ export default function Landing() {
                       <button
                         type="submit"
                         disabled={waitlistState === 'loading'}
-                        className="btn-primary !rounded-[10px] !px-5 !py-2.5 !text-[14px] !font-semibold inline-flex items-center justify-center gap-2 shrink-0 disabled:opacity-70"
+                        className="btn-primary !rounded-[10px] !px-6 !py-3 !text-[14px] !font-semibold inline-flex items-center justify-center gap-2 shrink-0 disabled:opacity-70"
                       >
                         {waitlistState === 'loading' ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -197,12 +197,12 @@ export default function Landing() {
                       <motion.p
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mt-2 text-[12px] text-red-400 text-center"
+                        className="mt-3 text-[12px] text-red-400 text-center"
                       >
                         {waitlistError}
                       </motion.p>
                     )}
-                    <p className="mt-4 text-[12px] text-surface-700 text-center">
+                    <p className="mt-5 text-[12px] text-surface-700 text-center">
                       {waitlistCount !== null && waitlistCount > 0
                         ? `Join ${waitlistCount.toLocaleString()} creator${waitlistCount === 1 ? '' : 's'} already on the waitlist`
                         : 'Be the first to know when we launch'}
@@ -212,7 +212,7 @@ export default function Landing() {
               </AnimatePresence>
             </motion.div>
 
-            <motion.div variants={fadeUp} className="mt-6">
+            <motion.div variants={fadeUp} className="mt-8">
               <a
                 href="#features"
                 className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150"
@@ -226,16 +226,16 @@ export default function Landing() {
 
       {/* ── Features ── */}
       <section id="features" style={{ width: '100%' }}>
-        <div className="landing-container py-[80px] md:py-[120px]">
+        <div className="landing-container py-[96px] md:py-[140px]">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-80px' }}
             transition={{ duration: 0.4, ease }}
-            className="flex flex-col items-center text-center mb-16"
+            className="flex flex-col items-center text-center mb-20"
           >
-            <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-3 tracking-tight">Everything you need</h2>
-            <p className="text-surface-700 max-w-lg mx-auto text-[15px] leading-relaxed">
+            <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-4 tracking-tight">Everything you need</h2>
+            <p className="text-surface-700 max-w-lg mx-auto text-[15px] leading-[1.7]">
               From script to published video — every step is automated.
             </p>
           </motion.div>
@@ -245,19 +245,19 @@ export default function Landing() {
             whileInView="visible"
             viewport={{ once: true, margin: '-60px' }}
             variants={stagger}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6"
+            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8"
           >
             {features.map(({ icon: Icon, title, desc, color, iconColor }) => (
               <motion.div
                 key={title}
                 variants={fadeUp}
-                className="card p-6 cursor-default"
+                className="card p-7 cursor-default"
               >
-                <div className={`w-10 h-10 rounded-[10px] bg-gradient-to-br ${color} flex items-center justify-center mb-4`}>
+                <div className={`w-10 h-10 rounded-[10px] bg-gradient-to-br ${color} flex items-center justify-center mb-5`}>
                   <Icon size={18} className={iconColor} />
                 </div>
-                <h3 className="text-[15px] font-semibold text-white mb-2">{title}</h3>
-                <p className="text-[13px] text-surface-700 leading-relaxed">{desc}</p>
+                <h3 className="text-[15px] font-semibold text-white mb-3">{title}</h3>
+                <p className="text-[13px] text-surface-700 leading-[1.7]">{desc}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -266,16 +266,16 @@ export default function Landing() {
 
       {/* ── Pricing ── */}
       <section id="pricing" style={{ width: '100%' }}>
-        <div className="landing-container--mid py-[80px] md:py-[120px]">
+        <div className="landing-container--mid py-[96px] md:py-[140px]">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-80px' }}
             transition={{ duration: 0.4, ease }}
-            className="flex flex-col items-center text-center mb-16"
+            className="flex flex-col items-center text-center mb-20"
           >
-            <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-3 tracking-tight">Simple pricing</h2>
-            <p className="text-surface-700 text-[15px] leading-relaxed">Start free. Scale when you're ready.</p>
+            <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-4 tracking-tight">Simple pricing</h2>
+            <p className="text-surface-700 text-[15px] leading-[1.7]">Start free. Scale when you're ready.</p>
           </motion.div>
 
           <motion.div
@@ -283,13 +283,13 @@ export default function Landing() {
             whileInView="visible"
             viewport={{ once: true, margin: '-60px' }}
             variants={stagger}
-            className="grid sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6"
+            className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8"
           >
             {tiers.map((tier) => (
               <motion.div
                 key={tier.name}
                 variants={fadeUp}
-                className={`relative card p-6 flex flex-col ${
+                className={`relative card p-7 flex flex-col ${
                   tier.popular ? 'ring-1 ring-brand-500/30 border-brand-500/20' : ''
                 }`}
               >
@@ -299,13 +299,13 @@ export default function Landing() {
                   </span>
                 )}
                 <h3 className="text-[16px] font-semibold text-white">{tier.name}</h3>
-                <div className="mt-4 mb-6">
+                <div className="mt-5 mb-7">
                   <span className="text-[32px] font-bold text-white tracking-tight">{tier.price}</span>
                   <span className="text-surface-600 text-[13px] ml-1">{tier.period}</span>
                 </div>
-                <ul className="space-y-3 flex-1">
+                <ul className="space-y-4 flex-1">
                   {tier.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-[13px] text-surface-700">
+                    <li key={f} className="flex items-start gap-2.5 text-[13px] text-surface-700">
                       <Check size={14} className="text-brand-400 mt-0.5 shrink-0" />
                       {f}
                     </li>
@@ -313,7 +313,7 @@ export default function Landing() {
                 </ul>
                 <Link
                   to="/signup"
-                  className={`mt-6 text-center text-[13px] font-semibold py-3 rounded-[10px] transition-all duration-150 block ${
+                  className={`mt-8 text-center text-[13px] font-semibold py-3 rounded-[10px] transition-all duration-150 block ${
                     tier.popular
                       ? 'btn-primary w-full'
                       : 'btn-secondary w-full'
@@ -329,9 +329,9 @@ export default function Landing() {
 
       {/* ── Footer ── */}
       <footer style={{ width: '100%' }}>
-        <div className="landing-container py-16 text-center">
+        <div className="landing-container py-20 text-center">
           <p className="text-[13px] text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
-          <div className="mt-3 flex items-center justify-center gap-6">
+          <div className="mt-4 flex items-center justify-center gap-8">
             <Link to="/privacy" className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150">Privacy Policy</Link>
             <Link to="/terms" className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150">Terms of Service</Link>
           </div>
