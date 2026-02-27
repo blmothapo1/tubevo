@@ -303,7 +303,7 @@ function AppearanceSection() {
 const PROVIDER_URLS = {
   openai: 'https://platform.openai.com/api-keys',
   elevenlabs: 'https://elevenlabs.io/app/settings/api-keys',
-  pexels: 'https://www.pexels.com/api/new/',
+  pexels: 'https://www.pexels.com/api/',
 };
 
 const KEY_PREFIXES = {
