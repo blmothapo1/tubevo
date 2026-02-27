@@ -23,6 +23,7 @@ from backend.database import get_db
 from backend.models import WaitlistSignup
 from backend.rate_limit import limiter
 from backend.services.kit_service import subscribe_to_waitlist
+from backend.services.email_service import send_waitlist_confirmation_email
 
 logger = logging.getLogger("tubevo.backend.waitlist")
 
@@ -113,6 +114,12 @@ async def waitlist_subscribe(
             clean_email,
             kit_result.get("error"),
         )
+
+    # ── Send confirmation email via Resend (best-effort) ─────────────
+    try:
+        await send_waitlist_confirmation_email(to=clean_email, name=body.name)
+    except Exception:
+        logger.warning("Waitlist confirmation email failed for %s (non-blocking)", clean_email)
 
     # Commit happens automatically via get_db dependency
     return WaitlistResponse(

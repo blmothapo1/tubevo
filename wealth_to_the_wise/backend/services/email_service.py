@@ -194,3 +194,38 @@ async def send_plan_upgrade_email(*, to: str, plan: str) -> dict | None:
         subject=f"You're now on the {plan.title()} plan",
         html=html,
     )
+
+
+async def send_waitlist_confirmation_email(*, to: str, name: str | None = None) -> dict | None:
+    """Send a confirmation email when someone joins the waitlist."""
+    greeting = f"Hey {name}!" if name else "Hey there!"
+    html = _base_template(f"""
+        <h2 style="margin:0 0 12px; color:#fff; font-size:18px; font-weight:600;">{greeting}</h2>
+        <p style="margin:0 0 20px; color:#8e8eaa; font-size:14px; line-height:1.7;">
+          You're officially on the Tubevo waitlist! 🎉
+        </p>
+        <p style="margin:0 0 20px; color:#8e8eaa; font-size:14px; line-height:1.7;">
+          We're building the easiest way to run a YouTube channel on autopilot — AI-generated
+          scripts, voiceovers, video assembly, and auto-uploads. Zero manual work.
+        </p>
+        <p style="margin:0 0 24px; color:#8e8eaa; font-size:14px; line-height:1.7;">
+          We'll email you the moment Tubevo is ready for you. In the meantime, here's what to expect:
+        </p>
+        <ul style="margin:0 0 24px; padding-left:20px; color:#b5b5ce; font-size:14px; line-height:2.2;">
+          <li><strong style="color:#fff;">Early access</strong> — waitlist members get in first</li>
+          <li><strong style="color:#fff;">Launch pricing</strong> — exclusive discounts at launch</li>
+          <li><strong style="color:#fff;">No spam</strong> — we only email when it matters</li>
+        </ul>
+        <a href="https://tubevo.us" style="display:inline-block; padding:12px 28px; background:linear-gradient(135deg,#6366f1,#4f46e5); color:#fff; text-decoration:none; border-radius:10px; font-size:14px; font-weight:600;">
+          Visit Tubevo
+        </a>
+        <p style="margin:24px 0 0; color:#5c5c78; font-size:12px; line-height:1.5;">
+          Thanks for believing in us early. We won't let you down.
+        </p>
+    """)
+
+    return await send_email(
+        to=to,
+        subject="You're on the Tubevo waitlist! 🚀",
+        html=html,
+    )
