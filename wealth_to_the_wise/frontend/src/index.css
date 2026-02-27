@@ -82,13 +82,10 @@ html {
   scroll-behavior: smooth;
 }
 
-html, body, #root {
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
 body {
+  width: 100%;
+  margin: 0;
+  padding: 0;
   background-color: var(--color-surface-50);
   color: var(--color-surface-900);
   font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', system-ui, BlinkMacSystemFont, sans-serif;
@@ -100,18 +97,34 @@ body {
   letter-spacing: -0.005em;
 }
 
-#root {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-#root > * {
-  width: 100%;
-}
-
 input, select, textarea, button {
   font-family: inherit;
+}
+
+/* ── Landing page containers — bulletproof centering ── */
+.landing-container {
+  width: 100%;
+  max-width: 72rem;       /* 1152px — matches Tailwind 6xl */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;   /* 24px */
+  padding-right: 1.5rem;
+}
+.landing-container--narrow {
+  width: 100%;
+  max-width: 56rem;       /* 896px — matches Tailwind 4xl */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+.landing-container--mid {
+  width: 100%;
+  max-width: 64rem;       /* 1024px — matches Tailwind 5xl */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
 }
 
 /* ── Panel glass — frosted charcoal ──────────────── */

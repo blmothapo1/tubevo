@@ -96,10 +96,10 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-surface-50 overflow-hidden">
+    <div style={{ width: '100%', minHeight: '100vh', overflow: 'hidden' }} className="bg-surface-50">
       {/* ── Navbar ── */}
-      <nav className="glass sticky top-0 z-50 w-full">
-        <div className="max-w-6xl mx-auto px-6 h-[56px] flex items-center justify-between">
+      <nav className="glass sticky top-0 z-50" style={{ width: '100%' }}>
+        <div className="landing-container h-[56px] flex items-center justify-between">
           <span className="text-[20px] font-semibold text-white" style={{ fontFamily: "'Poppins', sans-serif" }}>Tubevo</span>
           <div className="flex items-center gap-2">
             <Link
@@ -119,8 +119,8 @@ export default function Landing() {
       </nav>
 
       {/* ── Hero ── */}
-      <section className="relative w-full">
-        <div className="max-w-4xl mx-auto px-6 pt-24 sm:pt-32 md:pt-40 pb-24 md:pb-32 text-center">
+      <section className="relative" style={{ width: '100%' }}>
+        <div className="landing-container--narrow pt-24 sm:pt-32 md:pt-40 pb-24 md:pb-32 text-center">
           {/* Ambient background glows — more subtle */}
           <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-radial from-brand-600/8 via-brand-600/2 to-transparent rounded-full blur-3xl pointer-events-none" />
           <div className="absolute top-40 left-1/4 w-[250px] h-[250px] bg-accent-500/3 rounded-full blur-3xl pointer-events-none" />
@@ -225,8 +225,8 @@ export default function Landing() {
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="w-full">
-        <div className="max-w-6xl mx-auto px-6 py-[80px] md:py-[120px]">
+      <section id="features" style={{ width: '100%' }}>
+        <div className="landing-container py-[80px] md:py-[120px]">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -265,8 +265,8 @@ export default function Landing() {
       </section>
 
       {/* ── Pricing ── */}
-      <section id="pricing" className="w-full">
-        <div className="max-w-5xl mx-auto px-6 py-[80px] md:py-[120px]">
+      <section id="pricing" style={{ width: '100%' }}>
+        <div className="landing-container--mid py-[80px] md:py-[120px]">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -328,8 +328,8 @@ export default function Landing() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="w-full">
-        <div className="max-w-6xl mx-auto px-6 py-16 text-center">
+      <footer style={{ width: '100%' }}>
+        <div className="landing-container py-16 text-center">
           <p className="text-[13px] text-surface-600">© {new Date().getFullYear()} Tubevo. All rights reserved.</p>
           <div className="mt-3 flex items-center justify-center gap-6">
             <Link to="/privacy" className="text-[13px] text-surface-600 hover:text-surface-800 transition-colors duration-150">Privacy Policy</Link>
