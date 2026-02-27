@@ -66,21 +66,21 @@ export default function Settings() {
   }, [searchParams]);
 
   return (
-    <FadeIn className="max-w-4xl mx-auto space-y-6">
+    <FadeIn className="max-w-4xl mx-auto space-y-8">
       <div>
         <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">Settings</h1>
-        <p className="text-[12px] text-surface-600 mt-1 uppercase tracking-[0.08em] font-medium">Manage your account and preferences</p>
+        <p className="text-[12px] text-surface-600 mt-2 uppercase tracking-[0.08em] font-medium">Manage your account and preferences</p>
       </div>
 
       {/* Pill-style Tabs */}
-      <div className="flex gap-0.5 bg-surface-100 rounded-[10px] p-1 overflow-x-auto scrollbar-none">
+      <div className="flex gap-1 bg-surface-100 rounded-[10px] p-1.5 overflow-x-auto scrollbar-none">
         {tabs.map(({ key, label, icon: Icon }) => (
           <motion.button
             key={key}
             onClick={() => setActiveTab(key)}
             whileTap={{ scale: 0.98 }}
             {...(key === 'apikeys' ? { 'data-tour': 'settings-apikeys-tab' } : {})}
-            className={`relative flex items-center gap-1.5 px-3 sm:px-3.5 h-[32px] rounded-[8px] text-[11px] sm:text-[12px] font-medium transition-all whitespace-nowrap ${
+            className={`relative flex items-center gap-2 px-3.5 sm:px-4 h-[36px] rounded-[8px] text-[11px] sm:text-[12px] font-medium transition-all whitespace-nowrap ${
               activeTab === key
                 ? 'text-white'
                 : 'text-surface-600 hover:text-surface-800 hover:bg-white/[0.04]'
@@ -109,7 +109,7 @@ export default function Settings() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.2, ease }}
-          className="card p-6"
+          className="card p-8"
         >
           {activeTab === 'account' && (
             <AccountTab fullName={fullName} setFullName={setFullName} email={email} />
@@ -150,14 +150,14 @@ function AccountTab({ fullName, setFullName, email }) {
   }
 
   return (
-    <div className="space-y-5 max-w-md">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
+    <div className="space-y-7 max-w-md">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
           <User size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-[14px] font-semibold text-white">Account Details</h3>
-          <p className="text-[11px] text-surface-600">Update your profile information</p>
+          <h3 className="text-[15px] font-semibold text-white">Account Details</h3>
+          <p className="text-[12px] text-surface-600 mt-0.5">Update your profile information</p>
         </div>
       </div>
 
@@ -185,7 +185,7 @@ function AccountTab({ fullName, setFullName, email }) {
       </AnimatePresence>
 
       <div>
-        <label className="block text-[10px] font-semibold text-surface-500 mb-1.5 uppercase tracking-wider">Full Name</label>
+        <label className="block text-[10px] font-semibold text-surface-500 mb-2 uppercase tracking-wider">Full Name</label>
         <input
           type="text"
           value={fullName}
@@ -194,14 +194,14 @@ function AccountTab({ fullName, setFullName, email }) {
         />
       </div>
       <div>
-        <label className="block text-[10px] font-semibold text-surface-500 mb-1.5 uppercase tracking-wider">Email</label>
+        <label className="block text-[10px] font-semibold text-surface-500 mb-2 uppercase tracking-wider">Email</label>
         <input
           type="email"
           value={email}
           disabled
           className="input-premium w-full opacity-45 cursor-not-allowed"
         />
-        <p className="text-[11px] text-surface-500 mt-1">Email cannot be changed.</p>
+        <p className="text-[11px] text-surface-500 mt-1.5">Email cannot be changed.</p>
       </div>
       <motion.button
         onClick={handleSave}
@@ -228,14 +228,14 @@ function ReplayTutorialSection() {
   const { replayTutorial } = useOnboarding();
 
   return (
-    <div className="pt-5 mt-5">
-      <div className="flex items-center gap-3 mb-2.5">
-        <div className="w-9 h-9 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
+    <div className="pt-6 mt-6">
+      <div className="flex items-center gap-4 mb-4">
+        <div className="w-10 h-10 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
           <PlayCircle size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-[13px] font-semibold text-white">Guided Tutorial</h3>
-          <p className="text-[11px] text-surface-600">Walk through the app features step by step</p>
+          <h3 className="text-[14px] font-semibold text-white">Guided Tutorial</h3>
+          <p className="text-[12px] text-surface-600 mt-0.5">Walk through the app features step by step</p>
         </div>
       </div>
       <motion.button
@@ -267,17 +267,17 @@ function AppearanceSection() {
   }
 
   return (
-    <div className="pt-5 mt-5">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-9 h-9 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
+    <div className="pt-6 mt-6">
+      <div className="flex items-center gap-4 mb-4">
+        <div className="w-10 h-10 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
           <Sun size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-[13px] font-semibold text-white">Appearance</h3>
-          <p className="text-[11px] text-surface-600">Choose your preferred theme</p>
+          <h3 className="text-[14px] font-semibold text-white">Appearance</h3>
+          <p className="text-[12px] text-surface-600 mt-0.5">Choose your preferred theme</p>
         </div>
       </div>
-      <div className="flex gap-1 p-1 rounded-[10px] bg-surface-100 w-fit">
+      <div className="flex gap-1.5 p-1.5 rounded-[10px] bg-surface-100 w-fit">
         {THEME_OPTIONS.map(({ key, label, icon: Icon }) => (
           <motion.button
             key={key}
@@ -400,23 +400,23 @@ function ApiKeysTab() {
   ];
 
   return (
-    <div className="space-y-5 max-w-xl">
+    <div className="space-y-7 max-w-xl">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[10px] bg-amber-500/10 flex items-center justify-center">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-[10px] bg-amber-500/10 flex items-center justify-center">
           <Key size={16} className="text-amber-400" />
         </div>
         <div>
-          <h3 className="text-[14px] font-semibold text-white">Your API Keys</h3>
-          <p className="text-[11px] text-surface-600">
+          <h3 className="text-[15px] font-semibold text-white">Your API Keys</h3>
+          <p className="text-[12px] text-surface-600 mt-0.5">
             A private password that lets Tubevo use AI services on your behalf.
           </p>
         </div>
       </div>
 
       {/* Setup checklist */}
-      <div className="card p-4 space-y-2.5">
-        <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest mb-0.5">Setup Checklist</p>
+      <div className="card p-5 space-y-3">
+        <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest mb-1">Setup Checklist</p>
         {steps.map((s, i) => (
           <div key={i} className="flex items-center gap-2.5">
             {s.done ? (
@@ -470,7 +470,7 @@ function ApiKeysTab() {
       </AnimatePresence>
 
       {/* Input fields with "Get Key" buttons */}
-      <div className="space-y-5">
+      <div className="space-y-7">
         <KeyInput
           label="OpenAI API Key"
           required
@@ -547,9 +547,9 @@ function ApiKeysTab() {
         {saving ? 'Encrypting & saving…' : 'Save API Keys'}
       </motion.button>
 
-      <div className="card p-3.5 flex items-start gap-2.5">
+      <div className="card p-4 flex items-start gap-3">
         <Shield size={14} className="text-brand-400 shrink-0 mt-0.5" />
-        <p className="text-[11px] text-surface-600 leading-relaxed">
+        <p className="text-[12px] text-surface-600 leading-[1.7]">
           <strong className="text-surface-700">Keys are encrypted</strong> and stored securely.
           Only used to generate videos on your behalf. You pay each provider directly.
         </p>
@@ -563,7 +563,7 @@ function KeyInput({ label, required, optional, value, onChange, placeholder, pro
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1.5">
+      <div className="flex items-center justify-between mb-2">
         <label className="block text-[10px] font-semibold text-surface-500 uppercase tracking-wider">
           {label} {required && <span className="text-red-400">*</span>}
           {optional && <span className="text-surface-500/60">(opt)</span>}
@@ -594,10 +594,10 @@ function KeyInput({ label, required, optional, value, onChange, placeholder, pro
       )}
       {/* Expandable help */}
       {helpSteps && (
-        <div className="mt-1.5">
+        <div className="mt-2">
           <button
             onClick={() => setHelpOpen(!helpOpen)}
-            className="text-xs text-surface-500 hover:text-surface-700 transition-colors flex items-center gap-1"
+            className="text-xs text-surface-500 hover:text-surface-700 transition-colors flex items-center gap-1.5"
           >
             <HelpCircle size={11} />
             How to get this key
@@ -610,7 +610,7 @@ function KeyInput({ label, required, optional, value, onChange, placeholder, pro
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
-                className="mt-2 ml-1 space-y-1.5 list-decimal list-inside"
+                className="mt-2.5 ml-1 space-y-2 list-decimal list-inside"
               >
                 {helpSteps.map((s, i) => (
                   <li key={i} className="text-xs text-surface-600 leading-relaxed">{s}</li>
@@ -713,15 +713,15 @@ function VideoPreferencesTab() {
   }
 
   return (
-    <div className="space-y-6 max-w-lg">
+    <div className="space-y-8 max-w-lg">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[10px] bg-violet-500/10 flex items-center justify-center">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-[10px] bg-violet-500/10 flex items-center justify-center">
           <Film size={16} className="text-violet-400" />
         </div>
         <div>
-          <h3 className="text-[14px] font-semibold text-white">Video Preferences</h3>
-          <p className="text-[11px] text-surface-600">Customize subtitle style, captions & speech speed</p>
+          <h3 className="text-[15px] font-semibold text-white">Video Preferences</h3>
+          <p className="text-[12px] text-surface-600">Customize subtitle style, captions & speech speed</p>
         </div>
       </div>
 
@@ -754,7 +754,7 @@ function VideoPreferencesTab() {
           <Type size={14} className="text-surface-500" />
           <label className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest">Caption Style</label>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {(availableStyles.length > 0 ? availableStyles : [
             { key: 'bold_pop', name: 'Bold Pop' },
             { key: 'minimal', name: 'Minimal' },
@@ -790,7 +790,7 @@ function VideoPreferencesTab() {
       </div>
 
       {/* Burn Captions Toggle */}
-      <div className="card p-4">
+      <div className="card p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded bg-surface-200/50 flex items-center justify-center">
@@ -826,7 +826,7 @@ function VideoPreferencesTab() {
           <Volume2 size={14} className="text-surface-500" />
           <label className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest">Speech Speed</label>
         </div>
-        <div className="card p-4 space-y-3">
+        <div className="card p-5 space-y-3">
           <input
             type="range"
             min="0.8"
@@ -848,9 +848,9 @@ function VideoPreferencesTab() {
       </div>
 
       {/* Info box */}
-      <div className="card p-3.5 flex items-start gap-2.5">
+      <div className="card p-4 flex items-start gap-3">
         <Sparkles size={14} className="text-violet-400 shrink-0 mt-0.5" />
-        <p className="text-[11px] text-surface-600 leading-relaxed">
+        <p className="text-[12px] text-surface-600 leading-relaxed">
           <strong className="text-surface-700">How it works:</strong> Audio is automatically polished with
           loudness normalization, silence trimming, and subtle ambient background music with voice-priority
           ducking. An SRT file is generated alongside every video for YouTube closed captions.
@@ -935,14 +935,14 @@ function YouTubeTab() {
   }
 
   return (
-    <div className="space-y-6 max-w-md">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[10px] bg-red-500/10 flex items-center justify-center">
+    <div className="space-y-8 max-w-md">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-[10px] bg-red-500/10 flex items-center justify-center">
           <Youtube size={16} className="text-red-400" />
         </div>
         <div>
-          <h3 className="text-[14px] font-semibold text-white">YouTube Connection</h3>
-          <p className="text-[11px] text-surface-600">Upload videos directly to your channel</p>
+          <h3 className="text-[15px] font-semibold text-white">YouTube Connection</h3>
+          <p className="text-[12px] text-surface-600">Upload videos directly to your channel</p>
         </div>
       </div>
 
@@ -963,7 +963,7 @@ function YouTubeTab() {
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="card p-4 space-y-3"
+          className="card p-5 space-y-3"
         >
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-[10px] bg-red-500/10 flex items-center justify-center">
@@ -1005,7 +1005,7 @@ function YouTubeTab() {
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 card p-4"
+          className="flex items-center gap-3 card p-5"
         >
           <div className="w-9 h-9 rounded-[10px] bg-red-500/10 flex items-center justify-center">
             <Youtube size={16} className="text-red-400" />
@@ -1035,18 +1035,18 @@ function NotificationsTab() {
   const [weeklyDigest, setWeeklyDigest] = useState(false);
 
   return (
-    <div className="space-y-6 max-w-md">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[10px] bg-blue-500/10 flex items-center justify-center">
+    <div className="space-y-8 max-w-md">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-[10px] bg-blue-500/10 flex items-center justify-center">
           <Bell size={16} className="text-blue-400" />
         </div>
         <div>
-          <h3 className="text-[14px] font-semibold text-white">Notification Preferences</h3>
-          <p className="text-[11px] text-surface-600">Choose what you want to be notified about</p>
+          <h3 className="text-[15px] font-semibold text-white">Notification Preferences</h3>
+          <p className="text-[12px] text-surface-600">Choose what you want to be notified about</p>
         </div>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-2">
         <Toggle label="Email notifications" description="Get notified when videos are posted" checked={emailNotifs} onChange={setEmailNotifs} />
         <Toggle label="Failure alerts" description="Immediately notified if a video fails" checked={failAlerts} onChange={setFailAlerts} />
         <Toggle label="Weekly digest" description="Summary of your channel performance" checked={weeklyDigest} onChange={setWeeklyDigest} />
@@ -1057,10 +1057,10 @@ function NotificationsTab() {
 
 function Toggle({ label, description, checked, onChange }) {
   return (
-    <div className="setting-row flex items-center justify-between">
+    <div className="setting-row flex items-center justify-between py-1">
       <div>
         <p className="text-[13px] font-medium text-white">{label}</p>
-        <p className="text-[11px] text-surface-500 mt-0.5">{description}</p>
+        <p className="text-[12px] text-surface-500 mt-1">{description}</p>
       </div>
       <motion.button
         onClick={() => onChange(!checked)}
@@ -1123,14 +1123,14 @@ function PlanTab({ plan }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
+    <div className="space-y-8">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
           <CreditCard size={16} className="text-brand-400" />
         </div>
         <div>
-          <h3 className="text-[14px] font-semibold text-white">Your Plan</h3>
-          <p className="text-[11px] text-surface-600">Upgrade or manage your subscription</p>
+          <h3 className="text-[15px] font-semibold text-white">Your Plan</h3>
+          <p className="text-[12px] text-surface-600">Upgrade or manage your subscription</p>
         </div>
       </div>
 
@@ -1147,14 +1147,14 @@ function PlanTab({ plan }) {
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {plans.map((p, i) => (
           <motion.div
             key={p.key}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: 0.04 * i, ease }}
-            className={`relative rounded-lg p-4 transition-all ${
+            className={`relative rounded-lg p-5 transition-all ${
               plan === p.key
                 ? 'bg-brand-500/10 ring-1 ring-brand-500/30'
                 : 'bg-surface-200/30 hover:bg-surface-200/50'
@@ -1173,7 +1173,7 @@ function PlanTab({ plan }) {
               <span className="text-2xl font-bold text-white">{p.price}</span>
               <span className="text-xs text-surface-500">{p.period}</span>
             </p>
-            <ul className="mt-4 space-y-2">
+            <ul className="mt-5 space-y-3">
               {p.features.map((f) => (
                 <li key={f} className="text-xs text-surface-600 flex items-center gap-2">
                   <Check size={12} className="text-brand-400 shrink-0" />
@@ -1251,19 +1251,19 @@ function UsageTab() {
   const usagePct = Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100));
 
   return (
-    <div className="space-y-6 max-w-md">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[10px] bg-emerald-500/10 flex items-center justify-center">
+    <div className="space-y-8 max-w-md">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-[10px] bg-emerald-500/10 flex items-center justify-center">
           <BarChart3 size={16} className="text-emerald-400" />
         </div>
         <div>
-          <h3 className="text-[14px] font-semibold text-white">Usage & Stats</h3>
-          <p className="text-[11px] text-surface-600">Your video generation activity</p>
+          <h3 className="text-[15px] font-semibold text-white">Usage & Stats</h3>
+          <p className="text-[12px] text-surface-600">Your video generation activity</p>
         </div>
       </div>
 
       {/* Monthly quota progress */}
-      <div className="card p-4 space-y-3">
+      <div className="card p-5 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-semibold text-surface-500 uppercase tracking-widest">
             Monthly Quota ({plan.charAt(0).toUpperCase() + plan.slice(1)})
@@ -1291,7 +1291,7 @@ function UsageTab() {
         )}
       </div>
 
-      <div className="card p-4 space-y-2.5">
+      <div className="card p-5 space-y-3">
         <Row label="Total videos generated" value={String(total)} />
         <div className="h-px bg-white/4" />
         <Row label="Successfully posted" value={String(posted)} />
@@ -1301,9 +1301,9 @@ function UsageTab() {
         <Row label="Failed" value={String(failed)} />
       </div>
 
-      <div className="card p-3.5 flex items-start gap-2.5">
+      <div className="card p-4 flex items-start gap-3">
         <Zap size={16} className="text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-xs text-surface-600 leading-relaxed">
+        <p className="text-[12px] text-surface-600 leading-[1.7]">
           <strong className="text-surface-700">Bring Your Own Keys:</strong> Since you provide your own
           API keys, video generation costs are billed directly to your OpenAI, ElevenLabs, and Pexels
           accounts. A typical video costs roughly $0.05–$0.15 in total API credits.
@@ -1315,8 +1315,8 @@ function UsageTab() {
 
 function Row({ label, value }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-[11px] text-surface-500">{label}</span>
+    <div className="flex items-center justify-between py-1">
+      <span className="text-[12px] text-surface-500">{label}</span>
       <span className="text-xs text-white font-medium tabular-nums">{value}</span>
     </div>
   );
