@@ -90,15 +90,15 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-7">
       {/* Header with personalized greeting */}
       <FadeIn>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">
               {greeting}, {firstName}
             </h1>
-            <p className="text-[12px] text-surface-600 mt-1 uppercase tracking-[0.08em] font-medium">Pipeline overview</p>
+            <p className="text-[12px] text-surface-600 mt-2 uppercase tracking-[0.08em] font-medium">Pipeline overview</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -129,7 +129,7 @@ export default function Dashboard() {
       </FadeIn>
 
       {/* Stats Row */}
-      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <StaggerContainer className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         {statCards.map(({ label, value, icon: Icon, gradient, iconColor }) => (
           <StaggerItem key={label}>
             <div className="card p-5 flex items-center gap-4 border-l-[3px] border-l-brand-500">
@@ -148,7 +148,7 @@ export default function Dashboard() {
       {/* Monthly Quota */}
       <FadeIn delay={0.2}>
         <div className="card p-5">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <TrendingUp size={14} className="text-surface-600" />
               <span className="text-[12px] text-surface-600 font-medium uppercase tracking-[0.08em]">
@@ -188,15 +188,15 @@ export default function Dashboard() {
       {/* Recent Activity */}
       <FadeIn delay={0.3}>
         <div>
-          <h2 className="text-[12px] font-semibold text-surface-600 uppercase tracking-[0.08em] mb-4">
+          <h2 className="text-[12px] font-semibold text-surface-600 uppercase tracking-[0.08em] mb-5">
             Recent Activity
           </h2>
           {activity.length === 0 ? (
-            <div className="card px-6 py-12 text-center">
-              <div className="w-12 h-12 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
+            <div className="card px-6 py-14 text-center">
+              <div className="w-12 h-12 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
                 <Sparkles size={20} className="text-brand-400" />
               </div>
-              <p className="text-[14px] font-medium text-surface-800 mb-1">No videos yet</p>
+              <p className="text-[14px] font-medium text-surface-800 mb-1.5">No videos yet</p>
               <p className="text-[13px] text-surface-600">
                 Head to the{' '}
                 <a href="/videos" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
@@ -217,14 +217,14 @@ export default function Dashboard() {
                     initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.03, duration: 0.2 }}
-                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-white/[0.02] transition-colors duration-150"
+                    className="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors duration-150"
                   >
                     <div className="w-8 h-8 rounded-[8px] bg-surface-200 flex items-center justify-center shrink-0">
                       <Icon size={14} className={cfg.color} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[14px] font-medium text-surface-900 truncate">{item.title}</p>
-                      <p className="text-[11px] text-surface-600 mt-0.5">{timeSince(item.created_at)}</p>
+                      <p className="text-[11px] text-surface-600 mt-1">{timeSince(item.created_at)}</p>
                     </div>
                     <span
                       className={`badge ${

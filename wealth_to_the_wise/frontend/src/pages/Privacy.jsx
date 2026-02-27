@@ -2,18 +2,18 @@ import { Link } from 'react-router-dom';
 
 export default function Privacy() {
   return (
-    <div className="min-h-screen bg-surface-50 text-white px-5 py-20">
+    <div className="min-h-screen bg-surface-50 text-white px-5 py-24">
       <div className="max-w-3xl mx-auto">
-        <Link to="/" className="text-brand-400 hover:text-brand-300 text-[13px] mb-10 inline-block font-medium">
+        <Link to="/" className="text-brand-400 hover:text-brand-300 text-[13px] mb-12 inline-block font-medium">
           ← Back to Tubevo
         </Link>
 
-        <h1 className="text-[32px] font-bold mb-2 tracking-tight">Privacy Policy</h1>
-        <p className="text-surface-600 text-[14px] mb-10">Last updated: February 23, 2026</p>
+        <h1 className="text-[32px] font-bold mb-3 tracking-tight">Privacy Policy</h1>
+        <p className="text-surface-600 text-[14px] mb-12">Last updated: February 23, 2026</p>
 
-        <div className="space-y-8 text-surface-700 text-[14px] leading-relaxed">
+        <div className="space-y-10 text-surface-700 text-[14px] leading-relaxed">
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">1. Introduction</h2>
+            <h2 className="text-[18px] font-semibold text-white mb-4">1. Introduction</h2>
             <p>
               Tubevo ("we", "our", or "us") operates the website tubevo.us and provides
               automated YouTube content creation and publishing services. This Privacy Policy
@@ -23,9 +23,9 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">2. Information We Collect</h2>
-            <p className="mb-2">We collect the following types of information:</p>
-            <ul className="list-disc list-inside space-y-1 ml-2">
+            <h2 className="text-[18px] font-semibold text-white mb-4">2. Information We Collect</h2>
+            <p className="mb-3">We collect the following types of information:</p>
+            <ul className="list-disc list-inside space-y-2 ml-2">
               <li><strong>Account Information:</strong> Email address, name, and password when you create an account.</li>
               <li><strong>Payment Information:</strong> Billing details processed securely through Stripe. We do not store your credit card numbers.</li>
               <li><strong>YouTube Data:</strong> When you connect your YouTube account via Google OAuth, we access your YouTube channel to upload videos on your behalf. We only request the permissions necessary to provide our service.</li>
@@ -34,8 +34,8 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">3. How We Use Your Information</h2>
-            <ul className="list-disc list-inside space-y-1 ml-2">
+            <h2 className="text-[18px] font-semibold text-white mb-4">3. How We Use Your Information</h2>
+            <ul className="list-disc list-inside space-y-2 ml-2">
               <li>To provide, maintain, and improve our services</li>
               <li>To create and upload YouTube videos on your behalf</li>
               <li>To process payments and manage your subscription</li>
@@ -45,7 +45,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">4. Google API Services - User Data Policy</h2>
+            <h2 className="text-[18px] font-semibold text-white mb-4">4. Google API Services - User Data Policy</h2>
             <p>
               Tubevo's use and transfer to any other app of information received from Google APIs
               will adhere to the{' '}
@@ -63,16 +63,16 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">5. Data Sharing</h2>
+            <h2 className="text-[18px] font-semibold text-white mb-4">5. Data Sharing</h2>
             <p>We do not sell your personal information. We may share data with:</p>
-            <ul className="list-disc list-inside space-y-1 ml-2">
+            <ul className="list-disc list-inside space-y-2 ml-2">
               <li><strong>Service Providers:</strong> Stripe (payments), Google/YouTube (video uploads), OpenAI (content generation), ElevenLabs (voiceovers), Pexels (stock footage).</li>
               <li><strong>Legal Requirements:</strong> When required by law or to protect our rights.</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">6. Data Security</h2>
+            <h2 className="text-[18px] font-semibold text-white mb-4">6. Data Security</h2>
             <p>
               We implement industry-standard security measures to protect your data, including
               encrypted connections (HTTPS), hashed passwords, and secure token storage.
@@ -81,7 +81,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">7. Data Retention & Deletion</h2>
+            <h2 className="text-[18px] font-semibold text-white mb-4">7. Data Retention & Deletion</h2>
             <p>
               We retain your data for as long as your account is active. You may request deletion
               of your account and associated data at any time by contacting us at{' '}
@@ -92,9 +92,9 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">8. Your Rights</h2>
+            <h2 className="text-[18px] font-semibold text-white mb-4">8. Your Rights</h2>
             <p>You have the right to:</p>
-            <ul className="list-disc list-inside space-y-1 ml-2">
+            <ul className="list-disc list-inside space-y-2 ml-2">
               <li>Access the personal data we hold about you</li>
               <li>Request correction of inaccurate data</li>
               <li>Request deletion of your data</li>
@@ -103,7 +103,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">9. Changes to This Policy</h2>
+            <h2 className="text-[18px] font-semibold text-white mb-4">9. Changes to This Policy</h2>
             <p>
               We may update this Privacy Policy from time to time. We will notify you of any
               changes by posting the new policy on this page and updating the "Last updated" date.
@@ -111,7 +111,7 @@ export default function Privacy() {
           </section>
 
           <section>
-            <h2 className="text-[18px] font-semibold text-white mb-3">10. Contact Us</h2>
+            <h2 className="text-[18px] font-semibold text-white mb-4">10. Contact Us</h2>
             <p>
               If you have questions about this Privacy Policy, please contact us at{' '}
               <a href="mailto:support@tubevo.us" className="text-brand-400 hover:text-brand-300 underline">

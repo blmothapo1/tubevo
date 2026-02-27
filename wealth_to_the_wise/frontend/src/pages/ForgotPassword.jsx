@@ -48,7 +48,7 @@ export default function ForgotPassword() {
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card p-6 text-center space-y-3"
+            className="card p-7 text-center space-y-4"
           >
             <div className="w-10 h-10 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto">
               <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -68,7 +68,7 @@ export default function ForgotPassword() {
             </Link>
           </motion.div>
         ) : (
-          <form onSubmit={handleSubmit} className="card p-6 space-y-5">
+          <form onSubmit={handleSubmit} className="card p-7 space-y-6">
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -6 }}
@@ -84,7 +84,7 @@ export default function ForgotPassword() {
             </p>
 
             <div>
-              <label className="block text-[11px] font-semibold text-surface-600 mb-1.5 uppercase tracking-[0.06em]">Email</label>
+              <label className="block text-[11px] font-semibold text-surface-600 mb-2 uppercase tracking-[0.06em]">Email</label>
               <input
                 type="email"
                 required
@@ -107,7 +107,7 @@ export default function ForgotPassword() {
           </form>
         )}
 
-        <p className="text-center text-[13px] text-surface-600 mt-6">
+        <p className="text-center text-[13px] text-surface-600 mt-7">
           Remember your password?{' '}
           <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors duration-150">
             Log in

@@ -48,7 +48,7 @@ export default function Signup() {
           <p className="mt-2.5 text-xs text-surface-600 uppercase tracking-wider font-medium">Create your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="card p-7 space-y-6">
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
@@ -60,7 +60,7 @@ export default function Signup() {
           )}
 
           <div>
-            <label className="block text-[11px] font-semibold text-surface-600 mb-1.5 uppercase tracking-[0.06em]">Full name</label>
+            <label className="block text-[11px] font-semibold text-surface-600 mb-2 uppercase tracking-[0.06em]">Full name</label>
             <input
               type="text"
               value={name}
@@ -71,7 +71,7 @@ export default function Signup() {
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-surface-600 mb-1.5 uppercase tracking-[0.06em]">Email</label>
+            <label className="block text-[11px] font-semibold text-surface-600 mb-2 uppercase tracking-[0.06em]">Email</label>
             <input
               type="email"
               required
@@ -83,7 +83,7 @@ export default function Signup() {
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-surface-600 mb-1.5 uppercase tracking-[0.06em]">Password</label>
+            <label className="block text-[11px] font-semibold text-surface-600 mb-2 uppercase tracking-[0.06em]">Password</label>
             <input
               type="password"
               required
@@ -106,7 +106,7 @@ export default function Signup() {
           </motion.button>
         </form>
 
-        <p className="text-center text-[13px] text-surface-600 mt-6">
+        <p className="text-center text-[13px] text-surface-600 mt-7">
           Already have an account?{' '}
           <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors duration-150">
             Log in

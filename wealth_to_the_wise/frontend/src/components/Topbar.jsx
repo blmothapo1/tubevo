@@ -28,7 +28,7 @@ export default function Topbar({ onMenuToggle }) {
     .slice(0, 2);
 
   return (
-    <header className="h-[56px] glass sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 lg:px-8 safe-area-inset">
+    <header className="h-[60px] glass sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 lg:px-8 safe-area-inset">
       <div className="flex items-center gap-3 min-w-0">
         {/* Hamburger menu — visible on all screen sizes */}
         <button

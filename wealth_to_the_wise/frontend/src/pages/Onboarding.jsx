@@ -122,10 +122,10 @@ export default function Onboarding() {
           <Youtube size={28} className="text-red-400" />
         )}
       </motion.div>
-      <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-2">
         {ytConnected ? 'YouTube Connected!' : 'Connect YouTube'}
       </h2>
-      <p className="text-surface-600 text-xs mb-6 max-w-sm mx-auto leading-relaxed">
+      <p className="text-surface-600 text-xs mb-7 max-w-sm mx-auto leading-relaxed">
         {ytConnected
           ? `Connected to ${ytChannel}. You're all set to upload videos!`
           : 'Link your YouTube channel so Tubevo can upload videos on your behalf.'}
@@ -170,9 +170,9 @@ export default function Onboarding() {
 
     // Step 1: Select niches
     <div key="niche" className="text-center">
-      <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">Pick your niches</h2>
-      <p className="text-surface-600 text-xs mb-5">Select one or more topics for your channel.</p>
-      <div className="flex flex-wrap justify-center gap-2 max-w-lg mx-auto max-h-[260px] overflow-y-auto scrollbar-none px-1 py-1">
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-2">Pick your niches</h2>
+      <p className="text-surface-600 text-xs mb-6">Select one or more topics for your channel.</p>
+      <div className="flex flex-wrap justify-center gap-2.5 max-w-lg mx-auto max-h-[260px] overflow-y-auto scrollbar-none px-1 py-1">
         {niches.map((n) => {
           const active = selectedNiches.includes(n);
           return (
@@ -196,9 +196,9 @@ export default function Onboarding() {
 
     // Step 2: Posting frequency
     <div key="freq" className="text-center">
-      <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">Posting frequency</h2>
-      <p className="text-surface-600 text-xs mb-6">How often should Tubevo publish videos?</p>
-      <div className="space-y-2 max-w-xs mx-auto">
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-2">Posting frequency</h2>
+      <p className="text-surface-600 text-xs mb-7">How often should Tubevo publish videos?</p>
+      <div className="space-y-2.5 max-w-xs mx-auto">
         {frequencies.map((f) => (
           <motion.button
             key={f.value}
@@ -238,11 +238,11 @@ export default function Onboarding() {
       >
         <Rocket size={28} className="text-white" />
       </motion.div>
-      <h2 className="text-lg sm:text-xl font-semibold text-white mb-1.5">You're all set!</h2>
-      <p className="text-surface-600 text-xs mb-5 max-w-sm mx-auto leading-relaxed">
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-2">You're all set!</h2>
+      <p className="text-surface-600 text-xs mb-6 max-w-sm mx-auto leading-relaxed">
         Tubevo will start generating and posting content based on your preferences.
       </p>
-      <div className="card p-4 max-w-xs mx-auto text-left space-y-2.5 mb-6">
+      <div className="card p-5 max-w-xs mx-auto text-left space-y-3 mb-7">
         <div className="flex justify-between text-xs">
           <span className="text-surface-500 uppercase tracking-wider text-[10px] font-semibold">Niches</span>
           <span className="text-white font-medium text-right max-w-[60%] truncate">{selectedNiches.join(', ') || 'None'}</span>

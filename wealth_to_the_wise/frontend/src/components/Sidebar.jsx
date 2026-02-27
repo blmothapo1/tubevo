@@ -48,14 +48,14 @@ export default function Sidebar({ open, onClose }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 space-y-0.5 mt-1">
+        <nav className="flex-1 px-3 space-y-1 mt-2">
           {links.map(({ to, label, icon: Icon }) => {
             const isActive = location.pathname === to;
             return (
               <NavLink
                 key={to}
                 to={to}
-                className="relative flex items-center gap-3 h-[40px] px-3 rounded-[8px] text-[13px] font-medium transition-colors duration-150"
+                className="relative flex items-center gap-3 h-[42px] px-3 rounded-[8px] text-[13px] font-medium transition-colors duration-150"
               >
                 {/* Active background indicator */}
                 {isActive && (
@@ -90,7 +90,7 @@ export default function Sidebar({ open, onClose }) {
         <div className="px-3 pb-5">
           <button
             onClick={logout}
-            className="flex items-center gap-3 h-[40px] px-3 rounded-[8px] text-[13px] font-medium text-surface-600 hover:text-red-400 hover:bg-red-500/8 transition-colors duration-150 w-full"
+            className="flex items-center gap-3 h-[42px] px-3 rounded-[8px] text-[13px] font-medium text-surface-600 hover:text-red-400 hover:bg-red-500/8 transition-colors duration-150 w-full"
           >
             <LogOut size={18} />
             Log out

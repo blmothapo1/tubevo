@@ -303,7 +303,7 @@ export default function Videos() {
   }
 
   return (
-    <FadeIn className="max-w-5xl mx-auto space-y-5 sm:space-y-6">
+    <FadeIn className="max-w-5xl mx-auto space-y-6 sm:space-y-7">
       {/* Confetti on first successful video — additive */}
       <ConfettiCelebration show={showConfetti} onDone={() => setShowConfetti(false)} />
 
@@ -311,7 +311,7 @@ export default function Videos() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">Videos</h1>
-          <p className="text-[12px] text-surface-600 mt-1 uppercase tracking-[0.08em] font-medium">
+          <p className="text-[12px] text-surface-600 mt-2 uppercase tracking-[0.08em] font-medium">
             Generate & track AI-powered videos
           </p>
         </div>
@@ -341,19 +341,19 @@ export default function Videos() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1, ease }}
-        className="card p-6"
+        className="card p-7"
       >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-[10px] bg-brand-500 flex items-center justify-center">
+        <div className="flex items-center gap-4 mb-5">
+          <div className="w-10 h-10 rounded-[10px] bg-brand-500 flex items-center justify-center">
             <Wand2 size={16} className="text-white" />
           </div>
           <div>
-            <h3 className="text-[14px] font-semibold text-white">Generate a New Video</h3>
-            <p className="text-[11px] text-surface-600">Enter a topic and we'll create a full video with AI</p>
+            <h3 className="text-[15px] font-semibold text-white">Generate a New Video</h3>
+            <p className="text-[12px] text-surface-600">Enter a topic and we'll create a full video with AI</p>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2.5">
+        <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
             value={topic}
@@ -434,13 +434,13 @@ export default function Videos() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.2, ease }}
-          className="card px-6 py-12 text-center"
+          className="card px-6 py-14 text-center"
           data-tour="video-list"
         >
-          <div className="w-14 h-14 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
+          <div className="w-14 h-14 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
             <Sparkles size={24} className="text-brand-400" />
           </div>
-          <h3 className="text-[14px] font-semibold text-white mb-1.5">No videos yet</h3>
+          <h3 className="text-[14px] font-semibold text-white mb-2">No videos yet</h3>
           <p className="text-[13px] text-surface-600 max-w-sm mx-auto">
             Use the form above to generate your first AI-powered video. It takes about 2–3 minutes.
           </p>
@@ -456,8 +456,8 @@ export default function Videos() {
 
             return (
               <StaggerItem key={video.id}>
-                <div className="px-5 py-4 transition-colors hover:bg-white/[0.02] duration-150">
-                  <div className="flex items-center gap-3">
+                <div className="px-5 py-4.5 transition-colors hover:bg-white/[0.02] duration-150">
+                  <div className="flex items-center gap-4">
                     {/* Thumbnail placeholder */}
                     <div className="hidden sm:flex w-24 h-14 rounded-[10px] bg-surface-200 items-center justify-center shrink-0 overflow-hidden">
                       {video.status === 'generating' ? (
@@ -472,11 +472,11 @@ export default function Videos() {
                       <p className="text-sm font-medium text-white truncate">
                         {video.title || 'Untitled Video'}
                       </p>
-                      <p className="text-[11px] text-surface-600 mt-0.5 truncate">
+                      <p className="text-[11px] text-surface-600 mt-1 truncate">
                         {video.topic}
                       </p>
                       {video.error_message && (
-                        <p className="text-[11px] text-red-400 mt-0.5 truncate" title={video.error_message}>
+                        <p className="text-[11px] text-red-400 mt-1 truncate" title={video.error_message}>
                           {video.error_message}
                         </p>
                       )}
