@@ -76,7 +76,9 @@
 }
 
 /* ── Base resets ─────────────────────────────────── */
-* { box-sizing: border-box; margin: 0; }
+/* Note: Tailwind v4 already applies box-sizing: border-box and margin: 0
+   via @layer base. Placing these outside @layer would override Tailwind's
+   utility classes (e.g. mx-auto) due to cascade layer priority rules. */
 
 html {
   scroll-behavior: smooth;
