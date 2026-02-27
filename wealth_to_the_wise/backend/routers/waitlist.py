@@ -84,6 +84,11 @@ async def waitlist_subscribe(
 
     if signup:
         logger.info("Waitlist duplicate (already signed up): %s", clean_email)
+        # Still send confirmation email — they may have missed it the first time
+        try:
+            await send_waitlist_confirmation_email(to=clean_email, name=body.name or signup.name)
+        except Exception:
+            logger.warning("Waitlist re-send email failed for %s (non-blocking)", clean_email)
         return WaitlistResponse(
             success=True,
             message="You're already on the list! We'll notify you at launch.",

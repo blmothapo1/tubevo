@@ -75,13 +75,6 @@ export default function Landing() {
       return;
     }
 
-    // Check if already submitted
-    const stored = localStorage.getItem('tubevo_waitlist_email');
-    if (stored === email) {
-      setWaitlistState('success');
-      return;
-    }
-
     setWaitlistState('loading');
     try {
       await api.post('/api/waitlist/subscribe', { email });
