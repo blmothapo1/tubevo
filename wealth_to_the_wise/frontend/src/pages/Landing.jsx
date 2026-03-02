@@ -125,7 +125,7 @@ export default function Landing() {
             className="relative flex flex-col items-center"
           >
             <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-brand-500/6 text-brand-300 text-[10px] font-semibold uppercase tracking-widest px-3 py-1.5 rounded-[6px] mb-12">
-              <Zap size={10} className="text-accent-400" /> Public Beta
+              Founding Creators
             </motion.div>
 
             <motion.h1 variants={fadeUp} className="text-4xl sm:text-[48px] md:text-[56px] font-bold tracking-[-0.03em] text-white leading-[1.15]">
