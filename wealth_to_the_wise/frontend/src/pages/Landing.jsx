@@ -9,12 +9,12 @@ import api from '../lib/api';
 const ease = [0.25, 0.1, 0.25, 1];
 
 const features = [
-  { icon: Sparkles, title: 'AI Script Generation', desc: 'GPT-4o writes engaging, niche-specific scripts in seconds.', color: 'from-indigo-500/20 to-indigo-500/5', iconColor: 'text-indigo-400' },
-  { icon: Mic, title: 'Voice Cloning', desc: 'ElevenLabs TTS creates natural voiceovers that sound like you.', color: 'from-violet-500/20 to-violet-500/5', iconColor: 'text-violet-400' },
-  { icon: Upload, title: 'Auto-Upload', desc: 'Videos are rendered, optimized, and uploaded to YouTube automatically.', color: 'from-emerald-500/20 to-emerald-500/5', iconColor: 'text-emerald-400' },
-  { icon: Target, title: 'Niche Targeting', desc: 'Choose your niche and let the AI generate content that resonates.', color: 'from-amber-500/20 to-amber-500/5', iconColor: 'text-amber-400' },
-  { icon: CalendarClock, title: 'Posting Schedule', desc: 'Set your cadence — daily, every 2 days, or weekly.', color: 'from-cyan-500/20 to-cyan-500/5', iconColor: 'text-cyan-400' },
-  { icon: Zap, title: 'Zero Effort', desc: 'From idea to published video with absolutely no manual steps.', color: 'from-rose-500/20 to-rose-500/5', iconColor: 'text-rose-400' },
+  { icon: Sparkles, title: 'Intelligent Scripts', desc: 'Strategically written scripts designed to retain attention and perform.', color: 'from-indigo-500/20 to-indigo-500/5', iconColor: 'text-indigo-400' },
+  { icon: Mic, title: 'Natural Voiceovers', desc: 'Studio-quality voiceovers that feel authentic and human.', color: 'from-violet-500/20 to-violet-500/5', iconColor: 'text-violet-400' },
+  { icon: Upload, title: 'Seamless Publishing', desc: 'Videos are polished, optimized, and ready to perform.', color: 'from-emerald-500/20 to-emerald-500/5', iconColor: 'text-emerald-400' },
+  { icon: Target, title: 'Smart Positioning', desc: 'Content aligned to your niche for stronger relevance and reach.', color: 'from-amber-500/20 to-amber-500/5', iconColor: 'text-amber-400' },
+  { icon: CalendarClock, title: 'Strategic Scheduling', desc: 'Publish consistently with structured cadence and control.', color: 'from-cyan-500/20 to-cyan-500/5', iconColor: 'text-cyan-400' },
+  { icon: Zap, title: 'Pure Focus', desc: 'Focus on ideas while Tubevo handles execution.', color: 'from-rose-500/20 to-rose-500/5', iconColor: 'text-rose-400' },
 ];
 
 const tiers = [
@@ -231,9 +231,9 @@ export default function Landing() {
             transition={{ duration: 0.4, ease }}
             className="flex flex-col items-center text-center mb-20"
           >
-            <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-4 tracking-tight">Everything you need</h2>
+            <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-4 tracking-tight">Engineered for effortless growth.</h2>
             <p className="text-surface-700 max-w-lg mx-auto text-[15px] leading-[1.7]">
-              From script to published video — every step is automated.
+              Everything required to create, refine, and publish high-performing videos.
             </p>
           </motion.div>
 
@@ -272,7 +272,7 @@ export default function Landing() {
             className="flex flex-col items-center text-center mb-20"
           >
             <h2 className="text-2xl sm:text-[32px] font-bold text-white mb-4 tracking-tight">Simple pricing</h2>
-            <p className="text-surface-700 text-[15px] leading-[1.7]">Start free. Scale when you're ready.</p>
+            <p className="text-surface-700 text-[15px] leading-[1.7]">Start simple. Scale when you're ready.</p>
           </motion.div>
 
           <motion.div
