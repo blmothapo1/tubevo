@@ -270,6 +270,40 @@ async def _run_pipeline_background(
 
     user_api_keys["_user_preferences"] = user_prefs_dict
 
+    # ── Fetch performance profile for adaptive learning ──────────────
+    perf_profile_dict: dict = {}
+    try:
+        async with async_session_factory() as db:
+            perf_stmt = (
+                select(ContentPerformance)
+                .where(ContentPerformance.user_id == user_id)
+                .order_by(ContentPerformance.created_at.desc())
+                .limit(50)
+            )
+            perf_rows = (await db.execute(perf_stmt)).scalars().all()
+            if perf_rows:
+                raw_rows = [
+                    {
+                        "title_style_used": getattr(r, "title_style_used", None),
+                        "thumbnail_concept_used": r.thumbnail_concept_used,
+                        "engagement_score": r.engagement_score,
+                        "ctr_pct": r.ctr_pct,
+                        "avg_view_duration_pct": r.avg_view_duration_pct,
+                    }
+                    for r in perf_rows
+                ]
+                from backend.adaptive_engine import get_user_performance_profile, profile_to_dict
+                profile = get_user_performance_profile(raw_rows)
+                perf_profile_dict = profile_to_dict(profile)
+                logger.info("Adaptive profile loaded: %d points, active=%s, hook=%s, title=%s, thumb=%s",
+                            profile.total_data_points, profile.adaptation_active,
+                            profile.hook_mode, profile.recommended_title_style,
+                            profile.recommended_thumbnail_style)
+    except Exception as perf_err:
+        logger.warning("Adaptive profile fetch failed (non-fatal, using defaults): %s", perf_err)
+
+    user_api_keys["_performance_profile"] = perf_profile_dict
+
     result: dict
     try:
         result = await asyncio.wait_for(
@@ -346,6 +380,23 @@ async def _run_pipeline_background(
                     logger.info("Phase 7: saved content memory entry for '%s'", topic[:60])
                 except Exception as cm_save_err:
                     logger.warning("Phase 7: content memory save failed (non-fatal): %s", cm_save_err)
+
+                # ── Adaptive learning: save ContentPerformance record ────
+                try:
+                    cp_entry = ContentPerformance(
+                        user_id=user_id,
+                        video_record_id=record_id,
+                        title_variant_used=row.title or topic,
+                        thumbnail_concept_used=result.get("_thumbnail_concept_used", "bold_curiosity"),
+                        title_style_used=result.get("_title_style_used", ""),
+                        hook_mode_used=result.get("_hook_mode_used", "balanced"),
+                    )
+                    db.add(cp_entry)
+                    await db.commit()
+                    logger.info("Adaptive: saved ContentPerformance for record %s (style=%s, thumb=%s, hook=%s)",
+                                record_id, cp_entry.title_style_used, cp_entry.thumbnail_concept_used, cp_entry.hook_mode_used)
+                except Exception as cp_err:
+                    logger.warning("Adaptive: ContentPerformance save failed (non-fatal): %s", cp_err)
     except Exception:
         logger.exception("Failed to update VideoRecord %s after pipeline", record_id)
     finally:
@@ -505,8 +556,11 @@ def _run_pipeline_locked(
             script_kwargs["avoidance_prompt"] = variation_ctx.avoidance_prompt
         # Inject user preferences for adaptive generation
         _user_prefs = user_api_keys.get("_user_preferences", {})
+        _perf_profile = user_api_keys.get("_performance_profile", {})
         if _user_prefs:
             script_kwargs["user_preferences"] = _user_prefs
+        if _perf_profile:
+            script_kwargs["performance_profile"] = _perf_profile
         script = script_generator.generate_script(topic, **script_kwargs)
         (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
         logger.info("Pipeline step 1/5: Script generated (%d chars)", len(script))
@@ -521,6 +575,8 @@ def _run_pipeline_locked(
             meta_kwargs["avoidance_prompt"] = variation_ctx.metadata_avoidance
         if _user_prefs:
             meta_kwargs["user_preferences"] = _user_prefs
+        if _perf_profile:
+            meta_kwargs["performance_profile"] = _perf_profile
         metadata = script_generator.generate_metadata(script, topic, **meta_kwargs)
         result["title"] = metadata.get("title", topic)
         logger.info("Pipeline step 2/5: Metadata ready — title: %s", result["title"])
@@ -636,10 +692,18 @@ def _run_pipeline_locked(
         logger.info("Pipeline step 5/6: Generating 3 thumbnail variants")
         from thumbnail import generate_thumbnail, generate_thumbnail_variants
         thumbnail_variants = generate_thumbnail_variants(metadata["title"])
-        # Primary thumbnail = bold_curiosity (used for upload)
-        thumbnail_path = thumbnail_variants[0]["path"] if thumbnail_variants else generate_thumbnail(metadata["title"])
+        # Select primary thumbnail based on adaptive profile recommendation
+        _recommended_thumb = _perf_profile.get("recommended_thumbnail_style", "bold_curiosity") if _perf_profile else "bold_curiosity"
+        thumbnail_path = None
+        for tv in thumbnail_variants:
+            if tv["concept"] == _recommended_thumb:
+                thumbnail_path = tv["path"]
+                break
+        if not thumbnail_path:
+            thumbnail_path = thumbnail_variants[0]["path"] if thumbnail_variants else generate_thumbnail(metadata["title"])
         result["thumbnail_variants"] = thumbnail_variants
-        logger.info("Pipeline step 5/6: Generated %d thumbnail variants", len(thumbnail_variants))
+        result["_thumbnail_concept_used"] = _recommended_thumb
+        logger.info("Pipeline step 5/6: Generated %d variants, primary=%s", len(thumbnail_variants), _recommended_thumb)
         _report("Thumbnails ready", 85)
 
         # ── Step 6: Upload to YouTube (if user connected) ────────────
@@ -674,6 +738,10 @@ def _run_pipeline_locked(
         result["_temperature_used"] = variation_ctx.script_temperature
         result["_music_mood"] = variation_ctx.music_mood.label
 
+    # ── Adaptive learning: attach style choices for ContentPerformance ──
+    result["_title_style_used"] = metadata.get("title_style", "")
+    result["_hook_mode_used"] = _perf_profile.get("hook_mode", "balanced") if _perf_profile else "balanced"
+
     # ── Generation summary (Step 6: Output summary) ──────────────────
     _user_prefs = user_api_keys.get("_user_preferences", {})
     summary_lines = [
@@ -692,6 +760,12 @@ def _run_pipeline_locked(
     thumbnail_variants = result.get("thumbnail_variants", [])
     if thumbnail_variants:
         summary_lines.append(f"Thumbnails: {', '.join(v['concept'] for v in thumbnail_variants)}")
+    # Adaptive profile summary
+    if _perf_profile and _perf_profile.get("adaptation_active"):
+        summary_lines.append(f"Hook: {result.get('_hook_mode_used', 'balanced')}")
+        summary_lines.append(f"Title style: {result.get('_title_style_used', '?')}")
+        summary_lines.append(f"Thumb pick: {result.get('_thumbnail_concept_used', '?')}")
+        summary_lines.append(f"Adapt pts: {_perf_profile.get('total_data_points', 0)}")
     result["_generation_summary"] = " | ".join(summary_lines)
     logger.info("Generation summary: %s", result["_generation_summary"])
 
@@ -1461,3 +1535,53 @@ async def update_preferences(
         posting_frequency=body.posting_frequency,
         updated_at=prefs.updated_at.isoformat() if prefs.updated_at else None,
     )
+
+
+# ── GET /api/videos/performance-profile — Adaptive Intelligence ─────
+
+class PerformanceProfileResponse(BaseModel):
+    recommended_title_style: str = "curiosity"
+    title_style_probabilities: dict[str, float] = {}
+    recommended_thumbnail_style: str = "bold_curiosity"
+    thumbnail_style_probabilities: dict[str, float] = {}
+    hook_mode: str = "balanced"
+    avg_retention_pct: float = 0.0
+    avg_ctr_pct: float = 0.0
+    total_data_points: int = 0
+    adaptation_active: bool = False
+
+
+@router.get("/performance-profile", response_model=PerformanceProfileResponse)
+async def get_performance_profile(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the user's adaptive performance profile.
+
+    Shows which title/thumbnail styles perform best, hook mode,
+    and whether the system has enough data to adapt.
+    """
+    perf_stmt = (
+        select(ContentPerformance)
+        .where(ContentPerformance.user_id == current_user.id)
+        .order_by(ContentPerformance.created_at.desc())
+        .limit(50)
+    )
+    perf_rows = (await db.execute(perf_stmt)).scalars().all()
+
+    raw_rows = [
+        {
+            "title_style_used": getattr(r, "title_style_used", None),
+            "thumbnail_concept_used": r.thumbnail_concept_used,
+            "engagement_score": r.engagement_score,
+            "ctr_pct": r.ctr_pct,
+            "avg_view_duration_pct": r.avg_view_duration_pct,
+        }
+        for r in perf_rows
+    ]
+
+    from backend.adaptive_engine import get_user_performance_profile, profile_to_dict
+    profile = get_user_performance_profile(raw_rows)
+    d = profile_to_dict(profile)
+
+    return PerformanceProfileResponse(**d)

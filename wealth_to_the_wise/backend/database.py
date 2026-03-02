@@ -118,6 +118,9 @@ async def _run_migrations(conn) -> None:
         ("user_api_keys", "speech_speed", "VARCHAR(10)"),
         # Beta user flag
         ("users", "is_beta", "BOOLEAN DEFAULT FALSE"),
+        # Adaptive learning — new columns on content_performance
+        ("content_performance", "title_style_used", "VARCHAR(30)"),
+        ("content_performance", "hook_mode_used", "VARCHAR(20)"),
     ]
 
     for table, column, col_type in migrations:

@@ -383,6 +383,12 @@ class ContentPerformance(Base):
     title_variant_used: Mapped[str | None] = mapped_column(String(300), nullable=True)
     thumbnail_concept_used: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
+    # Title style category: curiosity | direct_benefit | contrarian | question | data_driven
+    title_style_used: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    # Hook mode used for this generation: conservative | balanced | aggressive
+    hook_mode_used: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
     # ── Engagement signals (updated asynchronously) ──────────────────
     views_48h: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     likes_48h: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

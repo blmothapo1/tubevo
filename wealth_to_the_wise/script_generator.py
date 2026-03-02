@@ -186,6 +186,70 @@ _GOAL_MODIFIERS: dict[str, str] = {
 }
 
 
+# ── Hook intensity modes (driven by adaptive engine) ─────────────────
+
+_HOOK_MODES: dict[str, str] = {
+    "aggressive": (
+        "HOOK INTENSITY: AGGRESSIVE\n"
+        "The viewer is about to scroll away. You have 3 seconds.\n"
+        "- Open with the most emotionally charged, pattern-breaking line possible.\n"
+        "- Create an IMMEDIATE open loop in sentence 1 — not sentence 3.\n"
+        "- Use a 'wait, what?' reaction trigger: a shocking stat, a bold contradiction, or a cliffhanger.\n"
+        "- First pattern interrupt must come before the 30-second mark, not after.\n"
+        "- Front-load the most valuable insight earlier in the script.\n"
+    ),
+    "balanced": (
+        "HOOK INTENSITY: BALANCED\n"
+        "- Open with a strong hook that creates curiosity without sensationalism.\n"
+        "- The open loop should land within the first 2-3 sentences.\n"
+        "- Pattern interrupt around the 45-second mark.\n"
+    ),
+    "conservative": (
+        "HOOK INTENSITY: CONSERVATIVE (DEPTH MODE)\n"
+        "Retention is already strong. Optimize for depth over shock.\n"
+        "- Open with a thought-provoking observation or nuanced question.\n"
+        "- Take slightly more time to set up context — viewers are staying.\n"
+        "- Add an extra layer of analysis or a deeper example in the body.\n"
+        "- Pattern interrupt can be more subtle — a perspective shift rather than a gimmick.\n"
+    ),
+}
+
+# ── Title style instructions (driven by adaptive engine) ─────────────
+
+_TITLE_STYLE_INSTRUCTIONS: dict[str, str] = {
+    "curiosity": (
+        "PREFERRED TITLE STYLE: CURIOSITY\n"
+        "- Lead with an information gap the viewer MUST close.\n"
+        "- Use 'The [X] that [surprising outcome]' or 'Why [counterintuitive claim]' patterns.\n"
+        "- The title should make someone think 'Wait, really?' before clicking.\n"
+    ),
+    "direct_benefit": (
+        "PREFERRED TITLE STYLE: DIRECT BENEFIT\n"
+        "- State the concrete outcome the viewer will get.\n"
+        "- Use 'How to [achieve X] in [timeframe]' or '[Action] to [benefit]' patterns.\n"
+        "- The value proposition must be immediately clear from the title alone.\n"
+    ),
+    "contrarian": (
+        "PREFERRED TITLE STYLE: CONTRARIAN\n"
+        "- Challenge a widely-held belief or popular advice.\n"
+        "- Use 'Stop [common action]' or '[Popular thing] Is Actually [opposite]' patterns.\n"
+        "- The title should provoke disagreement that drives clicks.\n"
+    ),
+    "question": (
+        "PREFERRED TITLE STYLE: QUESTION\n"
+        "- Pose a specific question the viewer needs answered.\n"
+        "- Use 'Is [specific thing] Worth It?' or 'What Happens When [scenario]?' patterns.\n"
+        "- The question must feel personally relevant, not generic.\n"
+    ),
+    "data_driven": (
+        "PREFERRED TITLE STYLE: DATA-DRIVEN\n"
+        "- Lead with a specific number, percentage, or data point.\n"
+        "- Use '[Specific number] [surprising thing]' or 'I Tested [X] for [time] — Here's What Happened' patterns.\n"
+        "- The data point must be surprising or impressive enough to demand attention.\n"
+    ),
+}
+
+
 def _build_dynamic_tone(user_preferences: dict | None) -> str:
     """Build a dynamic system prompt tone based on user preferences.
 
@@ -229,6 +293,7 @@ def generate_script(
     temperature: float | None = None,
     avoidance_prompt: str = "",
     user_preferences: dict | None = None,
+    performance_profile: dict | None = None,
 ) -> str:
     """Return a ~3-minute video script for the given *topic*.
 
@@ -242,9 +307,19 @@ def generate_script(
       Use ``variation_engine.pick_script_temperature()`` for per-run jitter.
     - *avoidance_prompt*: Extra prompt fragment from content memory that
       tells the model to avoid previously-used angles/hooks.
+
+    Adaptive additions:
+    - *performance_profile*: Dict from adaptive_engine with hook_mode,
+      recommended_title_style, etc.
     """
+    # Determine hook mode from adaptive profile
+    hook_mode = "balanced"
+    if performance_profile and performance_profile.get("adaptation_active"):
+        hook_mode = performance_profile.get("hook_mode", "balanced")
+
     system_prompt = (
         f"{_build_dynamic_tone(user_preferences)}\n\n"
+        f"{_HOOK_MODES.get(hook_mode, _HOOK_MODES['balanced'])}\n"
         "SCRIPT STRUCTURE (follow this order exactly):\n\n"
         "1. HOOK (first 2-3 sentences, ~5-10 seconds):\n"
         "   - Open with ONE of these patterns (rotate — never repeat the same type twice in a row):\n"
@@ -310,6 +385,7 @@ def generate_metadata(
     temperature: float | None = None,
     avoidance_prompt: str = "",
     user_preferences: dict | None = None,
+    performance_profile: dict | None = None,
 ) -> dict:
     """Generate a YouTube title, SEO description, and tags from a
     finished script. Returns ``{"title": ..., "description": ..., "tags": [...]}``.
@@ -318,6 +394,9 @@ def generate_metadata(
     - *temperature*: Override for metadata temperature (default 0.6).
     - *avoidance_prompt*: Hints to avoid repeated title patterns.
     - *user_preferences*: Dynamic niche/tone for channel-aware metadata.
+
+    Adaptive additions:
+    - *performance_profile*: Dict from adaptive_engine with title style guidance.
     """
     # Build niche-aware metadata prompt
     niche_context = ""
@@ -325,13 +404,22 @@ def generate_metadata(
         niche_label = ", ".join(user_preferences["niches"][:3])
         niche_context = f"This channel covers: {niche_label}. "
 
+    # Adaptive title style guidance
+    title_style_guidance = ""
+    if performance_profile and performance_profile.get("adaptation_active"):
+        rec_style = performance_profile.get("recommended_title_style", "")
+        if rec_style and rec_style in _TITLE_STYLE_INSTRUCTIONS:
+            title_style_guidance = "\n" + _TITLE_STYLE_INSTRUCTIONS[rec_style] + "\n"
+
     system_prompt = (
         f"You are an expert YouTube SEO strategist. {niche_context}\n"
         "Given a video script and its topic, return ONLY valid JSON with these keys:\n"
         '  "title"            — catchy, < 70 chars, includes a power word\n'
         '  "title_alternatives" — array of 2 alternative title options (different angles/structures)\n'
+        '  "title_style"      — the style category of the primary title: one of "curiosity", "direct_benefit", "contrarian", "question", "data_driven"\n'
         '  "description"      — 2-3 short paragraphs with keywords, include a CTA and hashtags at the end\n'
         '  "tags"             — list of 8-12 relevant tags as strings\n\n'
+        f"{title_style_guidance}"
         "TITLE RULES:\n"
         "- Do NOT use generic 'Top N' / 'X Ways' / 'X Things' framing for every video.\n"
         "- Mix structures: questions, bold claims, how-to, myth busts, story hooks.\n"
