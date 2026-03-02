@@ -37,10 +37,11 @@ logger = logging.getLogger("tubevo.backend.youtube_router")
 
 router = APIRouter(prefix="/oauth/youtube", tags=["YouTube OAuth"])
 
-# Scopes needed for uploading videos + reading channel info
+# Scopes needed for uploading videos + reading channel info + analytics
 YOUTUBE_SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
 ]

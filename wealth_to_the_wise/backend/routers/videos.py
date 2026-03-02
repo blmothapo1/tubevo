@@ -350,6 +350,7 @@ async def _run_pipeline_background(
                 row.srt_path = result.get("srt_path")
                 row.youtube_video_id = result["youtube_video_id"]
                 row.youtube_url = f"https://www.youtube.com/watch?v={result['youtube_video_id']}"
+                row.published_at = datetime.now(timezone.utc)  # Analytics: mark publish time
             elif result.get("file_path"):
                 row.status = "completed"
                 row.title = result.get("title", topic)
@@ -1585,3 +1586,27 @@ async def get_performance_profile(
     d = profile_to_dict(profile)
 
     return PerformanceProfileResponse(**d)
+
+
+# ── Analytics: Manual metrics refresh ────────────────────────────────
+
+@router.post("/refresh-metrics")
+async def refresh_metrics(
+    current_user: User = Depends(get_current_user),
+):
+    """Manually trigger YouTube analytics ingestion for the current user.
+
+    Fetches real metrics from YouTube for videos published 24–72 hours ago
+    that haven't had their 48h capture yet.  Returns a summary of results.
+
+    This is primarily for admin/debugging use — the analytics worker runs
+    this automatically every hour.
+    """
+    from backend.analytics_worker import manual_refresh_metrics
+
+    try:
+        result = await manual_refresh_metrics(current_user.id)
+        return result
+    except Exception as exc:
+        logger.warning("Manual metrics refresh failed for user %s: %s", current_user.id, exc)
+        return {"eligible": 0, "updated": 0, "error": str(exc)}

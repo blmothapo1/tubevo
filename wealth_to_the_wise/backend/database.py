@@ -121,6 +121,10 @@ async def _run_migrations(conn) -> None:
         # Adaptive learning — new columns on content_performance
         ("content_performance", "title_style_used", "VARCHAR(30)"),
         ("content_performance", "hook_mode_used", "VARCHAR(20)"),
+        # Analytics ingestion — published_at on video_records
+        ("video_records", "published_at", "TIMESTAMPTZ"),
+        # Analytics ingestion — metrics_fetched_at on content_performance
+        ("content_performance", "metrics_fetched_at", "TIMESTAMPTZ"),
     ]
 
     for table, column, col_type in migrations:

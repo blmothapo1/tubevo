@@ -39,6 +39,7 @@ from backend.middleware import RequestLoggingMiddleware
 from backend.rate_limit import limiter
 from backend.routers import api_keys, auth, billing, health, schedules, videos, waitlist, youtube
 from backend.scheduler_worker import scheduler_loop
+from backend.analytics_worker import analytics_loop
 
 logger = logging.getLogger("tubevo.backend.app")
 
@@ -61,12 +62,21 @@ def create_app() -> FastAPI:
         scheduler_task = asyncio.create_task(scheduler_loop())
         logger.info("🕐 Scheduler worker task created")
 
+        # Start the background analytics worker
+        analytics_task = asyncio.create_task(analytics_loop())
+        logger.info("📊 Analytics worker task created")
+
         yield
 
         # ── Shutdown ──
         scheduler_task.cancel()
+        analytics_task.cancel()
         try:
             await scheduler_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await analytics_task
         except asyncio.CancelledError:
             pass
         await dispose_engine()

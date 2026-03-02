@@ -105,6 +105,11 @@ class VideoRecord(Base):
     # ── Phase 5 — Subtitle artefacts ─────────────────────────────────
     srt_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # ── Analytics — when the video was published to YouTube ──────────
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+
     # ── Timestamps ───────────────────────────────────────────────────
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow,
@@ -398,6 +403,13 @@ class ContentPerformance(Base):
 
     # Composite engagement score (0-100, computed by the system)
     engagement_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # ── Analytics ingestion timestamp ────────────────────────────────
+    # Set when the analytics worker fetches real YouTube metrics.
+    # NULL = metrics not yet fetched (eligible for ingestion).
+    metrics_fetched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
 
     # ── Timestamps ───────────────────────────────────────────────────
     created_at: Mapped[datetime] = mapped_column(
