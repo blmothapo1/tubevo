@@ -134,8 +134,12 @@ export default function Landing() {
               <span className="text-gradient">On Autopilot.</span>
             </motion.h1>
 
-            <motion.p variants={fadeUp} className="mt-10 text-base sm:text-[18px] text-surface-700 max-w-xl leading-[1.7] font-normal">
-              Tubevo generates scripts, creates voiceovers, builds videos, and uploads them to your channel — fully automated, powered by AI.
+            <motion.p variants={fadeUp} className="mt-6 text-xl sm:text-[24px] md:text-[28px] font-semibold tracking-[-0.02em] text-surface-900 leading-[1.3]">
+              Built to create. Designed to perform.
+            </motion.p>
+
+            <motion.p variants={fadeUp} className="mt-4 text-base sm:text-[17px] text-surface-700 max-w-xl leading-[1.7] font-normal">
+              Tubevo turns your ideas into high-performing, publish-ready videos.
             </motion.p>
 
             <motion.div variants={fadeUp} className="mt-14 w-full max-w-[480px]">
