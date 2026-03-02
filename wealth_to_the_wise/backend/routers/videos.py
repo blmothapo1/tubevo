@@ -1184,3 +1184,117 @@ async def update_video_preferences(
                 current_user.email, body.subtitle_style, body.burn_captions, body.speech_speed)
 
     return {"message": "Video preferences saved.", "preferences": body.model_dump()}
+
+
+# ── GET /api/videos/topic-suggestions ────────────────────────────────
+
+class TopicSuggestion(BaseModel):
+    topic: str
+    score: int = Field(..., ge=1, le=10, description="Estimated demand score 1-10")
+    angle: str = Field(..., description="Suggested narrative angle")
+    why: str = Field(..., description="One-line reason this topic works")
+
+
+class TopicSuggestionsResponse(BaseModel):
+    suggestions: list[TopicSuggestion]
+
+
+@router.get("/topic-suggestions", response_model=TopicSuggestionsResponse)
+@limiter.limit("10/hour")
+async def topic_suggestions(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate 5 scored topic suggestions based on the user's past content.
+
+    Uses the content memory to avoid suggesting previously-covered topics
+    and returns a demand score (1-10) to help users pick high-impact ideas.
+    """
+    # Fetch past topics from content memory
+    past_titles: list[str] = []
+    try:
+        cm_stmt = (
+            select(ContentMemory.title)
+            .where(ContentMemory.user_id == current_user.id)
+            .order_by(ContentMemory.created_at.desc())
+            .limit(20)
+        )
+        cm_rows = (await db.execute(cm_stmt)).scalars().all()
+        past_titles = [t for t in cm_rows if t]
+    except Exception:
+        pass
+
+    # Fetch the user's OpenAI key
+    keys_result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = keys_result.scalar_one_or_none()
+    openai_key = decrypt(user_keys.openai_api_key) if user_keys and user_keys.openai_api_key else ""
+
+    if not openai_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Add your OpenAI API key in Settings to get topic suggestions.",
+        )
+
+    # Generate suggestions via OpenAI
+    import json as _json
+    from openai import OpenAI
+
+    avoidance = ""
+    if past_titles:
+        avoidance = "\n\nALREADY COVERED (do NOT suggest these or close variations):\n"
+        for t in past_titles[:15]:
+            avoidance += f"  - {t}\n"
+
+    system = (
+        "You suggest YouTube video topics for a personal-finance / wealth-building channel.\n"
+        "Return ONLY a JSON array of exactly 5 objects. Each object has:\n"
+        '  "topic" — a specific, ready-to-use video topic (not generic)\n'
+        '  "score" — demand score 1-10 (10=highest search demand + low competition)\n'
+        '  "angle" — the narrative angle: one of "myth-bust", "story", "how-to", "contrarian", "case-study"\n'
+        '  "why"   — one sentence: why this topic has high potential right now\n\n'
+        "RULES:\n"
+        "- Mix angles — never suggest 5 of the same type.\n"
+        "- Topics must be SPECIFIC (not 'how to save money' — too broad).\n"
+        "- Favor timely, emotionally engaging, or contrarian topics.\n"
+        "- Score honestly — not everything is a 10.\n"
+        "Do NOT include markdown fences. Return raw JSON only."
+        f"{avoidance}"
+    )
+
+    try:
+        client = OpenAI(api_key=openai_key)
+        resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": "Suggest 5 high-potential video topics for this week."},
+            ],
+            max_tokens=600,
+            temperature=0.9,
+        )
+        raw = (resp.choices[0].message.content or "").strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]
+            raw = raw.rsplit("```", 1)[0]
+        suggestions = _json.loads(raw)
+
+        return TopicSuggestionsResponse(
+            suggestions=[
+                TopicSuggestion(
+                    topic=s.get("topic", ""),
+                    score=max(1, min(10, int(s.get("score", 5)))),
+                    angle=s.get("angle", "how-to"),
+                    why=s.get("why", ""),
+                )
+                for s in suggestions[:5]
+            ]
+        )
+    except Exception as e:
+        logger.error("Topic suggestions failed: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate topic suggestions. Try again.",
+        )

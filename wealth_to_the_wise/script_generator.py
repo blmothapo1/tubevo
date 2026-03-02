@@ -111,14 +111,30 @@ def generate_script(
     """
     system_prompt = (
         f"{config.CHANNEL_TONE}\n\n"
+        "SCRIPT STRUCTURE (follow this order exactly):\n\n"
+        "1. HOOK (first 2-3 sentences, ~5-10 seconds):\n"
+        "   - Open with ONE of these patterns (rotate — never repeat the same type twice in a row):\n"
+        "     • Bold claim: a surprising statistic or counterintuitive statement\n"
+        "     • Identity call-out: 'If you [specific behavior], this will change everything'\n"
+        "     • Story open: 'Last year, I [brief anecdote setup]…'\n"
+        "     • Myth bust: 'Everything you've been told about [topic] is wrong.'\n"
+        "   - The hook must create an open loop — promise a payoff the viewer has to stay for.\n\n"
+        "2. BODY (3-5 key points, ~2 minutes):\n"
+        "   - Each point: bold claim → explanation → concrete example or action step.\n"
+        "   - After the 2nd point, insert a PATTERN INTERRUPT: a quick rhetorical question,\n"
+        "     a surprising pivot, or a 'here's where it gets interesting' transition.\n"
+        "   - Use specific numbers, names, and examples — never vague advice.\n\n"
+        "3. CLOSE (last 15-20 seconds):\n"
+        "   - Callback to the hook (close the open loop).\n"
+        "   - One clear, specific CTA: like, subscribe, or comment with a specific prompt.\n\n"
         "FORMAT RULES:\n"
-        "- Write a script meant to be spoken aloud in roughly 3 minutes (~450 words).\n"
-        "- Open with a punchy hook that grabs attention in the first 5 seconds.\n"
-        "- Use short, powerful sentences. One idea per sentence.\n"
-        "- Break the body into 3-5 numbered key points with concrete, actionable advice.\n"
-        "- End with a strong call-to-action: like, subscribe, comment.\n"
-        "- Do NOT include stage directions, camera cues, or timestamps.\n"
+        "- Total length: ~450 words (3 minutes spoken).\n"
+        "- Short, powerful sentences. One idea per sentence.\n"
         "- Speak directly to 'you' — second person, conversational.\n"
+        "- Do NOT use 'Top N' or 'X Ways' framing unless the topic explicitly demands it.\n"
+        "  Prefer narrative, problem-solution, or myth-busting structures instead.\n"
+        "- Do NOT include stage directions, camera cues, timestamps, or section headers.\n"
+        "- Do NOT start with 'Hey guys' or 'What's up everyone'.\n"
     )
 
     # Phase 7: inject content-memory avoidance if present
@@ -164,9 +180,15 @@ def generate_metadata(
     system_prompt = (
         "You are an expert YouTube SEO strategist for a personal-finance channel.\n"
         "Given a video script and its topic, return ONLY valid JSON with these keys:\n"
-        '  "title"       — catchy, < 70 chars, includes a power word\n'
-        '  "description" — 2-3 short paragraphs with keywords, include a CTA and hashtags at the end\n'
-        '  "tags"        — list of 8-12 relevant tags as strings\n'
+        '  "title"            — catchy, < 70 chars, includes a power word\n'
+        '  "title_alternatives" — array of 2 alternative title options (different angles/structures)\n'
+        '  "description"      — 2-3 short paragraphs with keywords, include a CTA and hashtags at the end\n'
+        '  "tags"             — list of 8-12 relevant tags as strings\n\n'
+        "TITLE RULES:\n"
+        "- Do NOT use generic 'Top N' / 'X Ways' / 'X Things' framing for every video.\n"
+        "- Mix structures: questions, bold claims, how-to, myth busts, story hooks.\n"
+        "- Each of the 3 titles (title + 2 alternatives) must use a DIFFERENT structure.\n"
+        "- Never start with a number unless it adds genuine value.\n"
         "Do NOT include markdown fences. Return raw JSON only."
     )
 

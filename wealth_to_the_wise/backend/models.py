@@ -46,6 +46,7 @@ class User(Base):
     # ── Account state ────────────────────────────────────────────────
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_beta: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # ── Billing / plan (Item 6 will expand) ──────────────────────────
     plan: Mapped[str] = mapped_column(String(20), default="free")

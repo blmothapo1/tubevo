@@ -20,6 +20,10 @@ import {
   Download,
   RotateCcw,
   Layers,
+  Lightbulb,
+  TrendingUp,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 const ease = [0.25, 0.1, 0.25, 1];
@@ -115,6 +119,24 @@ export default function Videos() {
 
   // ── Phase 6: Regenerating state (track which video is being regenerated) ──
   const [regeneratingId, setRegeneratingId] = useState(null);
+
+  // ── Topic suggestions state ──
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  async function fetchSuggestions() {
+    setSuggestionsLoading(true);
+    try {
+      const { data } = await api.get('/api/videos/topic-suggestions');
+      setSuggestions(data.suggestions || []);
+      setShowSuggestions(true);
+    } catch {
+      // silent — button just shows error state briefly
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }
 
   // Confetti for first successful video
   const [showConfetti, setShowConfetti] = useState(false);
@@ -384,6 +406,62 @@ export default function Videos() {
             )}
           </motion.button>
         </div>
+
+        {/* Topic Suggestions — collapsible panel */}
+        {!generating && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => showSuggestions ? setShowSuggestions(false) : fetchSuggestions()}
+              disabled={suggestionsLoading}
+              className="inline-flex items-center gap-1.5 text-[11px] text-surface-600 hover:text-brand-400 transition-colors"
+            >
+              {suggestionsLoading ? (
+                <RefreshCw size={11} className="animate-spin" />
+              ) : (
+                <Lightbulb size={11} />
+              )}
+              {suggestionsLoading ? 'Finding topics…' : showSuggestions ? 'Hide suggestions' : 'Suggest topics for me'}
+              {showSuggestions ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            </button>
+
+            <AnimatePresence>
+              {showSuggestions && suggestions.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2, ease }}
+                  className="mt-2 space-y-1.5"
+                >
+                  {suggestions.map((s, i) => (
+                    <motion.button
+                      type="button"
+                      key={i}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05, duration: 0.15 }}
+                      onClick={() => { setTopic(s.topic); setShowSuggestions(false); }}
+                      className="w-full text-left px-3 py-2 rounded-lg bg-surface-200/60 hover:bg-surface-300/60 transition-all group"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-white font-medium group-hover:text-brand-400 transition-colors truncate">{s.topic}</span>
+                        <span className="flex items-center gap-1 text-[10px] text-surface-500 whitespace-nowrap">
+                          <TrendingUp size={10} className={s.score >= 7 ? 'text-emerald-400' : s.score >= 4 ? 'text-amber-400' : 'text-surface-500'} />
+                          {s.score}/10
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-surface-500 px-1.5 py-0.5 rounded bg-surface-300/40">{s.angle}</span>
+                        <span className="text-[10px] text-surface-600 truncate">{s.why}</span>
+                      </div>
+                    </motion.button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {/* Phase 6: Live Progress Bar — shown during generation */}
         <AnimatePresence>

@@ -79,6 +79,7 @@ class UserProfile(BaseModel):
     plan: str
     is_active: bool
     is_verified: bool
+    is_beta: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

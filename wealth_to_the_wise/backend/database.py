@@ -116,6 +116,8 @@ async def _run_migrations(conn) -> None:
         ("user_api_keys", "subtitle_style", "VARCHAR(30) DEFAULT 'bold_pop'"),
         ("user_api_keys", "burn_captions", "BOOLEAN DEFAULT TRUE"),
         ("user_api_keys", "speech_speed", "VARCHAR(10)"),
+        # Beta user flag
+        ("users", "is_beta", "BOOLEAN DEFAULT FALSE"),
     ]
 
     for table, column, col_type in migrations:
