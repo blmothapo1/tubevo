@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth import get_current_user
 from backend.database import async_session_factory, get_db
 from backend.encryption import decrypt
-from backend.models import ContentMemory, OAuthToken, User, UserApiKeys, VideoRecord
+from backend.models import ContentMemory, ContentPerformance, OAuthToken, User, UserApiKeys, UserPreferences, VideoRecord
 from backend.rate_limit import limiter
 
 logger = logging.getLogger("tubevo.backend.videos")
@@ -248,6 +248,27 @@ async def _run_pipeline_background(
 
     # Inject past titles into user_api_keys dict for the sync pipeline
     user_api_keys["_past_titles"] = past_titles
+
+    # ── Fetch user preferences for adaptive generation ───────────────
+    user_prefs_dict: dict = {}
+    try:
+        async with async_session_factory() as db:
+            prefs_stmt = select(UserPreferences).where(UserPreferences.user_id == user_id)
+            prefs_row = (await db.execute(prefs_stmt)).scalar_one_or_none()
+            if prefs_row:
+                import json as _json
+                user_prefs_dict = {
+                    "niches": _json.loads(prefs_row.niches_json) if prefs_row.niches_json else [],
+                    "tone_style": prefs_row.tone_style,
+                    "target_audience": prefs_row.target_audience,
+                    "channel_goal": prefs_row.channel_goal,
+                    "posting_frequency": prefs_row.posting_frequency,
+                }
+                logger.info("Loaded user preferences: niches=%s goal=%s", user_prefs_dict["niches"], user_prefs_dict["channel_goal"])
+    except Exception as prefs_err:
+        logger.warning("User preferences fetch failed (non-fatal, using defaults): %s", prefs_err)
+
+    user_api_keys["_user_preferences"] = user_prefs_dict
 
     result: dict
     try:
@@ -482,6 +503,10 @@ def _run_pipeline_locked(
         if variation_ctx:
             script_kwargs["temperature"] = variation_ctx.script_temperature
             script_kwargs["avoidance_prompt"] = variation_ctx.avoidance_prompt
+        # Inject user preferences for adaptive generation
+        _user_prefs = user_api_keys.get("_user_preferences", {})
+        if _user_prefs:
+            script_kwargs["user_preferences"] = _user_prefs
         script = script_generator.generate_script(topic, **script_kwargs)
         (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
         logger.info("Pipeline step 1/5: Script generated (%d chars)", len(script))
@@ -494,6 +519,8 @@ def _run_pipeline_locked(
         if variation_ctx:
             meta_kwargs["temperature"] = variation_ctx.metadata_temperature
             meta_kwargs["avoidance_prompt"] = variation_ctx.metadata_avoidance
+        if _user_prefs:
+            meta_kwargs["user_preferences"] = _user_prefs
         metadata = script_generator.generate_metadata(script, topic, **meta_kwargs)
         result["title"] = metadata.get("title", topic)
         logger.info("Pipeline step 2/5: Metadata ready — title: %s", result["title"])
@@ -604,12 +631,16 @@ def _run_pipeline_locked(
         # Restore Pexels key
         stock_mod.PEXELS_API_KEY = old_pexels
 
-        # ── Step 5: Generate thumbnail ──────────────────────────────
-        _report("Generating thumbnail…", 80)
-        logger.info("Pipeline step 5/6: Generating thumbnail")
-        from thumbnail import generate_thumbnail
-        thumbnail_path = generate_thumbnail(metadata["title"])
-        _report("Thumbnail ready", 85)
+        # ── Step 5: Generate thumbnail variants ────────────────────
+        _report("Generating thumbnails…", 80)
+        logger.info("Pipeline step 5/6: Generating 3 thumbnail variants")
+        from thumbnail import generate_thumbnail, generate_thumbnail_variants
+        thumbnail_variants = generate_thumbnail_variants(metadata["title"])
+        # Primary thumbnail = bold_curiosity (used for upload)
+        thumbnail_path = thumbnail_variants[0]["path"] if thumbnail_variants else generate_thumbnail(metadata["title"])
+        result["thumbnail_variants"] = thumbnail_variants
+        logger.info("Pipeline step 5/6: Generated %d thumbnail variants", len(thumbnail_variants))
+        _report("Thumbnails ready", 85)
 
         # ── Step 6: Upload to YouTube (if user connected) ────────────
         if yt_access_token:
@@ -642,6 +673,27 @@ def _run_pipeline_locked(
     if variation_ctx:
         result["_temperature_used"] = variation_ctx.script_temperature
         result["_music_mood"] = variation_ctx.music_mood.label
+
+    # ── Generation summary (Step 6: Output summary) ──────────────────
+    _user_prefs = user_api_keys.get("_user_preferences", {})
+    summary_lines = [
+        f"Topic: {topic}",
+        f"Title: {result.get('title', topic)}",
+    ]
+    if _user_prefs.get("niches"):
+        summary_lines.append(f"Niches: {', '.join(_user_prefs['niches'])}")
+    if _user_prefs.get("channel_goal"):
+        summary_lines.append(f"Goal: {_user_prefs['channel_goal']}")
+    if _user_prefs.get("tone_style"):
+        summary_lines.append(f"Tone: {_user_prefs['tone_style']}")
+    if variation_ctx:
+        summary_lines.append(f"Temp: {variation_ctx.script_temperature:.2f}")
+        summary_lines.append(f"Music mood: {variation_ctx.music_mood.label}")
+    thumbnail_variants = result.get("thumbnail_variants", [])
+    if thumbnail_variants:
+        summary_lines.append(f"Thumbnails: {', '.join(v['concept'] for v in thumbnail_variants)}")
+    result["_generation_summary"] = " | ".join(summary_lines)
+    logger.info("Generation summary: %s", result["_generation_summary"])
 
     return result
 
@@ -1238,6 +1290,21 @@ async def topic_suggestions(
             detail="Add your OpenAI API key in Settings to get topic suggestions.",
         )
 
+    # Fetch user preferences for niche-aware suggestions
+    prefs_result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    user_prefs = prefs_result.scalar_one_or_none()
+    niche_context = ""
+    if user_prefs and user_prefs.niches_json:
+        import json as _prefs_json
+        try:
+            user_niches = _prefs_json.loads(user_prefs.niches_json)
+            if user_niches:
+                niche_context = f"This channel covers: {', '.join(user_niches[:3])}. Suggest topics within these niches.\n"
+        except Exception:
+            pass
+
     # Generate suggestions via OpenAI
     import json as _json
     from openai import OpenAI
@@ -1249,7 +1316,7 @@ async def topic_suggestions(
             avoidance += f"  - {t}\n"
 
     system = (
-        "You suggest YouTube video topics for a personal-finance / wealth-building channel.\n"
+        f"You suggest YouTube video topics. {niche_context}\n"
         "Return ONLY a JSON array of exactly 5 objects. Each object has:\n"
         '  "topic" — a specific, ready-to-use video topic (not generic)\n'
         '  "score" — demand score 1-10 (10=highest search demand + low competition)\n'
@@ -1298,3 +1365,99 @@ async def topic_suggestions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate topic suggestions. Try again.",
         )
+
+
+# ── GET / PUT /api/videos/preferences — Channel Intelligence ────────
+
+class PreferencesRequest(BaseModel):
+    """PUT /api/videos/preferences body — onboarding + settings."""
+    niches: list[str] = Field(default_factory=list)
+    tone_style: str = Field("confident, direct, no-fluff educator", max_length=300)
+    target_audience: str = Field("general audience", max_length=300)
+    channel_goal: str = Field("growth")
+    posting_frequency: str = Field("weekly")
+
+
+class PreferencesResponse(BaseModel):
+    niches: list[str] = []
+    tone_style: str = "confident, direct, no-fluff educator"
+    target_audience: str = "general audience"
+    channel_goal: str = "growth"
+    posting_frequency: str = "weekly"
+    updated_at: str | None = None
+
+
+@router.get("/preferences", response_model=PreferencesResponse)
+async def get_preferences(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's channel preferences."""
+    result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = result.scalar_one_or_none()
+    if not prefs:
+        return PreferencesResponse()
+
+    import json as _json
+    try:
+        niches = _json.loads(prefs.niches_json) if prefs.niches_json else []
+    except Exception:
+        niches = []
+
+    return PreferencesResponse(
+        niches=niches,
+        tone_style=prefs.tone_style,
+        target_audience=prefs.target_audience,
+        channel_goal=prefs.channel_goal,
+        posting_frequency=prefs.posting_frequency,
+        updated_at=prefs.updated_at.isoformat() if prefs.updated_at else None,
+    )
+
+
+@router.put("/preferences", response_model=PreferencesResponse)
+async def update_preferences(
+    body: PreferencesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create or update the user's channel preferences (onboarding + settings)."""
+    import json as _json
+
+    result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+    )
+    prefs = result.scalar_one_or_none()
+
+    niches_str = _json.dumps(body.niches[:15])  # cap at 15
+
+    if prefs:
+        prefs.niches_json = niches_str
+        prefs.tone_style = body.tone_style
+        prefs.target_audience = body.target_audience
+        prefs.channel_goal = body.channel_goal
+        prefs.posting_frequency = body.posting_frequency
+        prefs.updated_at = datetime.now(timezone.utc)
+    else:
+        prefs = UserPreferences(
+            user_id=current_user.id,
+            niches_json=niches_str,
+            tone_style=body.tone_style,
+            target_audience=body.target_audience,
+            channel_goal=body.channel_goal,
+            posting_frequency=body.posting_frequency,
+        )
+        db.add(prefs)
+
+    await db.commit()
+    logger.info("Updated preferences for user %s: niches=%s goal=%s", current_user.email, body.niches, body.channel_goal)
+
+    return PreferencesResponse(
+        niches=body.niches,
+        tone_style=body.tone_style,
+        target_audience=body.target_audience,
+        channel_goal=body.channel_goal,
+        posting_frequency=body.posting_frequency,
+        updated_at=prefs.updated_at.isoformat() if prefs.updated_at else None,
+    )

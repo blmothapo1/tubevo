@@ -99,7 +99,20 @@ export default function Onboarding() {
     setStep((s) => Math.max(s - 1, 0));
   }
 
-  function launch() {
+  async function launch() {
+    // Persist preferences to backend before navigating
+    try {
+      await api.put('/api/videos/preferences', {
+        niches: selectedNiches,
+        tone_style: 'confident, direct, no-fluff educator',
+        target_audience: 'general audience',
+        channel_goal: 'growth',
+        posting_frequency: frequency || 'weekly',
+      });
+    } catch (err) {
+      // Non-blocking — navigate anyway, preferences can be set later
+      console.warn('Failed to save preferences:', err);
+    }
     navigate('/dashboard');
   }
 

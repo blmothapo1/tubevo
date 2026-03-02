@@ -144,7 +144,7 @@ PEXELS_API_KEY: str = os.getenv("PEXELS_API_KEY", "")
 # upload faster and are more practical.  Default: 200 MB.
 MAX_VIDEO_SIZE_MB: int = int(os.getenv("MAX_VIDEO_SIZE_MB", "200"))
 
-# ── Channel voice / tone (fed into prompts) ──
+# ── Channel voice / tone (FALLBACK — overridden per-user by UserPreferences) ──
 CHANNEL_TONE: str = os.getenv(
     "CHANNEL_TONE",
     (

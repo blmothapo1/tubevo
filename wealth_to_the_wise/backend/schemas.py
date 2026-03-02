@@ -152,3 +152,39 @@ class UpdateApiKeysRequest(BaseModel):
     elevenlabs_api_key: str | None = Field(None, max_length=200)
     elevenlabs_voice_id: str | None = Field(None, max_length=100)
     pexels_api_key: str | None = Field(None, max_length=200)
+
+
+# ── User Preferences (Channel Intelligence) ─────────────────────────
+
+class UserPreferencesRequest(BaseModel):
+    """PUT /api/preferences body — onboarding + settings."""
+    niches: list[str] = Field(default_factory=list, max_length=15)
+    tone_style: str = Field("confident, direct, no-fluff educator", max_length=300)
+    target_audience: str = Field("general audience", max_length=300)
+    channel_goal: str = Field("growth", pattern=r"^(growth|monetization|authority|entertainment)$")
+    posting_frequency: str = Field("weekly", pattern=r"^(daily|every_2_days|weekly)$")
+
+
+class UserPreferencesResponse(BaseModel):
+    """GET /api/preferences response."""
+    niches: list[str] = []
+    tone_style: str = "confident, direct, no-fluff educator"
+    target_audience: str = "general audience"
+    channel_goal: str = "growth"
+    posting_frequency: str = "weekly"
+    updated_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ContentPerformanceResponse(BaseModel):
+    """GET /api/videos/{id}/performance response."""
+    video_record_id: str
+    title_variant_used: str | None = None
+    thumbnail_concept_used: str | None = None
+    views_48h: int = 0
+    likes_48h: int = 0
+    comments_48h: int = 0
+    ctr_pct: str | None = None
+    avg_view_duration_pct: str | None = None
+    engagement_score: int = 0

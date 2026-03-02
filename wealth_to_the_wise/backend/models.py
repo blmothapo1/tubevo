@@ -304,6 +304,107 @@ class ContentMemory(Base):
         return f"<ContentMemory user={self.user_id} topic='{self.topic[:40]}' fp={self.topic_fingerprint}>"
 
 
+class UserPreferences(Base):
+    """Per-user channel preferences collected during onboarding.
+
+    Persists niche selection, tone/style, target audience, and channel goal
+    so the AI pipeline can generate content tailored to each user's channel
+    instead of using a hardcoded persona.
+    """
+
+    __tablename__ = "user_preferences"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), unique=True, nullable=False, index=True,
+    )
+
+    # ── Channel identity ─────────────────────────────────────────────
+    # JSON array of niche strings, e.g. '["Personal Finance","Investing / Stocks"]'
+    niches_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+
+    # Free-text tone descriptor, e.g. "confident, no-fluff educator"
+    tone_style: Mapped[str] = mapped_column(
+        String(300), nullable=False,
+        default="confident, direct, no-fluff educator",
+    )
+
+    # Target audience descriptor, e.g. "young professionals 25-35"
+    target_audience: Mapped[str] = mapped_column(
+        String(300), nullable=False,
+        default="general audience",
+    )
+
+    # Channel goal: growth | monetization | authority | entertainment
+    channel_goal: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="growth",
+    )
+
+    # Posting frequency: daily | every_2_days | weekly
+    posting_frequency: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="weekly",
+    )
+
+    # ── Timestamps ───────────────────────────────────────────────────
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<UserPreferences user={self.user_id} goal={self.channel_goal}>"
+
+
+class ContentPerformance(Base):
+    """Track performance of generated content for weighted preference learning.
+
+    Stores which title variant and thumbnail concept were used, along with
+    early engagement signals so the system can learn which styles work best
+    for each user's audience.
+    """
+
+    __tablename__ = "content_performance"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True,
+    )
+    video_record_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("video_records.id"), nullable=False, index=True,
+    )
+
+    # ── What was used ────────────────────────────────────────────────
+    title_variant_used: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    thumbnail_concept_used: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # ── Engagement signals (updated asynchronously) ──────────────────
+    views_48h: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    likes_48h: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    comments_48h: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ctr_pct: Mapped[str | None] = mapped_column(String(10), nullable=True)  # e.g. "4.2"
+    avg_view_duration_pct: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    # Composite engagement score (0-100, computed by the system)
+    engagement_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # ── Timestamps ───────────────────────────────────────────────────
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<ContentPerformance user={self.user_id} video={self.video_record_id} score={self.engagement_score}>"
+
+
 class WaitlistSignup(Base):
     """Landing-page waitlist email capture.
 
