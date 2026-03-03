@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getAccessToken } from '../lib/api';
+import { getAccessToken, API_BASE } from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import {
   Shield,
@@ -30,7 +30,7 @@ function timeSince(dateStr) {
 
 async function adminFetch(path, options = {}) {
   const token = getAccessToken();
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

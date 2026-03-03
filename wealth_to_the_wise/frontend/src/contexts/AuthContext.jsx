@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { setTokens, clearTokens, getAccessToken } from '../lib/api';
+import { setTokens, clearTokens, getAccessToken, API_BASE } from '../lib/api';
 
 const AuthContext = createContext(null);
 
@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
       // Use raw fetch with the current access token — avoids axios interceptors
       // that can race or redirect on stale refresh-token scenarios.
       const token = getAccessToken();
-      const res = await fetch('/auth/me', {
+      const res = await fetch(`${API_BASE}/auth/me`, {
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -42,7 +42,7 @@ export function AuthProvider({ children }) {
   async function login(email, password) {
     // Use raw fetch for login — bypasses axios interceptors which can
     // interfere when stale tokens exist in localStorage.
-    const res = await fetch('/auth/login', {
+    const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -60,7 +60,7 @@ export function AuthProvider({ children }) {
   }
 
   async function signup(email, password, full_name) {
-    const res = await fetch('/auth/signup', {
+    const res = await fetch(`${API_BASE}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, full_name }),

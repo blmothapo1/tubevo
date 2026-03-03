@@ -6,7 +6,7 @@ let refreshToken = localStorage.getItem('refresh_token');
 
 // In dev Vite proxies /auth and /health to localhost:8000 (see vite.config.js).
 // In production set VITE_API_URL to the deployed backend URL.
-const API_BASE = import.meta.env.VITE_API_URL || '';
+export const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
   baseURL: API_BASE,

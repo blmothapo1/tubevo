@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { getAccessToken } from '../lib/api';
+import { getAccessToken, API_BASE } from '../lib/api';
 
 /**
  * AdminRoute — wraps routes that require role='admin'.
@@ -28,7 +28,7 @@ export default function AdminRoute({ children }) {
     // Server-side verification — use raw fetch to avoid axios interceptor redirect loop
     let cancelled = false;
     const token = getAccessToken();
-    fetch('/api/admin/verify', {
+    fetch(`${API_BASE}/api/admin/verify`, {
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
