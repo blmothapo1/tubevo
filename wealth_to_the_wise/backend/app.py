@@ -37,7 +37,7 @@ from backend.config import get_settings, logger as config_logger  # noqa: F401 �
 from backend.database import create_tables, dispose_engine
 from backend.middleware import RequestLoggingMiddleware
 from backend.rate_limit import limiter
-from backend.routers import api_keys, auth, billing, health, schedules, videos, waitlist, youtube
+from backend.routers import api_keys, auth, admin, billing, health, schedules, videos, waitlist, youtube
 from backend.scheduler_worker import scheduler_loop
 from backend.analytics_worker import analytics_loop
 
@@ -134,6 +134,7 @@ def create_app() -> FastAPI:
     # ── Routers ──────────────────────────────────────────────────────
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(admin.router)
     app.include_router(api_keys.router)
     app.include_router(billing.router)
     app.include_router(videos.router)

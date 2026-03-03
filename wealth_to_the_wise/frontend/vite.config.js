@@ -13,6 +13,10 @@ export default defineConfig({
       '/oauth': { target: 'http://localhost:8000', changeOrigin: true },
       '/billing': { target: 'http://localhost:8000', changeOrigin: true },
       '/health': { target: 'http://localhost:8000', changeOrigin: true },
+      '/videos': { target: 'http://localhost:8000', changeOrigin: true },
+      '/schedules': { target: 'http://localhost:8000', changeOrigin: true },
+      '/youtube': { target: 'http://localhost:8000', changeOrigin: true },
+      '/waitlist': { target: 'http://localhost:8000', changeOrigin: true },
     },
   },
 })

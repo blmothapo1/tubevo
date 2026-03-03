@@ -15,9 +15,15 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import AdminHQ from './pages/AdminHQ';
+import AdminUsers from './pages/AdminUsers';
+import AdminVideos from './pages/AdminVideos';
+import AdminErrors from './pages/AdminErrors';
+import AdminWaitlist from './pages/AdminWaitlist';
 
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 import { initTheme } from './theme/theme';
 
 export default function App() {
@@ -46,6 +52,48 @@ export default function App() {
           }
         />
         <Route path="/apple-callback" element={<AppleCallback />} />
+
+        {/* Admin route — server-verified role=admin required */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminHQ />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AdminRoute>
+              <AdminUsers />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/videos"
+          element={
+            <AdminRoute>
+              <AdminVideos />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/errors"
+          element={
+            <AdminRoute>
+              <AdminErrors />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/waitlist"
+          element={
+            <AdminRoute>
+              <AdminWaitlist />
+            </AdminRoute>
+          }
+        />
 
         {/* Protected routes */}
         <Route

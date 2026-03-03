@@ -37,7 +37,8 @@ from backend.auth import (
 )
 from backend.config import get_settings
 from backend.database import get_db
-from backend.models import User
+from backend.events import emit_event
+from backend.models import User, WaitlistSignup
 from backend.rate_limit import limiter
 from backend.schemas import (
     ForgotPasswordRequest,
@@ -83,11 +84,23 @@ async def signup(
         hashed_password=hash_password(body.password),
         full_name=body.full_name,
     )
+
+    # Auto-grant beta access if this email is on the waitlist
+    waitlist_entry = (await db.execute(
+        select(WaitlistSignup).where(WaitlistSignup.email == body.email.strip().lower())
+    )).scalar_one_or_none()
+    if waitlist_entry:
+        user.is_beta = True
+        logger.info("Auto-granting beta access to waitlist email: %s", body.email)
+
     db.add(user)
     await db.flush()           # populate user.id before response
     await db.refresh(user)
 
     logger.info("New user registered: %s (id=%s)", user.email, user.id)
+
+    # ── Admin event: user_signup ─────────────────────────────────────
+    await emit_event(db, "user_signup", user_id=user.id, meta={"email": user.email})
 
     # Send welcome email (fire-and-forget, don't block signup)
     try:
@@ -107,7 +120,7 @@ async def signup(
 # ── POST /auth/login ────────────────────────────────────────────────
 
 @router.post("/login", response_model=TokenResponse)
-@limiter.limit("20/minute")
+@limiter.limit("30/minute")
 async def login(
     request: Request,
     body: LoginRequest,
@@ -128,6 +141,17 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated.",
         )
+
+    # ── Auto-promote admin emails ────────────────────────────────────
+    settings = get_settings()
+    if user.email.lower() in settings.admin_email_list and user.role != "admin":
+        user.role = "admin"
+        db.add(user)
+        logger.info("Auto-promoted %s to admin role.", user.email)
+
+    # ── Track last login ─────────────────────────────────────────────
+    user.last_login_at = datetime.now(timezone.utc)
+    db.add(user)
 
     logger.info("User logged in: %s", user.email)
 
@@ -352,6 +376,12 @@ async def apple_login(
         await db.refresh(user)
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated.")
+
+    # ── Auto-promote admin emails (Apple login) ─────────────────────
+    if user.email.lower() in get_settings().admin_email_list and user.role != "admin":
+        user.role = "admin"
+        db.add(user)
+        logger.info("Auto-promoted %s to admin role (Apple login).", user.email)
 
     return TokenResponse(
         access_token=create_access_token(user.id, user.email),

@@ -77,6 +77,7 @@ class UserProfile(BaseModel):
     email: str
     full_name: str | None
     plan: str
+    role: str = "user"
     is_active: bool
     is_verified: bool
     is_beta: bool = False

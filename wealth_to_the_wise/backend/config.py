@@ -92,6 +92,10 @@ class Settings(BaseSettings):
     # ── Kit (formerly ConvertKit) — waitlist email capture ───────────
     kit_api_key: str = Field(default="", repr=False)
 
+    # ── Admin ────────────────────────────────────────────────────────
+    # Comma-separated list of emails that should be auto-promoted to admin on login.
+    admin_emails: str = ""
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
@@ -102,6 +106,11 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         """Parse the comma-separated ``cors_origins`` into a list."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def admin_email_list(self) -> list[str]:
+        """Parse the comma-separated ``admin_emails`` into a lowercase list."""
+        return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
 
 
 @lru_cache

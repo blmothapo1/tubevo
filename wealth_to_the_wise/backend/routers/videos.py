@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth import get_current_user
 from backend.database import async_session_factory, get_db
 from backend.encryption import decrypt
+from backend.events import emit_event
 from backend.models import ContentMemory, ContentPerformance, OAuthToken, User, UserApiKeys, UserPreferences, VideoRecord
 from backend.rate_limit import limiter
 
@@ -187,6 +188,11 @@ async def generate_video(
     record_id = record.id
     logger.info("Created VideoRecord %s for user %s", record_id, current_user.email)
 
+    # ── Admin event: video_started ───────────────────────────────────
+    async with async_session_factory() as ev_db:
+        await emit_event(ev_db, "video_started", user_id=current_user.id, video_id=record_id, meta={"topic": body.topic})
+        await ev_db.commit()
+
     # ── Kick off the pipeline as a fire-and-forget task ──────────────
     # Using asyncio.create_task instead of BackgroundTasks so the task
     # isn't tied to the HTTP request lifecycle.
@@ -319,7 +325,7 @@ async def _run_pipeline_background(
         )
     except asyncio.TimeoutError:
         logger.error("Pipeline timed out after %ds for record %s", PIPELINE_TIMEOUT_SECONDS, record_id)
-        result = {"error": f"Video generation timed out after {PIPELINE_TIMEOUT_SECONDS // 60} minutes."}
+        result = {"error": f"Video generation timed out after {PIPELINE_TIMEOUT_SECONDS // 60} minutes.", "_error_type": "pipeline", "_stack": None}
     except Exception as e:
         tb = traceback.format_exc()
         # Phase 8: mask any API keys that might appear in tracebacks
@@ -327,7 +333,7 @@ async def _run_pipeline_background(
         safe_tb = mask_secrets(tb)
         safe_msg = mask_secrets(str(e))
         logger.error("Pipeline background task failed for record %s: %s\n%s", record_id, safe_msg, safe_tb)
-        result = {"error": safe_msg}
+        result = {"error": safe_msg, "_error_type": "pipeline", "_stack": safe_tb}
 
     # ── Update the DB record with results ────────────────────────────
     try:
@@ -361,8 +367,46 @@ async def _run_pipeline_background(
                 row.title = result.get("title", topic)
 
             row.updated_at = datetime.now(timezone.utc)
+
+            # ── Persist admin-visible artefacts ──────────────────────
+            import json as _json
+            if result.get("_script_text"):
+                row.script_text = result["_script_text"]
+            if result.get("_metadata"):
+                try:
+                    row.metadata_json = _json.dumps(result["_metadata"])
+                except Exception:
+                    pass
+            if result.get("_voice_id"):
+                row.voice_id = result["_voice_id"]
+            if result.get("_pipeline_steps"):
+                try:
+                    row.pipeline_log_json = _json.dumps(result["_pipeline_steps"])
+                except Exception:
+                    pass
+
             await db.commit()
             logger.info("Updated VideoRecord %s → status=%s", record_id, row.status)
+
+            # ── Admin events: video outcome ──────────────────────────
+            if row.status == "failed":
+                await emit_event(db, "video_failed", user_id=user_id, video_id=record_id, meta={"error": (row.error_message or "")[:200]})
+                # ── Capture to platform_errors table ─────────────────
+                from backend.errors import capture_error
+                await capture_error(
+                    db,
+                    result.get("_error_type", "pipeline"),
+                    message=row.error_message or "Unknown pipeline error",
+                    stack=result.get("_stack"),
+                    user_id=user_id,
+                    video_id=record_id,
+                )
+            elif row.status == "posted":
+                await emit_event(db, "video_completed", user_id=user_id, video_id=record_id, meta={"title": row.title})
+                await emit_event(db, "upload_success", user_id=user_id, video_id=record_id, meta={"youtube_id": row.youtube_video_id})
+            elif row.status == "completed":
+                await emit_event(db, "video_completed", user_id=user_id, video_id=record_id, meta={"title": row.title})
+            await db.commit()
 
             # ── Phase 7: Save to content memory on success ───────────
             if row.status in ("completed", "posted"):
@@ -508,11 +552,15 @@ def _run_pipeline_locked(
 ) -> dict:
     """Inner pipeline function — runs under ``_pipeline_lock``."""
 
+    # Pipeline step timestamps for admin inspection
+    _pipeline_steps: list[dict] = []
+
     def _report(step: str, pct: int) -> None:
         """Update in-memory progress for real-time polling."""
         if record_id and record_id in _progress_store:
             _progress_store[record_id]["step"] = step
             _progress_store[record_id]["pct"] = pct
+        _pipeline_steps.append({"step": step, "pct": pct, "ts": time.time()})
 
     # Ensure the top-level project dir is on sys.path so we can import
     # the Phase 1 modules (config, script_generator, etc.)
@@ -564,6 +612,7 @@ def _run_pipeline_locked(
             script_kwargs["performance_profile"] = _perf_profile
         script = script_generator.generate_script(topic, **script_kwargs)
         (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
+        result["_script_text"] = script
         logger.info("Pipeline step 1/5: Script generated (%d chars)", len(script))
         _report("Script ready", 15)
 
@@ -580,6 +629,7 @@ def _run_pipeline_locked(
             meta_kwargs["performance_profile"] = _perf_profile
         metadata = script_generator.generate_metadata(script, topic, **meta_kwargs)
         result["title"] = metadata.get("title", topic)
+        result["_metadata"] = metadata
         logger.info("Pipeline step 2/5: Metadata ready — title: %s", result["title"])
         _report("Metadata ready", 22)
 
@@ -603,6 +653,7 @@ def _run_pipeline_locked(
             voice_kwargs["style"] = variation_ctx.voice_params.style
 
         audio_path = voiceover_mod.generate_voiceover(script, **voice_kwargs)
+        result["_voice_id"] = voiceover_mod.DEFAULT_VOICE_ID
         logger.info("Pipeline step 3/5: Voiceover saved → %s", audio_path)
         _report("Voiceover ready", 35)
 
@@ -742,6 +793,9 @@ def _run_pipeline_locked(
     # ── Adaptive learning: attach style choices for ContentPerformance ──
     result["_title_style_used"] = metadata.get("title_style", "")
     result["_hook_mode_used"] = _perf_profile.get("hook_mode", "balanced") if _perf_profile else "balanced"
+
+    # ── Pipeline step log for admin detail view ──────────────────────
+    result["_pipeline_steps"] = _pipeline_steps
 
     # ── Generation summary (Step 6: Output summary) ──────────────────
     _user_prefs = user_api_keys.get("_user_preferences", {})

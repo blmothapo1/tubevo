@@ -118,6 +118,12 @@ async def _run_migrations(conn) -> None:
         ("user_api_keys", "speech_speed", "VARCHAR(10)"),
         # Beta user flag
         ("users", "is_beta", "BOOLEAN DEFAULT FALSE"),
+        # Admin role
+        ("users", "role", "VARCHAR(20) DEFAULT 'user'"),
+        # Credit balance
+        ("users", "credit_balance", "INTEGER DEFAULT 0"),
+        # Login tracking
+        ("users", "last_login_at", "TIMESTAMPTZ"),
         # Adaptive learning — new columns on content_performance
         ("content_performance", "title_style_used", "VARCHAR(30)"),
         ("content_performance", "hook_mode_used", "VARCHAR(20)"),
@@ -125,6 +131,11 @@ async def _run_migrations(conn) -> None:
         ("video_records", "published_at", "TIMESTAMPTZ"),
         # Analytics ingestion — metrics_fetched_at on content_performance
         ("content_performance", "metrics_fetched_at", "TIMESTAMPTZ"),
+        # Admin video detail — artefact columns on video_records
+        ("video_records", "script_text", "TEXT"),
+        ("video_records", "metadata_json", "TEXT"),
+        ("video_records", "voice_id", "VARCHAR(100)"),
+        ("video_records", "pipeline_log_json", "TEXT"),
     ]
 
     for table, column, col_type in migrations:

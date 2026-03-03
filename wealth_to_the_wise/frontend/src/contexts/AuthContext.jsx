@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api, { setTokens, clearTokens, getAccessToken } from '../lib/api';
+import { setTokens, clearTokens, getAccessToken } from '../lib/api';
 
 const AuthContext = createContext(null);
 
@@ -9,11 +9,23 @@ export function AuthProvider({ children }) {
 
   const fetchUser = useCallback(async () => {
     try {
-      const { data } = await api.get('/auth/me');
+      // Use raw fetch with the current access token — avoids axios interceptors
+      // that can race or redirect on stale refresh-token scenarios.
+      const token = getAccessToken();
+      const res = await fetch('/auth/me', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
       setUser(data);
+      return data;               // ← return so callers can inspect
     } catch {
       setUser(null);
       clearTokens();
+      return null;
     } finally {
       setLoading(false);
     }
@@ -28,14 +40,38 @@ export function AuthProvider({ children }) {
   }, [fetchUser]);
 
   async function login(email, password) {
-    const { data } = await api.post('/auth/login', { email, password });
+    // Use raw fetch for login — bypasses axios interceptors which can
+    // interfere when stale tokens exist in localStorage.
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Login failed.' }));
+      const error = new Error(err.detail || 'Login failed.');
+      error.response = { status: res.status, data: err };
+      throw error;
+    }
+    const data = await res.json();
     setTokens(data.access_token, data.refresh_token);
-    await fetchUser();
-    return data;
+    const me = await fetchUser();
+    return me;                   // return the user profile, not the token blob
   }
 
   async function signup(email, password, full_name) {
-    const { data } = await api.post('/auth/signup', { email, password, full_name });
+    const res = await fetch('/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, full_name }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Signup failed.' }));
+      const error = new Error(err.detail || 'Signup failed.');
+      error.response = { status: res.status, data: err };
+      throw error;
+    }
+    const data = await res.json();
     return data;
   }
 

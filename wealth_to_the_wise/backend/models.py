@@ -48,15 +48,24 @@ class User(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_beta: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # ── Role (admin support) ─────────────────────────────────────────
+    role: Mapped[str] = mapped_column(String(20), default="user")
+
     # ── Billing / plan (Item 6 will expand) ──────────────────────────
     plan: Mapped[str] = mapped_column(String(20), default="free")
     stripe_customer_id: Mapped[str | None] = mapped_column(
         String(64), nullable=True, unique=True, index=True,
     )
+    credit_balance: Mapped[int] = mapped_column(Integer, default=0)
 
     # ── Password-reset token ─────────────────────────────────────────
     reset_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
     reset_token_expires: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+
+    # ── Login tracking ───────────────────────────────────────────────
+    last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
     )
 
@@ -101,6 +110,12 @@ class VideoRecord(Base):
     # ── Pipeline progress (Phase 6 — UX polish) ─────────────────────
     progress_step: Mapped[str | None] = mapped_column(String(100), nullable=True)
     progress_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # ── Admin-visible artefacts ──────────────────────────────────────
+    script_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    voice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    pipeline_log_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Phase 5 — Subtitle artefacts ─────────────────────────────────
     srt_path: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -454,3 +469,113 @@ class WaitlistSignup(Base):
 
     def __repr__(self) -> str:
         return f"<WaitlistSignup {self.email} kit={self.kit_sync_status}>"
+
+
+class AdminEvent(Base):
+    """Lightweight event log for the admin activity feed.
+
+    Event types:
+      user_signup, video_started, video_completed, video_failed,
+      upload_success, upload_failed
+    """
+
+    __tablename__ = "admin_events"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    type: Mapped[str] = mapped_column(
+        String(30), nullable=False, index=True,
+    )
+    user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True, index=True,
+    )
+    video_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("video_records.id"), nullable=True,
+    )
+    # Arbitrary JSON payload (user email, error message, etc.)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<AdminEvent {self.type} user={self.user_id} at={self.created_at}>"
+
+
+class AdminAuditLog(Base):
+    """Immutable audit trail for every admin action.
+
+    Rows are INSERT-only — never updated or deleted.
+    """
+
+    __tablename__ = "admin_audit_logs"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    # The admin who performed the action
+    admin_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True,
+    )
+    # The user who was the target of the action (if applicable)
+    target_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True, index=True,
+    )
+    # Action performed: change_role, grant_credits, disable_user, enable_user
+    action: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    # JSON details: {"old_role": "user", "new_role": "admin"} etc.
+    details_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<AdminAuditLog admin={self.admin_id} action={self.action} target={self.target_user_id}>"
+
+
+class PlatformError(Base):
+    """Centralised error log for pipeline failures, API errors, and system issues.
+
+    Provides a single table admins can browse, filter, resolve, and link
+    back to users/videos.
+    """
+
+    __tablename__ = "platform_errors"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True, index=True,
+    )
+    video_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("video_records.id"), nullable=True, index=True,
+    )
+
+    # Category: pipeline | upload | auth | api | system
+    type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+
+    # Human-readable one-liner (first 500 chars of the exception message)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Full stack trace (sanitised — no API keys)
+    stack: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Admin triage
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    resolved_by: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True,
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<PlatformError {self.type} resolved={self.resolved} at={self.created_at}>"
