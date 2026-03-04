@@ -148,12 +148,16 @@ class S3Storage(BaseStorage):
 # ── Factory ──────────────────────────────────────────────────────────
 
 def _guard_local_storage_in_production() -> None:
-    """Fail fast if production is running with local storage.
+    """Warn if production is running with local storage.
 
     Ephemeral filesystems (Railway, Heroku, Fly.io) lose data on every
-    deploy — artifacts MUST go to durable object storage.
+    deploy — artifacts SHOULD go to durable object storage.
 
-    Only triggers when ``ENV`` (or ``APP_ENV``) is explicitly
+    Logs a loud warning rather than crashing, because videos are uploaded
+    to YouTube immediately and local files only need to survive within a
+    single deployment cycle.
+
+    Only checks when ``ENV`` (or ``APP_ENV``) is explicitly
     ``"production"``.  Skipped entirely during pytest runs.
     """
     # Allow local storage inside tests
@@ -169,11 +173,10 @@ def _guard_local_storage_in_production() -> None:
     provider = os.environ.get("STORAGE_PROVIDER", "local").lower()
 
     if is_production and provider == "local":
-        raise RuntimeError(
-            "FATAL: STORAGE_PROVIDER=local is not allowed in production. "
-            "Set STORAGE_PROVIDER=s3 and configure STORAGE_BUCKET, "
-            "STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY (and optionally "
-            "STORAGE_ENDPOINT for R2/GCS)."
+        logger.warning(
+            "⚠️  STORAGE_PROVIDER=local in production. Artifacts live on the "
+            "ephemeral filesystem and will be lost on redeploy. "
+            "Set STORAGE_PROVIDER=s3 + STORAGE_BUCKET for durable storage."
         )
 
 

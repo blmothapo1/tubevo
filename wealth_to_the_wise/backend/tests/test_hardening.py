@@ -134,8 +134,9 @@ class TestStorageAbstraction:
         with pytest.raises(StorageUploadError):
             store.upload("videos/x.mp4", Path("/nonexistent/file.mp4"))
 
-    def test_production_local_storage_blocked(self):
-        """STORAGE_PROVIDER=local + ENV=production → RuntimeError."""
+    def test_production_local_storage_warns(self):
+        """STORAGE_PROVIDER=local + ENV=production → warning (not crash)."""
+        import logging
         from backend.storage import _guard_local_storage_in_production
 
         env = os.environ.copy()
@@ -143,8 +144,10 @@ class TestStorageAbstraction:
         env["ENV"] = "production"
         env["STORAGE_PROVIDER"] = "local"
         with patch.dict(os.environ, env, clear=True):
-            with pytest.raises(RuntimeError, match="STORAGE_PROVIDER=local is not allowed"):
-                _guard_local_storage_in_production()
+            with patch("backend.storage.logger") as mock_logger:
+                _guard_local_storage_in_production()  # should NOT raise
+                mock_logger.warning.assert_called_once()
+                assert "STORAGE_PROVIDER=local" in mock_logger.warning.call_args[0][0]
 
     def test_dev_local_storage_allowed(self):
         """STORAGE_PROVIDER=local + ENV not set → no error."""
