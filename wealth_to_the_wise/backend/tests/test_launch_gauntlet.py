@@ -263,7 +263,7 @@ def test_video_records_composite_index():
 
     table = VideoRecord.__table__
     index_columns = set()
-    for idx in table.indexes:
+    for idx in getattr(table, "indexes", set()):
         cols = tuple(c.name for c in idx.columns)
         index_columns.add(cols)
 
@@ -284,7 +284,7 @@ def test_generate_endpoint_rate_limited():
     # is wrapped or if the source mentions limiter
     from backend.routers.videos import router
     for route in router.routes:
-        if hasattr(route, "path") and route.path == "/generate":
+        if hasattr(route, "path") and getattr(route, "path") == "/generate":
             # Route exists — the @limiter.limit decorator is applied at module level
             break
     # Also verify the limit string exists in the file

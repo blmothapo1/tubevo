@@ -410,8 +410,8 @@ async def _run_pipeline_background(
                 row.error_category = result.get("_error_category", "unknown")
             else:
                 # ── Persist artifacts to durable storage BEFORE marking success ──
+                from backend.storage import get_storage, StorageUploadError
                 try:
-                    from backend.storage import get_storage, StorageUploadError
                     _store = get_storage()
 
                     _file_path = result.get("file_path")

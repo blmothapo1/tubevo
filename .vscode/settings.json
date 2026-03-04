@@ -1,4 +1,8 @@
 {
+  "python.defaultInterpreterPath": "${workspaceFolder}/wealth_to_the_wise/.venv311/bin/python",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/wealth_to_the_wise"
+  ],
   "python.analysis.exclude": [
     "/opt/homebrew/Cellar/python@3.13/**"
   ]
