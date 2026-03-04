@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base
@@ -85,6 +85,12 @@ class VideoRecord(Base):
     """A generated / uploaded video belonging to a user."""
 
     __tablename__ = "video_records"
+    __table_args__ = (
+        # Composite index for the hot quota query:
+        #   SELECT count(*) WHERE user_id = ? AND created_at >= ? AND status NOT IN (?)
+        # Also speeds up history listing and stale-job sweeps.
+        Index("ix_video_user_created_status", "user_id", "created_at", "status"),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=_new_uuid,
@@ -106,6 +112,10 @@ class VideoRecord(Base):
     youtube_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     thumbnail_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ── Error classification (Phase 2 — typed pipeline errors) ───────
+    # One of: api_quota, api_auth, external_service, render, upload, timeout, unknown
+    error_category: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     # ── Pipeline progress (Phase 6 — UX polish) ─────────────────────
     progress_step: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -141,8 +151,7 @@ class OAuthToken(Base):
     """Stored OAuth2 credentials for a user's connected provider (e.g. YouTube/Google).
 
     Each user can have at most one connection per provider.
-    The refresh_token is encrypted at rest (handled at the application layer
-    before writing; for now stored as-is — encryption TODO).
+    Tokens are encrypted at rest via Fernet (see ``backend.encryption``).
     """
 
     __tablename__ = "oauth_tokens"
@@ -191,8 +200,7 @@ class UserApiKeys(Base):
     """Per-user API keys for external services (BYOK model).
 
     Users provide their own OpenAI, ElevenLabs, and Pexels keys.
-    Keys are stored in the DB (encrypted at rest via DB-level encryption
-    in production; application-layer encryption TODO).
+    Keys are encrypted at rest via Fernet (see ``backend.encryption``).
     """
 
     __tablename__ = "user_api_keys"
@@ -204,7 +212,7 @@ class UserApiKeys(Base):
         String(36), ForeignKey("users.id"), unique=True, nullable=False, index=True,
     )
 
-    # ── API Keys (stored as-is; encryption TODO) ─────────────────────
+    # ── API Keys (encrypted via Fernet before storage) ────────────────
     openai_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     elevenlabs_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     elevenlabs_voice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)

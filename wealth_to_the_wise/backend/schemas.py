@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 # ── Generic ──────────────────────────────────────────────────────────
@@ -148,11 +148,48 @@ class UserApiKeysResponse(BaseModel):
 
 
 class UpdateApiKeysRequest(BaseModel):
-    """PUT /api/keys body — any field left None is not changed."""
+    """PUT /api/keys body — any field left None is not changed.
+
+    Basic format validation prevents users from accidentally saving
+    garbage strings.  Send an empty string ``""`` to clear a key.
+    """
     openai_api_key: str | None = Field(None, max_length=200)
     elevenlabs_api_key: str | None = Field(None, max_length=200)
     elevenlabs_voice_id: str | None = Field(None, max_length=100)
     pexels_api_key: str | None = Field(None, max_length=200)
+
+    @field_validator("openai_api_key")
+    @classmethod
+    def validate_openai_key(cls, v: str | None) -> str | None:
+        if v is not None and v != "":
+            # OpenAI keys start with "sk-" and are 20+ chars
+            if not v.startswith("sk-") or len(v) < 20:
+                raise ValueError(
+                    "OpenAI API key should start with 'sk-' and be at least 20 characters."
+                )
+        return v
+
+    @field_validator("elevenlabs_api_key")
+    @classmethod
+    def validate_elevenlabs_key(cls, v: str | None) -> str | None:
+        if v is not None and v != "":
+            # ElevenLabs keys are hex-like, at least 20 chars
+            if len(v) < 20:
+                raise ValueError(
+                    "ElevenLabs API key should be at least 20 characters."
+                )
+        return v
+
+    @field_validator("pexels_api_key")
+    @classmethod
+    def validate_pexels_key(cls, v: str | None) -> str | None:
+        if v is not None and v != "":
+            # Pexels keys are alphanumeric, at least 20 chars
+            if len(v) < 20:
+                raise ValueError(
+                    "Pexels API key should be at least 20 characters."
+                )
+        return v
 
 
 # ── User Preferences (Channel Intelligence) ─────────────────────────

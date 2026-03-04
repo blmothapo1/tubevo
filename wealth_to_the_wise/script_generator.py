@@ -14,9 +14,10 @@ from __future__ import annotations
 import logging
 import time
 
-from openai import OpenAI, RateLimitError, APIError, APIConnectionError, APITimeoutError
+from openai import OpenAI, RateLimitError, APIError, APIConnectionError, APITimeoutError, AuthenticationError
 
 import config
+from pipeline_errors import ApiQuotaError, ApiAuthError, ExternalServiceError
 
 logger = logging.getLogger("tubevo.script_generator")
 
@@ -36,8 +37,9 @@ def _get_client() -> OpenAI:
     global _client
     if _client is None:
         if not config.OPENAI_API_KEY:
-            raise RuntimeError(
-                "OPENAI_API_KEY is not set. Add it to your .env file."
+            raise ApiAuthError(
+                "OPENAI_API_KEY is not set. Add it to your .env file.",
+                user_hint="Please add your OpenAI API key in Settings → API Keys.",
             )
         _client = OpenAI(api_key=config.OPENAI_API_KEY)
     return _client
@@ -45,13 +47,19 @@ def _get_client() -> OpenAI:
 
 # ── Phase 8: Retry wrapper for OpenAI calls ─────────────────────────
 
-def _call_openai_with_retry(*, model: str, messages: list, max_tokens: int, temperature: float) -> str:
+def _call_openai_with_retry(*, model: str, messages: list, max_tokens: int, temperature: float, api_key: str | None = None) -> str:
     """Call OpenAI chat completions with exponential-backoff retry.
 
     Retries on RateLimitError, APIError, APIConnectionError, APITimeoutError.
     Non-retriable errors (auth, bad request) are raised immediately.
+
+    If *api_key* is provided, a fresh client is created for this call
+    (BYOK per-user key).  Otherwise the module-level client is used.
     """
-    client = _get_client()
+    if api_key:
+        client = OpenAI(api_key=api_key)
+    else:
+        client = _get_client()
     last_exc: Exception | None = None
 
     for attempt in range(1, _MAX_RETRIES + 1):
@@ -63,13 +71,18 @@ def _call_openai_with_retry(*, model: str, messages: list, max_tokens: int, temp
                 temperature=temperature,
             )
             return response.choices[0].message.content or ""
+        except AuthenticationError as exc:
+            raise ApiAuthError(
+                f"OpenAI authentication failed: {config.mask_secrets(str(exc))}",
+                user_hint="Your OpenAI API key is invalid or revoked. Please update it in Settings → API Keys.",
+            ) from exc
         except _RETRIABLE_EXCEPTIONS as exc:
             last_exc = exc
             # For RateLimitError, check if it's a quota-exhausted error (non-retriable)
             if isinstance(exc, RateLimitError):
                 err_msg = str(exc).lower()
                 if "quota" in err_msg or "billing" in err_msg or "exceeded" in err_msg:
-                    raise RuntimeError(
+                    raise ApiQuotaError(
                         "OpenAI API quota exhausted. Please check your billing at "
                         "https://platform.openai.com/account/billing"
                     ) from exc
@@ -82,7 +95,7 @@ def _call_openai_with_retry(*, model: str, messages: list, max_tokens: int, temp
             time.sleep(delay)
 
     # All retries exhausted
-    raise RuntimeError(
+    raise ExternalServiceError(
         f"OpenAI API call failed after {_MAX_RETRIES} retries: {config.mask_secrets(str(last_exc))}"
     ) from last_exc
 
@@ -294,6 +307,7 @@ def generate_script(
     avoidance_prompt: str = "",
     user_preferences: dict | None = None,
     performance_profile: dict | None = None,
+    api_key: str | None = None,
 ) -> str:
     """Return a ~3-minute video script for the given *topic*.
 
@@ -370,6 +384,7 @@ def generate_script(
         ],
         max_tokens=max_tokens,
         temperature=effective_temp,
+        api_key=api_key,
     )
 
     logger.info("Script generated (temp=%.2f, avoidance=%d chars)", effective_temp, len(avoidance_prompt))
@@ -386,6 +401,7 @@ def generate_metadata(
     avoidance_prompt: str = "",
     user_preferences: dict | None = None,
     performance_profile: dict | None = None,
+    api_key: str | None = None,
 ) -> dict:
     """Generate a YouTube title, SEO description, and tags from a
     finished script. Returns ``{"title": ..., "description": ..., "tags": [...]}``.
@@ -449,6 +465,7 @@ def generate_metadata(
         ],
         max_tokens=600,
         temperature=effective_temp,
+        api_key=api_key,
     ).strip()
 
     import json

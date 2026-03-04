@@ -32,4 +32,14 @@ async def health_check(request: Request) -> HealthResponse:
     return HealthResponse(status="ok", version="0.1.0", environment=env)
 
 
+@router.get("/health/metrics")
+@limiter.limit("30/minute")
+async def health_metrics(request: Request) -> dict:
+    """Return in-memory p50/p95 latency, request count, and error rate.
 
+    Intended for internal dashboards and alerting.
+    No auth required — data contains no PII, just aggregate counters.
+    """
+    from backend.middleware import get_metrics
+
+    return get_metrics()

@@ -70,14 +70,68 @@ def decrypt(ciphertext: str) -> str:
     """Decrypt a Fernet ciphertext string back to plaintext.
 
     Returns an empty string if decryption fails (e.g. key rotation,
-    corrupted data, or the value was stored before encryption was enabled).
+    corrupted data).  This prevents silently passing garbled ciphertext
+    to external APIs, which would produce confusing auth errors.
     """
     if not ciphertext:
         return ""
     try:
         return _get_fernet().decrypt(ciphertext.encode("utf-8")).decode("utf-8")
     except (InvalidToken, Exception) as e:
-        # If we can't decrypt, the value may be a legacy plaintext key.
-        # Log a warning and return the raw value so existing users aren't locked out.
-        logger.warning("Decryption failed (legacy plaintext key?): %s", type(e).__name__)
-        return ciphertext
+        logger.error(
+            "Decryption failed — this usually means JWT_SECRET_KEY changed "
+            "or the data was corrupted: %s", type(e).__name__,
+        )
+        return ""
+
+
+class DecryptionFailedError(RuntimeError):
+    """Raised when a decrypt() call returns '' for a non-empty ciphertext.
+
+    This is a typed, catchable signal that prevents pipelines from
+    silently continuing with invalid API keys or tokens.
+    """
+
+    def __init__(self, field_label: str) -> None:
+        self.field_label = field_label
+        super().__init__(
+            f"Decryption failed for '{field_label}'. "
+            "JWT_SECRET_KEY may have changed or the stored value is corrupted."
+        )
+
+
+def decrypt_or_raise(ciphertext: str | None, *, field: str) -> str:
+    """Decrypt *ciphertext*, raising ``DecryptionFailedError`` on failure.
+
+    Use this in pipeline-critical paths where an empty string must NOT be
+    passed silently to an external API.
+
+    Parameters
+    ----------
+    ciphertext : str | None
+        The Fernet ciphertext (or None / empty string).
+    field : str
+        Human-readable label used in the error message (e.g.
+        ``"openai_api_key"``).  Never include the actual secret.
+
+    Returns
+    -------
+    str
+        The decrypted plaintext.
+
+    Raises
+    ------
+    DecryptionFailedError
+        If *ciphertext* is non-empty but ``decrypt()`` returned ``""``.
+    """
+    if not ciphertext:
+        return ""
+    result = decrypt(ciphertext)
+    if result == "":
+        logger.error(
+            "decrypt_or_raise: decryption returned '' for field '%s' — "
+            "refusing to continue with invalid credentials.",
+            field,
+        )
+        raise DecryptionFailedError(field)
+    return result

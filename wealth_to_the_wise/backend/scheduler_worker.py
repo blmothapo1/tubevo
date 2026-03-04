@@ -22,13 +22,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 
 from backend.database import async_session_factory
-from backend.encryption import decrypt
+from backend.encryption import decrypt, decrypt_or_raise
 from backend.models import OAuthToken, PostingSchedule, User, UserApiKeys, VideoRecord
 from backend.routers.schedules import FREQUENCY_DELTAS
-from backend.routers.videos import (
-    PLAN_MONTHLY_LIMITS,
-    _run_pipeline_background,
-)
+from backend.routers.videos import _run_pipeline_background
+from backend.utils import PLAN_MONTHLY_LIMITS
 
 logger = logging.getLogger("tubevo.backend.scheduler_worker")
 
@@ -125,6 +123,7 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
         .where(
             VideoRecord.user_id == user.id,
             VideoRecord.created_at >= month_start,
+            VideoRecord.status.notin_(["failed"]),
         )
     )
     monthly_count = (await db.execute(count_stmt)).scalar() or 0
@@ -146,9 +145,9 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
     )
     user_keys = keys_result.scalar_one_or_none()
 
-    openai_key = decrypt(user_keys.openai_api_key) if user_keys and user_keys.openai_api_key else ""
-    elevenlabs_key = decrypt(user_keys.elevenlabs_api_key) if user_keys and user_keys.elevenlabs_api_key else ""
-    pexels_key = decrypt(user_keys.pexels_api_key) if user_keys and user_keys.pexels_api_key else ""
+    openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+    elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
+    pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
 
     if not openai_key or not elevenlabs_key:
         logger.warning(
@@ -165,6 +164,10 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
         "elevenlabs_api_key": elevenlabs_key,
         "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
         "pexels_api_key": pexels_key,
+        # Video production preferences (match generate_video / regenerate)
+        "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
+        "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
+        "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
     }
 
     # Get YouTube tokens
@@ -175,8 +178,8 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
         )
     )
     oauth_token = oauth_result.scalar_one_or_none()
-    yt_access_token = oauth_token.access_token if oauth_token else None
-    yt_refresh_token = oauth_token.refresh_token if oauth_token else None
+    yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token") if oauth_token else None
+    yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token") if oauth_token else None
 
     # Pick the topic
     idx = schedule.topic_index % len(topics)

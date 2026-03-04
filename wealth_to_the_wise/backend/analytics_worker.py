@@ -27,6 +27,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import async_session_factory
+from backend.encryption import decrypt, decrypt_or_raise
 from backend.models import ContentPerformance, OAuthToken, VideoRecord
 
 logger = logging.getLogger("tubevo.backend.analytics_worker")
@@ -207,8 +208,8 @@ async def _fetch_and_update_single(
         fetch_video_metrics,
         youtube_video_id=video.youtube_video_id,
         channel_id=oauth_token.channel_id,
-        access_token=oauth_token.access_token,
-        refresh_token=oauth_token.refresh_token,
+        access_token=decrypt_or_raise(oauth_token.access_token, field="yt_access_token"),
+        refresh_token=decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token") if oauth_token.refresh_token else None,
         client_id=settings.google_client_id,
         client_secret=settings.google_client_secret,
         granted_scopes=oauth_token.scopes,

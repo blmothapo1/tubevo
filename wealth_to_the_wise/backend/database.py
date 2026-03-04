@@ -42,10 +42,58 @@ def _is_sqlite(url: str) -> bool:
     return "sqlite" in url
 
 
+def _detect_dialect(url: str) -> str:
+    """Return a safe dialect label for logging (never includes credentials)."""
+    if "sqlite" in url:
+        return "sqlite"
+    if "postgres" in url:
+        return "postgresql"
+    return url.split("://")[0] if "://" in url else "unknown"
+
+
+def _guard_sqlite_in_production(url: str) -> None:
+    """Fail fast if production is running with SQLite.
+
+    SQLite serialises concurrent writes and has no network-level access
+    control — it must never be used in a production deployment.
+
+    The guard only triggers when ``ENV`` (or ``APP_ENV``) is **explicitly**
+    set to ``"production"``.  This avoids false positives during local
+    development (where neither variable is typically set) and in test
+    runs (where ``PYTEST_CURRENT_TEST`` is present).
+    """
+    import os
+
+    # Always allow SQLite when running inside pytest
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        logger.debug("PYTEST_CURRENT_TEST detected — skipping SQLite production guard")
+        return
+
+    env = (
+        os.environ.get("ENV", "")
+        or os.environ.get("APP_ENV", "")
+    ).strip().lower()
+
+    is_production = env == "production"
+    dialect = _detect_dialect(url)
+
+    logger.info("Database dialect detected: %s (ENV=%r, production=%s)", dialect, env, is_production)
+
+    if is_production and dialect == "sqlite":
+        raise RuntimeError(
+            "FATAL: SQLite is not allowed in production. "
+            "Set DATABASE_URL to a PostgreSQL connection string "
+            "(e.g. postgresql://user:pass@host/db) or enable debug mode."
+        )
+
+
 # ── Engine + session factory ─────────────────────────────────────────
 
 _db_url = _resolve_database_url(get_settings().database_url)
 _using_sqlite = _is_sqlite(_db_url)
+
+# ── Production guard: block SQLite in production ─────────────────────
+_guard_sqlite_in_production(_db_url)
 
 engine = create_async_engine(
     _db_url,
@@ -86,89 +134,58 @@ async def get_db() -> AsyncSession:  # type: ignore[misc]
 
 # ── Startup helper ───────────────────────────────────────────────────
 
-async def _run_migrations(conn) -> None:
-    """Add missing columns to existing tables.
+async def _run_alembic_upgrade() -> None:
+    """Run ``alembic upgrade head`` programmatically at startup.
 
-    ``Base.metadata.create_all`` only creates *new* tables — it won't add
-    columns that were added to the ORM models after the table was first
-    created.  This function uses ``ALTER TABLE … ADD COLUMN IF NOT EXISTS``
-    (PostgreSQL 9.6+) to patch the schema forward without data loss.
-
-    For SQLite (dev only) we use a try/except approach since SQLite
-    doesn't support ``IF NOT EXISTS`` on ``ADD COLUMN``.
+    This replaces the old hand-rolled ALTER TABLE migration list with
+    proper Alembic version tracking.  If the DB has never been stamped,
+    we stamp the baseline first so only *new* migrations run.
     """
-    from sqlalchemy import text
+    import os
+    from pathlib import Path
 
-    is_pg = not _using_sqlite
+    from alembic import command
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+    from sqlalchemy import inspect
 
-    # (table, column, type[, default])
-    migrations: list[tuple[str, str, str]] = [
-        # User model additions
-        ("users", "stripe_customer_id", "VARCHAR(64)"),
-        ("users", "reset_token", "VARCHAR(64)"),
-        ("users", "reset_token_expires", "TIMESTAMPTZ"),
-        # Phase 6 — pipeline progress tracking
-        ("video_records", "progress_step", "VARCHAR(100)"),
-        ("video_records", "progress_pct", "INTEGER DEFAULT 0"),
-        # Phase 5 — SRT path on video records
-        ("video_records", "srt_path", "TEXT"),
-        # Phase 4 & 5 — video production preferences on user_api_keys
-        ("user_api_keys", "subtitle_style", "VARCHAR(30) DEFAULT 'bold_pop'"),
-        ("user_api_keys", "burn_captions", "BOOLEAN DEFAULT TRUE"),
-        ("user_api_keys", "speech_speed", "VARCHAR(10)"),
-        # Beta user flag
-        ("users", "is_beta", "BOOLEAN DEFAULT FALSE"),
-        # Admin role
-        ("users", "role", "VARCHAR(20) DEFAULT 'user'"),
-        # Credit balance
-        ("users", "credit_balance", "INTEGER DEFAULT 0"),
-        # Login tracking
-        ("users", "last_login_at", "TIMESTAMPTZ"),
-        # Adaptive learning — new columns on content_performance
-        ("content_performance", "title_style_used", "VARCHAR(30)"),
-        ("content_performance", "hook_mode_used", "VARCHAR(20)"),
-        # Analytics ingestion — published_at on video_records
-        ("video_records", "published_at", "TIMESTAMPTZ"),
-        # Analytics ingestion — metrics_fetched_at on content_performance
-        ("content_performance", "metrics_fetched_at", "TIMESTAMPTZ"),
-        # Admin video detail — artefact columns on video_records
-        ("video_records", "script_text", "TEXT"),
-        ("video_records", "metadata_json", "TEXT"),
-        ("video_records", "voice_id", "VARCHAR(100)"),
-        ("video_records", "pipeline_log_json", "TEXT"),
-    ]
+    # Locate alembic.ini relative to this file
+    ini_path = str(Path(__file__).resolve().parent.parent / "alembic.ini")
+    if not os.path.exists(ini_path):
+        logger.warning("alembic.ini not found at %s — skipping migrations", ini_path)
+        return
 
-    for table, column, col_type in migrations:
-        if is_pg:
-            stmt = text(
-                f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"
-            )
-            await conn.execute(stmt)
-            logger.info("Migration: ensured %s.%s exists", table, column)
-        else:
-            # SQLite: no IF NOT EXISTS — just catch the "duplicate column" error
-            try:
-                await conn.execute(
-                    text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
-                )
-                logger.info("Migration: added %s.%s", table, column)
-            except Exception:
-                pass  # column already exists
+    alembic_cfg = Config(ini_path)
 
-    # Add unique index on stripe_customer_id if it doesn't exist (PostgreSQL)
-    if is_pg:
-        await conn.execute(text(
-            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_stripe_customer_id "
-            "ON users (stripe_customer_id) WHERE stripe_customer_id IS NOT NULL"
-        ))
-        logger.info("Migration: ensured ix_users_stripe_customer_id index exists")
+    # Check whether the alembic_version table already exists
+    async with engine.connect() as conn:
+        def _check_and_stamp(sync_conn):
+            ctx = MigrationContext.configure(sync_conn)
+            current_rev = ctx.get_current_revision()
+            if current_rev is None:
+                # First run on this DB — check if tables already exist
+                insp = inspect(sync_conn)
+                tables = insp.get_table_names()
+                if "users" in tables:
+                    # Existing DB that predates Alembic — stamp the baseline
+                    logger.info("Existing database detected — stamping Alembic baseline (0001)")
+                    command.stamp(alembic_cfg, "0001")
+                # If no tables exist, create_all() below will make them,
+                # then upgrade head will apply all migrations.
+
+        await conn.run_sync(_check_and_stamp)
+
+    # Now run any pending migrations up to head
+    logger.info("Running Alembic migrations → head")
+    command.upgrade(alembic_cfg, "head")
+    logger.info("Alembic migrations complete.")
 
 
 async def create_tables() -> None:
-    """Create all tables that don't exist yet, then run column migrations."""
+    """Create all tables that don't exist yet, then run Alembic migrations."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        await _run_migrations(conn)
+    await _run_alembic_upgrade()
     logger.info("Database tables verified / created / migrated.")
 
 

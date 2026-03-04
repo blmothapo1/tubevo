@@ -21,23 +21,36 @@ import sys
 import threading
 import time
 import traceback
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
 from backend.database import async_session_factory, get_db
-from backend.encryption import decrypt
+from backend.encryption import decrypt, decrypt_or_raise
 from backend.events import emit_event
 from backend.models import ContentMemory, ContentPerformance, OAuthToken, User, UserApiKeys, UserPreferences, VideoRecord
 from backend.rate_limit import limiter
+from backend.utils import PLAN_MONTHLY_LIMITS
 
 logger = logging.getLogger("tubevo.backend.videos")
+
+# ── Lazy import of PipelineError at module level (safe — pure Python file)
+# This lets the except clause classify typed errors from the pipeline modules.
+try:
+    _project_root = str(Path(__file__).resolve().parent.parent.parent)
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+    from pipeline_errors import PipelineError
+except ImportError:
+    # Graceful fallback — treat all errors as unclassified
+    PipelineError = None  # type: ignore[assignment,misc]
 
 router = APIRouter(prefix="/api/videos", tags=["Videos"])
 
@@ -49,25 +62,61 @@ PIPELINE_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
 # If a record has been "generating" for longer than this, mark it failed.
 STALE_JOB_MINUTES = 15
 
+# YouTube video category ID (22 = "People & Blogs")
+DEFAULT_VIDEO_CATEGORY = os.environ.get("DEFAULT_VIDEO_CATEGORY", "22")
+
 # ── In-memory progress tracker (Phase 6) ────────────────────────────
 # Keyed by record_id → { "step": str, "pct": int, "started_at": float }
 # This avoids hammering the DB on every sub-step update.
 _progress_store: dict[str, dict] = {}
 
 # ── Plan-based monthly video limits ─────────────────────────────────
-PLAN_MONTHLY_LIMITS: dict[str, int] = {
-    "free": 1,
-    "starter": 10,
-    "pro": 50,
-    "agency": 999_999,   # effectively unlimited
-}
-
+# Canonical definition lives in backend.utils — imported above.
 
 # ── Schemas ──────────────────────────────────────────────────────────
 
 class GenerateRequest(BaseModel):
     topic: str = Field(..., min_length=3, max_length=300)
     auto: bool = True  # full-auto by default
+
+    @field_validator("topic")
+    @classmethod
+    def sanitize_topic(cls, v: str) -> str:
+        """Strip control characters, collapse whitespace, and reject
+        obvious prompt-injection attempts."""
+        import re
+        import unicodedata
+
+        # Remove control characters (except newline/tab which we'll collapse)
+        cleaned = "".join(
+            ch for ch in v
+            if unicodedata.category(ch)[0] != "C" or ch in ("\n", "\t")
+        )
+        # Collapse all whitespace to single spaces
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+        # Reject if the "topic" looks like a prompt-injection attempt:
+        # multi-line system/assistant role overrides, or very long blocks
+        # of instructions.
+        _injection_patterns = [
+            r"(?i)\bsystem\s*:",
+            r"(?i)\bassistant\s*:",
+            r"(?i)\bignore\s+(all\s+)?previous\b",
+            r"(?i)\bforget\s+(all\s+)?instructions\b",
+            r"(?i)\byou\s+are\s+now\b",
+            r"(?i)\bact\s+as\b",
+        ]
+        for pattern in _injection_patterns:
+            if re.search(pattern, cleaned):
+                raise ValueError(
+                    "Topic contains disallowed content. "
+                    "Please enter a simple video topic."
+                )
+
+        if len(cleaned) < 3:
+            raise ValueError("Topic must be at least 3 characters after cleanup.")
+
+        return cleaned
 
 
 class GenerateResponse(BaseModel):
@@ -88,6 +137,7 @@ class VideoHistoryItem(BaseModel):
     youtube_url: str | None = None
     thumbnail_path: str | None = None
     error_message: str | None = None
+    error_category: str | None = None
     progress_step: str | None = None
     progress_pct: int = 0
     created_at: str
@@ -130,9 +180,11 @@ async def generate_video(
     user_keys = keys_result.scalar_one_or_none()
 
     # Decrypt stored keys (encrypted at rest via Fernet)
-    openai_key = decrypt(user_keys.openai_api_key) if user_keys and user_keys.openai_api_key else ""
-    elevenlabs_key = decrypt(user_keys.elevenlabs_api_key) if user_keys and user_keys.elevenlabs_api_key else ""
-    pexels_key = decrypt(user_keys.pexels_api_key) if user_keys and user_keys.pexels_api_key else ""
+    # Use decrypt_or_raise for pipeline-critical keys so a silent '' cannot
+    # propagate into external API calls.
+    openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+    elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
+    pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
 
     if not openai_key:
         raise HTTPException(
@@ -171,8 +223,8 @@ async def generate_video(
 
     # We still allow generation without YouTube connected —
     # the video will be built but not uploaded.
-    yt_access_token = oauth_token.access_token if oauth_token else None
-    yt_refresh_token = oauth_token.refresh_token if oauth_token else None
+    yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token") if oauth_token else None
+    yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token") if oauth_token else None
 
     # ── Create a "generating" record and commit immediately ──────────
     # We commit *before* spawning the background task so the record is
@@ -325,15 +377,20 @@ async def _run_pipeline_background(
         )
     except asyncio.TimeoutError:
         logger.error("Pipeline timed out after %ds for record %s", PIPELINE_TIMEOUT_SECONDS, record_id)
-        result = {"error": f"Video generation timed out after {PIPELINE_TIMEOUT_SECONDS // 60} minutes.", "_error_type": "pipeline", "_stack": None}
+        result = {"error": f"Video generation timed out after {PIPELINE_TIMEOUT_SECONDS // 60} minutes.", "_error_type": "pipeline", "_error_category": "timeout", "_stack": None}
     except Exception as e:
         tb = traceback.format_exc()
         # Phase 8: mask any API keys that might appear in tracebacks
-        from config import mask_secrets
+        from backend.utils import mask_secrets
         safe_tb = mask_secrets(tb)
         safe_msg = mask_secrets(str(e))
         logger.error("Pipeline background task failed for record %s: %s\n%s", record_id, safe_msg, safe_tb)
-        result = {"error": safe_msg, "_error_type": "pipeline", "_stack": safe_tb}
+        # Phase 2: classify error if it's a typed PipelineError
+        _err_category = "unknown"
+        if PipelineError is not None and isinstance(e, PipelineError):
+            _err_category = e.category
+            safe_msg = e.user_hint  # Use the user-friendly message
+        result = {"error": safe_msg, "_error_type": "pipeline", "_error_category": _err_category, "_stack": safe_tb}
 
     # ── Update the DB record with results ────────────────────────────
     try:
@@ -347,24 +404,73 @@ async def _run_pipeline_background(
             if "error" in result:
                 row.status = "failed"
                 # Phase 8: sanitise error message before DB storage
-                from config import mask_secrets as _mask
+                from backend.utils import mask_secrets as _mask
                 row.error_message = _mask(result["error"])[:2000]
-            elif result.get("youtube_video_id"):
-                row.status = "posted"
-                row.title = result.get("title", topic)
-                row.file_path = result.get("file_path")
-                row.srt_path = result.get("srt_path")
-                row.youtube_video_id = result["youtube_video_id"]
-                row.youtube_url = f"https://www.youtube.com/watch?v={result['youtube_video_id']}"
-                row.published_at = datetime.now(timezone.utc)  # Analytics: mark publish time
-            elif result.get("file_path"):
-                row.status = "completed"
-                row.title = result.get("title", topic)
-                row.file_path = result.get("file_path")
-                row.srt_path = result.get("srt_path")
+                # Phase 2: store typed error category
+                row.error_category = result.get("_error_category", "unknown")
             else:
-                row.status = "completed"
-                row.title = result.get("title", topic)
+                # ── Persist artifacts to durable storage BEFORE marking success ──
+                try:
+                    from backend.storage import get_storage, StorageUploadError
+                    _store = get_storage()
+
+                    _file_path = result.get("file_path")
+                    if _file_path and Path(_file_path).is_file():
+                        _artifact_key = f"videos/{record_id}/{Path(_file_path).name}"
+                        _artifact_url = _store.upload(_artifact_key, Path(_file_path))
+                        result["_artifact_url"] = _artifact_url
+                        logger.info("Artifact stored: %s → %s", _artifact_key, _artifact_url)
+
+                    _thumb_path = result.get("thumbnail_path")
+                    if _thumb_path and Path(_thumb_path).is_file():
+                        _thumb_key = f"thumbnails/{record_id}/{Path(_thumb_path).name}"
+                        _store.upload(_thumb_key, Path(_thumb_path))
+                        logger.info("Thumbnail stored: %s", _thumb_key)
+
+                except StorageUploadError as _sup_err:
+                    # Storage upload failed → mark the job as failed so it doesn't
+                    # consume the user's quota.
+                    logger.error(
+                        "Artifact upload failed for record %s: %s", record_id, _sup_err,
+                    )
+                    row.status = "failed"
+                    row.error_message = f"Artifact storage failed: {_sup_err}"[:2000]
+                    row.error_category = "external_service"
+                    row.updated_at = datetime.now(timezone.utc)
+                    await db.commit()
+
+                    # Capture the error for the admin dashboard
+                    from backend.errors import capture_error as _cap_err
+                    await _cap_err(
+                        db, "storage",
+                        message=str(_sup_err)[:2000],
+                        user_id=user_id,
+                        video_id=record_id,
+                    )
+                    await db.commit()
+                    return
+                except Exception as _store_warn:
+                    # Non-StorageUploadError: log but don't block success
+                    # (e.g. STORAGE_PROVIDER=local in dev — files already on disk)
+                    logger.warning("Artifact storage skipped (non-fatal): %s", _store_warn)
+
+                # ── Now set the success status ───────────────────────
+                if result.get("youtube_video_id"):
+                    row.status = "posted"
+                    row.title = result.get("title", topic)
+                    row.file_path = result.get("file_path")
+                    row.srt_path = result.get("srt_path")
+                    row.youtube_video_id = result["youtube_video_id"]
+                    row.youtube_url = f"https://www.youtube.com/watch?v={result['youtube_video_id']}"
+                    row.published_at = datetime.now(timezone.utc)  # Analytics: mark publish time
+                elif result.get("file_path"):
+                    row.status = "completed"
+                    row.title = result.get("title", topic)
+                    row.file_path = result.get("file_path")
+                    row.srt_path = result.get("srt_path")
+                else:
+                    row.status = "completed"
+                    row.title = result.get("title", topic)
 
             row.updated_at = datetime.now(timezone.utc)
 
@@ -408,6 +514,24 @@ async def _run_pipeline_background(
                 await emit_event(db, "video_completed", user_id=user_id, video_id=record_id, meta={"title": row.title})
             await db.commit()
 
+            # ── Persist refreshed YouTube access token back to DB ────
+            _new_yt_token = result.get("_refreshed_yt_access_token")
+            if _new_yt_token:
+                try:
+                    from backend.encryption import encrypt as _encrypt
+                    yt_stmt = select(OAuthToken).where(
+                        OAuthToken.user_id == user_id,
+                        OAuthToken.provider == "google",
+                    )
+                    yt_row = (await db.execute(yt_stmt)).scalar_one_or_none()
+                    if yt_row:
+                        yt_row.access_token = _encrypt(_new_yt_token)
+                        yt_row.updated_at = datetime.now(timezone.utc)
+                        await db.commit()
+                        logger.info("Persisted refreshed YouTube access token for user %s", user_id)
+                except Exception as yt_persist_err:
+                    logger.warning("Failed to persist refreshed YouTube token (non-fatal): %s", yt_persist_err)
+
             # ── Phase 7: Save to content memory on success ───────────
             if row.status in ("completed", "posted"):
                 try:
@@ -448,6 +572,63 @@ async def _run_pipeline_background(
         # Clean up in-memory progress store
         _progress_store.pop(record_id, None)
 
+    # ── Phase 3: Clean up per-run output directory after successful upload ──
+    # After YouTube upload, the local MP4/clips/thumbnails are no longer needed.
+    # For non-uploaded videos, we keep files for 24 h (handled by _cleanup_old_output_dirs).
+    if result.get("youtube_video_id"):
+        _cleanup_run_dir(record_id)
+
+
+# ── Per-run output directory cleanup ─────────────────────────────────
+
+def _cleanup_run_dir(record_id: str) -> None:
+    """Delete the ``output/{record_id}/`` directory tree.
+
+    Best-effort — never raises.  Logs the outcome.
+    """
+    import shutil
+
+    run_dir = OUTPUT_DIR / record_id
+    if not run_dir.is_dir():
+        return
+    try:
+        shutil.rmtree(run_dir)
+        logger.info("🧹 Cleaned up output directory: %s", run_dir)
+    except Exception as exc:
+        logger.warning("🧹 Failed to clean up %s (non-fatal): %s", run_dir, exc)
+
+
+async def _cleanup_old_output_dirs(max_age_hours: int = 24) -> None:
+    """Remove per-run output directories older than *max_age_hours*.
+
+    Intended to be called periodically (e.g. from the scheduler or
+    lifespan startup) to reclaim disk space on Railway's limited volumes.
+    Directories for videos that were uploaded are already cleaned immediately
+    by ``_cleanup_run_dir``; this catches completed-but-not-uploaded leftovers.
+    """
+    import shutil
+
+    cutoff = time.time() - (max_age_hours * 3600)
+    cleaned = 0
+    try:
+        for child in OUTPUT_DIR.iterdir():
+            if not child.is_dir():
+                continue
+            # Only clean UUID-named dirs (per-run dirs), not "clips", "thumb_*", etc.
+            if len(child.name) < 30:
+                continue
+            try:
+                mtime = child.stat().st_mtime
+                if mtime < cutoff:
+                    shutil.rmtree(child)
+                    cleaned += 1
+            except Exception:
+                pass
+        if cleaned:
+            logger.info("🧹 Cleaned up %d old output directories (>%dh)", cleaned, max_age_hours)
+    except Exception as exc:
+        logger.warning("🧹 Old output dir cleanup failed (non-fatal): %s", exc)
+
 
 # ── Plan-based limit enforcement ─────────────────────────────────────
 
@@ -456,7 +637,9 @@ async def _enforce_plan_limit(user: User, db: AsyncSession) -> None:
     plan = user.plan or "free"
     limit = PLAN_MONTHLY_LIMITS.get(plan, PLAN_MONTHLY_LIMITS["free"])
 
-    # Count videos created this calendar month (regardless of status)
+    # Count videos created this calendar month.
+    # Exclude failed/interrupted jobs so that server restarts and transient
+    # errors don't consume the user's quota.
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
@@ -466,6 +649,7 @@ async def _enforce_plan_limit(user: User, db: AsyncSession) -> None:
         .where(
             VideoRecord.user_id == user.id,
             VideoRecord.created_at >= month_start,
+            VideoRecord.status.notin_(["failed"]),
         )
     )
     count = (await db.execute(count_stmt)).scalar() or 0
@@ -509,11 +693,47 @@ async def _cleanup_stale_jobs(user_id: str, db: AsyncSession) -> None:
         logger.info("Cleaned up %d stale 'generating' jobs for user %s", getattr(result, "rowcount", 0), user_id)
 
 
-# Serialise pipeline runs so that the module-level key patching is thread-safe.
-# Only one video generation runs at a time.  This is acceptable because the
-# pipeline is CPU/IO-heavy and Railway's single-container model doesn't
-# benefit from parallel builds.
-_pipeline_lock = threading.Lock()
+# ── Per-record pipeline locks ─────────────────────────────────────────
+# Allow parallel pipeline runs for DIFFERENT records while preventing
+# duplicate concurrent runs for the SAME record_id.
+# An OrderedDict acts as an LRU cache so that stale entries are evicted
+# once MAX_LOCK_ENTRIES is exceeded.
+_lock_map_guard = threading.Lock()  # protects the dict itself
+_record_locks: OrderedDict[str, threading.Lock] = OrderedDict()
+_MAX_LOCK_ENTRIES = 200  # upper bound; each entry is ~100 bytes
+
+
+def _get_record_lock(record_id: str) -> threading.Lock:
+    """Return (or create) a per-record threading.Lock, with LRU eviction."""
+    with _lock_map_guard:
+        if record_id in _record_locks:
+            # Move to end (most-recently used)
+            _record_locks.move_to_end(record_id)
+            return _record_locks[record_id]
+        # Evict oldest entries if we've hit the cap
+        while len(_record_locks) >= _MAX_LOCK_ENTRIES:
+            _evicted_id, _evicted_lock = _record_locks.popitem(last=False)
+            # Only evict if the lock is not currently held
+            if _evicted_lock.locked():
+                # Put it back and evict the *next* oldest instead
+                _record_locks[_evicted_id] = _evicted_lock
+                _record_locks.move_to_end(_evicted_id, last=False)
+                break
+        lock = threading.Lock()
+        _record_locks[record_id] = lock
+        return lock
+
+
+def _release_record_lock(record_id: str) -> None:
+    """Remove a per-record lock entry after the pipeline finishes."""
+    with _lock_map_guard:
+        lock = _record_locks.pop(record_id, None)
+        # Ensure the lock is released if it's still held (defensive)
+        if lock and lock.locked():
+            try:
+                lock.release()
+            except RuntimeError:
+                pass
 
 
 def _run_pipeline_sync(
@@ -529,10 +749,14 @@ def _run_pipeline_sync(
     Uses per-user API keys (BYOK model) and per-user OAuth tokens
     instead of server-level env vars.
 
-    A threading lock ensures only one pipeline runs at a time so that the
-    module-level key patching doesn't collide across concurrent requests.
+    A per-record lock prevents duplicate concurrent runs for the same
+    record_id while allowing different records to execute in parallel.
     """
-    with _pipeline_lock:
+    rid = record_id or str(int(time.time()))
+    lock = _get_record_lock(rid)
+    if not lock.acquire(blocking=False):
+        raise RuntimeError(f"Pipeline already running for record {rid}")
+    try:
         return _run_pipeline_locked(
             topic=topic,
             user_api_keys=user_api_keys,
@@ -540,6 +764,12 @@ def _run_pipeline_sync(
             yt_refresh_token=yt_refresh_token,
             record_id=record_id,
         )
+    finally:
+        try:
+            lock.release()
+        except RuntimeError:
+            pass
+        _release_record_lock(rid)
 
 
 def _run_pipeline_locked(
@@ -550,7 +780,15 @@ def _run_pipeline_locked(
     yt_refresh_token: str | None,
     record_id: str | None = None,
 ) -> dict:
-    """Inner pipeline function — runs under ``_pipeline_lock``."""
+    """Inner pipeline function — runs under a per-record lock."""
+
+    # ── Per-run output directory (isolate files between concurrent runs) ──
+    run_id = record_id or str(int(time.time()))
+    run_dir = OUTPUT_DIR / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    run_clips_dir = run_dir / "clips"
+    run_clips_dir.mkdir(exist_ok=True)
+    logger.info("Pipeline run directory: %s", run_dir)
 
     # Pipeline step timestamps for admin inspection
     _pipeline_steps: list[dict] = []
@@ -563,21 +801,17 @@ def _run_pipeline_locked(
         _pipeline_steps.append({"step": step, "pct": pct, "ts": time.time()})
 
     # Ensure the top-level project dir is on sys.path so we can import
-    # the Phase 1 modules (config, script_generator, etc.)
+    # the Phase 1 modules (script_generator, voiceover, etc.)
     project_root = str(Path(__file__).resolve().parent.parent.parent)
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
-    # ── Temporarily override env vars with user's keys ───────────────
-    import config as app_config  # noqa: F811 — top-level config.py
-
-    old_openai = getattr(app_config, "OPENAI_API_KEY", None)
-    if not hasattr(app_config, "OPENAI_API_KEY"):
-        setattr(app_config, "OPENAI_API_KEY", None)
-    setattr(app_config, "OPENAI_API_KEY", user_api_keys["openai_api_key"])
+    # Extract per-user API keys for parameter injection (no global mutation)
+    _openai_key = user_api_keys["openai_api_key"]
+    _elevenlabs_key = user_api_keys["elevenlabs_api_key"]
+    _pexels_key = user_api_keys.get("pexels_api_key") or ""
 
     import script_generator
-    script_generator._client = None  # force re-init with new key
 
     result: dict = {"title": topic}
 
@@ -610,8 +844,8 @@ def _run_pipeline_locked(
             script_kwargs["user_preferences"] = _user_prefs
         if _perf_profile:
             script_kwargs["performance_profile"] = _perf_profile
-        script = script_generator.generate_script(topic, **script_kwargs)
-        (OUTPUT_DIR / "latest_script.txt").write_text(script, encoding="utf-8")
+        script = script_generator.generate_script(topic, api_key=_openai_key, **script_kwargs)
+        (run_dir / "latest_script.txt").write_text(script, encoding="utf-8")
         result["_script_text"] = script
         logger.info("Pipeline step 1/5: Script generated (%d chars)", len(script))
         _report("Script ready", 15)
@@ -627,7 +861,7 @@ def _run_pipeline_locked(
             meta_kwargs["user_preferences"] = _user_prefs
         if _perf_profile:
             meta_kwargs["performance_profile"] = _perf_profile
-        metadata = script_generator.generate_metadata(script, topic, **meta_kwargs)
+        metadata = script_generator.generate_metadata(script, topic, api_key=_openai_key, **meta_kwargs)
         result["title"] = metadata.get("title", topic)
         result["_metadata"] = metadata
         logger.info("Pipeline step 2/5: Metadata ready — title: %s", result["title"])
@@ -637,29 +871,24 @@ def _run_pipeline_locked(
         _report("Generating voiceover…", 25)
         logger.info("Pipeline step 3/5: Generating voiceover")
         import voiceover as voiceover_mod
-        old_el_key = voiceover_mod.ELEVENLABS_API_KEY
-        old_el_voice = voiceover_mod.DEFAULT_VOICE_ID
-        voiceover_mod.ELEVENLABS_API_KEY = user_api_keys["elevenlabs_api_key"]
-        if user_api_keys.get("elevenlabs_voice_id"):
-            voiceover_mod.DEFAULT_VOICE_ID = user_api_keys["elevenlabs_voice_id"]
 
         # Phase 7: voice tone variation — pass jittered stability/similarity/style
         voice_kwargs: dict = {
             "speed": float(user_api_keys["speech_speed"]) if user_api_keys.get("speech_speed") else None,
+            "output_path": str(run_dir / "voiceover.mp3"),
+            "api_key": _elevenlabs_key,
         }
+        if user_api_keys.get("elevenlabs_voice_id"):
+            voice_kwargs["voice_id"] = user_api_keys["elevenlabs_voice_id"]
         if variation_ctx:
             voice_kwargs["stability"] = variation_ctx.voice_params.stability
             voice_kwargs["similarity_boost"] = variation_ctx.voice_params.similarity_boost
             voice_kwargs["style"] = variation_ctx.voice_params.style
 
         audio_path = voiceover_mod.generate_voiceover(script, **voice_kwargs)
-        result["_voice_id"] = voiceover_mod.DEFAULT_VOICE_ID
+        result["_voice_id"] = voice_kwargs.get("voice_id") or voiceover_mod.DEFAULT_VOICE_ID
         logger.info("Pipeline step 3/5: Voiceover saved → %s", audio_path)
         _report("Voiceover ready", 35)
-
-        # Restore ElevenLabs keys
-        voiceover_mod.ELEVENLABS_API_KEY = old_el_key
-        voiceover_mod.DEFAULT_VOICE_ID = old_el_voice
 
         # ── Step 3b: Audio polish (Phase 4) ─────────────────────────
         _report("Polishing audio…", 36)
@@ -670,7 +899,7 @@ def _run_pipeline_locked(
             if variation_ctx:
                 polish_kwargs["music_frequencies"] = variation_ctx.music_mood.frequencies
                 polish_kwargs["music_tremolo_base"] = variation_ctx.music_mood.tremolo_base
-            polished_path = polish_audio(audio_path, **polish_kwargs)
+            polished_path = polish_audio(audio_path, output_path=str(run_dir / "voiceover_polished.mp3"), **polish_kwargs)
             audio_path = polished_path
             logger.info("Pipeline step 3b: Audio polished → %s", audio_path)
             _report("Audio polished", 38)
@@ -682,9 +911,6 @@ def _run_pipeline_locked(
         _report("Planning scenes…", 40)
         logger.info("Pipeline step 4/6: Scene planning")
         import stock_footage as stock_mod
-        old_pexels = stock_mod.PEXELS_API_KEY
-        if user_api_keys.get("pexels_api_key"):
-            stock_mod.PEXELS_API_KEY = user_api_keys["pexels_api_key"]
 
         scene_clip_data = None
         try:
@@ -708,7 +934,7 @@ def _run_pipeline_locked(
             _report("Downloading stock footage…", 48)
             logger.info("Pipeline step 4b/6: Downloading scene-aware stock footage")
             from stock_footage import download_clips_for_scenes
-            scene_clip_data = download_clips_for_scenes(scene_plans)
+            scene_clip_data = download_clips_for_scenes(scene_plans, clips_dir=run_clips_dir, api_key=_pexels_key)
             total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
             logger.info("Pipeline step 4b/6: Downloaded %d clips across %d scenes", total_clips, len(scene_clip_data))
             _report("Stock footage ready", 60)
@@ -721,11 +947,16 @@ def _run_pipeline_locked(
         _report("Building video…", 62)
         logger.info("Pipeline step 4c/6: Building video")
         from video_builder import build_video
+        import re as _re
         import video_builder as _vb_mod
+        _slug = _re.sub(r'[^\w\s-]', '', metadata["title"]).strip().lower()
+        _slug = _re.sub(r'[\s_]+', '_', _slug)[:80]
+        _video_output_path = str(run_dir / f"{_slug}.mp4")
         video_path = build_video(
             audio_path=audio_path,
             title=metadata["title"],
             script=script,
+            output_path=_video_output_path,
             scene_clip_data=scene_clip_data,
             subtitle_style=user_api_keys.get("subtitle_style", "bold_pop"),
             burn_captions=user_api_keys.get("burn_captions", True),
@@ -736,14 +967,11 @@ def _run_pipeline_locked(
         logger.info("Pipeline step 4c/6: Video built → %s", video_path)
         _report("Video built", 78)
 
-        # Restore Pexels key
-        stock_mod.PEXELS_API_KEY = old_pexels
-
         # ── Step 5: Generate thumbnail variants ────────────────────
         _report("Generating thumbnails…", 80)
         logger.info("Pipeline step 5/6: Generating 3 thumbnail variants")
         from thumbnail import generate_thumbnail, generate_thumbnail_variants
-        thumbnail_variants = generate_thumbnail_variants(metadata["title"])
+        thumbnail_variants = generate_thumbnail_variants(metadata["title"], output_dir=str(run_dir))
         # Select primary thumbnail based on adaptive profile recommendation
         _recommended_thumb = _perf_profile.get("recommended_thumbnail_style", "bold_curiosity") if _perf_profile else "bold_curiosity"
         thumbnail_path = None
@@ -752,7 +980,7 @@ def _run_pipeline_locked(
                 thumbnail_path = tv["path"]
                 break
         if not thumbnail_path:
-            thumbnail_path = thumbnail_variants[0]["path"] if thumbnail_variants else generate_thumbnail(metadata["title"])
+            thumbnail_path = thumbnail_variants[0]["path"] if thumbnail_variants else generate_thumbnail(metadata["title"], output_path=str(run_dir / "thumbnail.jpg"))
         result["thumbnail_variants"] = thumbnail_variants
         result["_thumbnail_concept_used"] = _recommended_thumb
         logger.info("Pipeline step 5/6: Generated %d variants, primary=%s", len(thumbnail_variants), _recommended_thumb)
@@ -762,7 +990,7 @@ def _run_pipeline_locked(
         if yt_access_token:
             _report("Uploading to YouTube…", 88)
             logger.info("Pipeline step 6/6: Uploading to YouTube")
-            youtube_video_id = _upload_with_user_tokens(
+            youtube_video_id, refreshed_yt_token = _upload_with_user_tokens(
                 video_path=video_path,
                 metadata=metadata,
                 thumbnail_path=thumbnail_path,
@@ -772,6 +1000,9 @@ def _run_pipeline_locked(
             if youtube_video_id:
                 result["youtube_video_id"] = youtube_video_id
                 _report("Uploaded to YouTube!", 100)
+            # Carry the refreshed token so the async DB-update block can persist it
+            if refreshed_yt_token:
+                result["_refreshed_yt_access_token"] = refreshed_yt_token
         else:
             logger.info("Pipeline step 6/6: Skipping upload — no YouTube connection")
             _report("Complete", 100)
@@ -780,10 +1011,6 @@ def _run_pipeline_locked(
         # Phase 8: mask keys in the traceback logged here
         logger.exception("Pipeline error during locked execution")
         raise
-    finally:
-        # ── Always restore original keys ─────────────────────────────
-        setattr(app_config, "OPENAI_API_KEY", old_openai)
-        script_generator._client = None
 
     # ── Phase 7: Attach variation metadata for content memory ────────
     if variation_ctx:
@@ -834,8 +1061,12 @@ def _upload_with_user_tokens(
     thumbnail_path: str | None,
     access_token: str,
     refresh_token: str | None,
-) -> str | None:
+) -> tuple[str | None, str | None]:
     """Upload a video to YouTube using per-user OAuth tokens from the DB.
+
+    Returns ``(youtube_video_id, refreshed_access_token)``.
+    ``refreshed_access_token`` is non-None only when the token was actually
+    refreshed during this call — the caller should persist it back to the DB.
 
     This replaces the CLI uploader's ``get_authenticated_service()`` which
     reads from a local ``token.json`` file.
@@ -845,11 +1076,6 @@ def _upload_with_user_tokens(
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
     from googleapiclient.errors import HttpError
-
-    project_root = str(Path(__file__).resolve().parent.parent.parent)
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    import config as app_config
 
     # Build credentials from the stored tokens
     from backend.config import get_settings
@@ -867,14 +1093,24 @@ def _upload_with_user_tokens(
         ],
     )
 
+    # Lazy import of UploadError for typed error classification
+    try:
+        from pipeline_errors import UploadError as _UploadError
+    except ImportError:
+        _UploadError = RuntimeError  # type: ignore[assignment,misc]
+
+    # Track whether the token was refreshed so the caller can persist it
+    _refreshed_access_token: str | None = None
+
     # Refresh if expired
     if creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
+            _refreshed_access_token = creds.token
             logger.info("Refreshed YouTube access token")
         except Exception as e:
             logger.error("Failed to refresh YouTube token: %s", e)
-            raise RuntimeError(
+            raise _UploadError(
                 "YouTube token expired and could not be refreshed. "
                 "Please reconnect your YouTube channel in Settings."
             ) from e
@@ -886,7 +1122,7 @@ def _upload_with_user_tokens(
             "title": metadata["title"],
             "description": metadata.get("description", ""),
             "tags": metadata.get("tags", []),
-            "categoryId": getattr(app_config, "DEFAULT_VIDEO_CATEGORY", "22"),
+            "categoryId": DEFAULT_VIDEO_CATEGORY,
         },
         "status": {
             "privacyStatus": "private",
@@ -919,7 +1155,7 @@ def _upload_with_user_tokens(
             if e.resp.status in [500, 502, 503, 504]:
                 retry += 1
                 if retry > max_retries:
-                    raise RuntimeError(f"YouTube upload failed after {max_retries} retries")
+                    raise _UploadError(f"YouTube upload failed after {max_retries} retries (server errors)")
                 wait = random.random() * (2 ** retry)
                 logger.warning("Retriable YouTube error %s, retrying in %.1fs", e.resp.status, wait)
                 time.sleep(wait)
@@ -930,17 +1166,19 @@ def _upload_with_user_tokens(
                 if "ratelimit" in err_content or "rate" in err_content or "userRateLimitExceeded".lower() in err_content:
                     retry += 1
                     if retry > max_retries:
-                        raise RuntimeError(f"YouTube upload rate-limited after {max_retries} retries")
+                        raise _UploadError(f"YouTube upload rate-limited after {max_retries} retries")
                     wait = min(random.random() * (2 ** retry), 60.0)
                     logger.warning("YouTube rate limit (403), retrying in %.1fs", wait)
                     time.sleep(wait)
                     continue
-            raise
+            raise _UploadError(
+                f"YouTube upload failed: HTTP {e.resp.status} — {str(e)[:300]}"
+            ) from e
         except (ConnectionError, TimeoutError, OSError) as net_err:
             # Phase 8: Retry on transient network errors
             retry += 1
             if retry > max_retries:
-                raise RuntimeError(
+                raise _UploadError(
                     f"YouTube upload failed after {max_retries} retries due to network error"
                 ) from net_err
             wait = min(random.random() * (2 ** retry), 60.0)
@@ -964,7 +1202,7 @@ def _upload_with_user_tokens(
         except HttpError as e:
             logger.warning("Failed to set thumbnail: %s", e)
 
-    return video_id
+    return video_id, _refreshed_access_token
 
 
 # ── GET /api/videos/{video_id}/status ────────────────────────────────
@@ -1131,6 +1369,49 @@ async def download_video(
     )
 
 
+# ── GET /api/videos/{video_id}/pipeline-log ──────────────────────────
+
+@router.get("/{video_id}/pipeline-log")
+async def get_pipeline_log(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the structured pipeline step log for a video.
+
+    Each entry has ``step`` (human-readable label), ``pct`` (0-100),
+    and ``ts`` (UNIX timestamp).  The frontend can render this as a
+    timeline / progress trail.  Also returns the error classification
+    if the video failed.
+    """
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    import json as _json
+
+    steps: list[dict] = []
+    if record.pipeline_log_json:
+        try:
+            steps = _json.loads(record.pipeline_log_json)
+        except (ValueError, TypeError):
+            pass
+
+    return {
+        "video_id": record.id,
+        "status": record.status,
+        "error_message": record.error_message,
+        "error_category": record.error_category,
+        "steps": steps,
+    }
+
+
 # ── POST /api/videos/{video_id}/regenerate ───────────────────────────
 
 @router.post("/{video_id}/regenerate", response_model=GenerateResponse)
@@ -1161,9 +1442,9 @@ async def regenerate_video(
     )
     user_keys = keys_result.scalar_one_or_none()
 
-    openai_key = decrypt(user_keys.openai_api_key) if user_keys and user_keys.openai_api_key else ""
-    elevenlabs_key = decrypt(user_keys.elevenlabs_api_key) if user_keys and user_keys.elevenlabs_api_key else ""
-    pexels_key = decrypt(user_keys.pexels_api_key) if user_keys and user_keys.pexels_api_key else ""
+    openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+    elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
+    pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
 
     if not openai_key:
         raise HTTPException(
@@ -1198,8 +1479,8 @@ async def regenerate_video(
         )
     )
     oauth_token = oauth_result.scalar_one_or_none()
-    yt_access_token = oauth_token.access_token if oauth_token else None
-    yt_refresh_token = oauth_token.refresh_token if oauth_token else None
+    yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token") if oauth_token else None
+    yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token") if oauth_token else None
 
     # ── Create a NEW "generating" record (preserve old one) ──────────
     new_record = VideoRecord(
@@ -1267,10 +1548,35 @@ async def render_queue(
 
 # ── Video preferences schemas (Phase 4 & 5) ─────────────────────────
 
+# ── Valid subtitle styles allowlist (Phase 2 — input sanitization) ───
+_VALID_SUBTITLE_STYLES = frozenset({"bold_pop", "minimal", "cinematic", "accent_highlight"})
+
+
 class VideoPreferences(BaseModel):
     subtitle_style: str = "bold_pop"
     burn_captions: bool = True
     speech_speed: str | None = None  # e.g. "1.0", "0.85", "1.1"
+
+    @field_validator("subtitle_style")
+    @classmethod
+    def validate_subtitle_style(cls, v: str) -> str:
+        if v not in _VALID_SUBTITLE_STYLES:
+            raise ValueError(
+                f"Invalid subtitle style. Choose from: {', '.join(sorted(_VALID_SUBTITLE_STYLES))}"
+            )
+        return v
+
+    @field_validator("speech_speed")
+    @classmethod
+    def validate_speech_speed(cls, v: str | None) -> str | None:
+        if v is not None:
+            try:
+                speed_val = float(v)
+                if not (0.7 <= speed_val <= 1.2):
+                    raise ValueError
+            except (ValueError, TypeError):
+                raise ValueError("Speech speed must be a number between 0.7 and 1.2")
+        return v
 
 
 class VideoPreferencesResponse(BaseModel):
@@ -1336,25 +1642,7 @@ async def update_video_preferences(
         user_keys = UserApiKeys(user_id=current_user.id)
         db.add(user_keys)
 
-    # Validate subtitle style
-    valid_styles = {"bold_pop", "minimal", "cinematic", "accent_highlight"}
-    if body.subtitle_style not in valid_styles:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid subtitle style. Choose from: {', '.join(sorted(valid_styles))}",
-        )
-
-    # Validate speech speed
-    if body.speech_speed is not None:
-        try:
-            speed_val = float(body.speech_speed)
-            if not (0.7 <= speed_val <= 1.2):
-                raise ValueError
-        except (ValueError, TypeError):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Speech speed must be a number between 0.7 and 1.2",
-            )
+    # Validation is now handled by Pydantic field_validators on VideoPreferences.
 
     user_keys.subtitle_style = body.subtitle_style
     user_keys.burn_captions = body.burn_captions
@@ -1411,7 +1699,7 @@ async def topic_suggestions(
         select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
     )
     user_keys = keys_result.scalar_one_or_none()
-    openai_key = decrypt(user_keys.openai_api_key) if user_keys and user_keys.openai_api_key else ""
+    openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
 
     if not openai_key:
         raise HTTPException(
@@ -1499,7 +1787,7 @@ async def topic_suggestions(
 # ── GET / PUT /api/videos/preferences — Channel Intelligence ────────
 
 class PreferencesRequest(BaseModel):
-    """PUT /api/videos/preferences body — onboarding + settings."""
+    """PUT /api/videos/channel-preferences body — onboarding + settings."""
     niches: list[str] = Field(default_factory=list)
     tone_style: str = Field("confident, direct, no-fluff educator", max_length=300)
     target_audience: str = Field("general audience", max_length=300)
@@ -1516,8 +1804,8 @@ class PreferencesResponse(BaseModel):
     updated_at: str | None = None
 
 
-@router.get("/preferences", response_model=PreferencesResponse)
-async def get_preferences(
+@router.get("/channel-preferences", response_model=PreferencesResponse)
+async def get_channel_preferences(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1545,8 +1833,8 @@ async def get_preferences(
     )
 
 
-@router.put("/preferences", response_model=PreferencesResponse)
-async def update_preferences(
+@router.put("/channel-preferences", response_model=PreferencesResponse)
+async def update_channel_preferences(
     body: PreferencesRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

@@ -22,6 +22,7 @@ python-jose[cryptography]>=3.3.0
 sqlalchemy[asyncio]>=2.0.30
 aiosqlite>=0.20.0          # SQLite for local dev
 asyncpg>=0.30.0            # PostgreSQL for production
+alembic>=1.13.0            # Schema migrations
 
 # ── Cloud storage (Cloudflare R2 via S3 API)
 boto3>=1.34.0

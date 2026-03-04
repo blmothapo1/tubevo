@@ -22,6 +22,7 @@ import requests
 from pathlib import Path
 
 import config
+from pipeline_errors import ApiQuotaError, ApiAuthError, ExternalServiceError
 
 logger = logging.getLogger("tubevo.voiceover")
 
@@ -54,6 +55,7 @@ def generate_voiceover(
     similarity_boost: float = 0.75,
     style: float = 0.4,
     speed: float | None = None,
+    api_key: str | None = None,
 ) -> str:
     """Convert *script* text to speech via ElevenLabs and save as MP3.
 
@@ -62,13 +64,18 @@ def generate_voiceover(
     speed : float | None
         Speech speed multiplier (0.7–1.2). None = ElevenLabs default (~1.0).
         Useful for pacing narration: 0.85 for slow/cinematic, 1.1 for punchy.
+    api_key : str | None
+        ElevenLabs API key. When provided, this key is used instead of the
+        module-level ELEVENLABS_API_KEY — safe for concurrent per-user calls.
 
     Returns the path to the saved audio file.
     """
-    if not ELEVENLABS_API_KEY:
-        raise RuntimeError(
+    effective_key = api_key or ELEVENLABS_API_KEY
+    if not effective_key:
+        raise ApiAuthError(
             "ELEVENLABS_API_KEY is not set. Add it to your .env file.\n"
-            "Get a key at https://elevenlabs.io"
+            "Get a key at https://elevenlabs.io",
+            user_hint="Please add your ElevenLabs API key in Settings → API Keys.",
         )
 
     voice_id = voice_id or DEFAULT_VOICE_ID or _FALLBACK_VOICE_ID
@@ -77,7 +84,7 @@ def generate_voiceover(
     url = f"{ELEVENLABS_API_URL}/text-to-speech/{voice_id}"
 
     headers = {
-        "xi-api-key": ELEVENLABS_API_KEY,
+        "xi-api-key": effective_key,
         "Content-Type": "application/json",
         "Accept": "audio/mpeg",
     }
@@ -124,7 +131,7 @@ def generate_voiceover(
                 if response.status_code == 429:
                     err_body = response.text.lower()
                     if any(kw in err_body for kw in ("quota", "limit exceeded", "characters", "credits")):
-                        raise RuntimeError(
+                        raise ApiQuotaError(
                             "ElevenLabs quota exhausted. Your plan's character or "
                             "credit limit has been reached. Check your usage at "
                             "https://elevenlabs.io/subscription"
@@ -143,9 +150,14 @@ def generate_voiceover(
                 continue
 
             # Non-retriable HTTP error — fail immediately with masked message
-            raise RuntimeError(
-                f"ElevenLabs API error {response.status_code}: "
-                f"{config.mask_secrets(response.text[:500])}"
+            error_text = config.mask_secrets(response.text[:500])
+            if response.status_code in (401, 403):
+                raise ApiAuthError(
+                    f"ElevenLabs API auth error {response.status_code}: {error_text}",
+                    user_hint="Your ElevenLabs API key appears invalid. Please update it in Settings → API Keys.",
+                )
+            raise ExternalServiceError(
+                f"ElevenLabs API error {response.status_code}: {error_text}"
             )
 
         except requests.exceptions.RequestException as exc:
@@ -161,7 +173,7 @@ def generate_voiceover(
             time.sleep(delay)
 
     # All retries exhausted
-    raise RuntimeError(
+    raise ExternalServiceError(
         f"ElevenLabs API call failed after {_MAX_RETRIES} retries: "
         f"{config.mask_secrets(str(last_exc))}"
     ) from last_exc

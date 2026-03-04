@@ -114,13 +114,52 @@ async def stripe_webhook(
             logger.warning("Webhook signature verification failed: %s", e)
             raise HTTPException(status_code=400, detail="Invalid signature.")
     else:
+        # In production (debug=False), refuse to process unsigned webhooks.
+        # This prevents anyone from forging events to upgrade/downgrade users.
+        if not settings.debug:
+            logger.error(
+                "STRIPE_WEBHOOK_SECRET is not configured — rejecting webhook "
+                "in production mode.  Set the env var or enable debug mode."
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Webhook signature verification is not configured.",
+            )
+        # Dev-only: parse the raw payload for local testing (e.g. Stripe CLI)
         import json
         event = json.loads(payload)
-        logger.warning("⚠️  Webhook signature verification skipped (no STRIPE_WEBHOOK_SECRET configured)")
+        logger.warning("⚠️  Webhook signature verification skipped (debug mode, no STRIPE_WEBHOOK_SECRET)")
 
     event_type = event.get("type", "")
+    event_id = event.get("id", "")
     data = event.get("data", {}).get("object", {})
-    logger.info("Stripe webhook received: %s", event_type)
+    logger.info("Stripe webhook received: %s (event_id=%s)", event_type, event_id)
+
+    # ── Idempotency guard — reject duplicate webhook deliveries ──────
+    # Stripe may replay events on timeout.  We use the admin_events table
+    # as a lightweight idempotency log keyed by the Stripe event ID.
+    if event_id:
+        from sqlalchemy import select as _sel
+        from backend.models import AdminEvent
+        dup_check = await db.execute(
+            _sel(AdminEvent.id).where(
+                AdminEvent.type == "stripe_webhook",
+                AdminEvent.metadata_json.contains(event_id),
+            ).limit(1)
+        )
+        if dup_check.scalar_one_or_none():
+            logger.info("Webhook %s already processed — skipping (idempotent).", event_id)
+            return JSONResponse(content={"received": True, "duplicate": True})
+
+        # Log this event ID so future replays are caught
+        import json as _json
+        _idem_event = AdminEvent(
+            type="stripe_webhook",
+            metadata_json=_json.dumps({"stripe_event_id": event_id, "event_type": event_type}),
+        )
+        db.add(_idem_event)
+        # Flush (not commit) so it's visible to this transaction but rolled back on error
+        await db.flush()
 
     if event_type == "checkout.session.completed":
         user_id = data.get("client_reference_id") or data.get("metadata", {}).get("user_id")

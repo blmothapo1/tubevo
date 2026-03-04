@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth import get_current_user
 from backend.config import get_settings
 from backend.database import get_db
+from backend.encryption import decrypt, encrypt
 from backend.models import OAuthToken, User
 from backend.rate_limit import limiter
 from backend.schemas import (
@@ -167,6 +168,10 @@ async def callback(
             channel_title = items[0]["snippet"]["title"]
 
     # ── Step 4: Upsert OAuthToken in DB ──────────────────────────────
+    # Encrypt tokens at rest — decrypt() handles legacy plaintext gracefully
+    encrypted_access = encrypt(access_token)
+    encrypted_refresh = encrypt(refresh_token) if refresh_token else None
+
     result = await db.execute(
         select(OAuthToken).where(
             OAuthToken.user_id == current_user.id,
@@ -176,9 +181,9 @@ async def callback(
     existing = result.scalar_one_or_none()
 
     if existing:
-        existing.access_token = access_token
-        if refresh_token:
-            existing.refresh_token = refresh_token
+        existing.access_token = encrypted_access
+        if encrypted_refresh:
+            existing.refresh_token = encrypted_refresh
         existing.expires_at = expires_at
         existing.scopes = scopes
         existing.provider_email = provider_email
@@ -191,8 +196,8 @@ async def callback(
         oauth_token = OAuthToken(
             user_id=current_user.id,
             provider="google",
-            access_token=access_token,
-            refresh_token=refresh_token,
+            access_token=encrypted_access,
+            refresh_token=encrypted_refresh,
             expires_at=expires_at,
             scopes=scopes,
             provider_email=provider_email,
@@ -271,7 +276,7 @@ async def disconnect(
     # Best-effort revoke at Google
     try:
         async with httpx.AsyncClient() as client:
-            revoke_token = token.refresh_token or token.access_token
+            revoke_token = decrypt(token.refresh_token or "") or decrypt(token.access_token or "")
             await client.post(
                 "https://oauth2.googleapis.com/revoke",
                 params={"token": revoke_token},

@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,12 +57,66 @@ MAX_SCHEDULES_PER_USER = 5
 
 # ── Schemas ──────────────────────────────────────────────────────────
 
+# Prompt-injection patterns — same as GenerateRequest.sanitize_topic in videos.py
+_INJECTION_PATTERNS = [
+    re.compile(r"(?i)\bsystem\s*:"),
+    re.compile(r"(?i)\bassistant\s*:"),
+    re.compile(r"(?i)\bignore\s+(all\s+)?previous\b"),
+    re.compile(r"(?i)\bforget\s+(all\s+)?instructions\b"),
+    re.compile(r"(?i)\byou\s+are\s+now\b"),
+    re.compile(r"(?i)\bact\s+as\b"),
+]
+
+
+def _sanitize_topic(v: str) -> str:
+    """Sanitize a single topic string (shared with ScheduleCreate/Update)."""
+    # Strip control characters
+    cleaned = "".join(
+        ch for ch in v
+        if unicodedata.category(ch)[0] != "C" or ch in ("\n", "\t")
+    )
+    # Collapse whitespace
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    for pattern in _INJECTION_PATTERNS:
+        if pattern.search(cleaned):
+            raise ValueError(
+                f"Topic '{cleaned[:40]}…' contains disallowed content. "
+                "Please enter a simple video topic."
+            )
+
+    if len(cleaned) < 3:
+        raise ValueError("Each topic must be at least 3 characters.")
+    if len(cleaned) > 300:
+        raise ValueError("Each topic must be at most 300 characters.")
+
+    return cleaned
+
+
+_VALID_FREQUENCIES = frozenset(FREQUENCY_DELTAS.keys())
+
+
 class ScheduleCreate(BaseModel):
     name: str = Field("My Schedule", max_length=200)
     frequency: str = Field("weekly")
     preferred_hour_utc: int = Field(14, ge=0, le=23)
     topics: list[str] = Field(default_factory=list)
     is_active: bool = True
+
+    @field_validator("frequency")
+    @classmethod
+    def validate_frequency(cls, v: str) -> str:
+        if v not in _VALID_FREQUENCIES:
+            raise ValueError(
+                f"Invalid frequency '{v}'. Choose from: {', '.join(sorted(_VALID_FREQUENCIES))}."
+            )
+        return v
+
+    @field_validator("topics")
+    @classmethod
+    def sanitize_topics(cls, v: list[str]) -> list[str]:
+        """Sanitize every topic in the list, reject prompt injections."""
+        return [_sanitize_topic(t) for t in v]
 
 
 class ScheduleUpdate(BaseModel):
@@ -69,6 +125,23 @@ class ScheduleUpdate(BaseModel):
     preferred_hour_utc: int | None = Field(None, ge=0, le=23)
     topics: list[str] | None = None
     is_active: bool | None = None
+
+    @field_validator("frequency")
+    @classmethod
+    def validate_frequency(cls, v: str | None) -> str | None:
+        if v is not None and v not in _VALID_FREQUENCIES:
+            raise ValueError(
+                f"Invalid frequency '{v}'. Choose from: {', '.join(sorted(_VALID_FREQUENCIES))}."
+            )
+        return v
+
+    @field_validator("topics")
+    @classmethod
+    def sanitize_topics(cls, v: list[str] | None) -> list[str] | None:
+        """Sanitize every topic in the list, reject prompt injections."""
+        if v is None:
+            return v
+        return [_sanitize_topic(t) for t in v]
 
 
 class ScheduleResponse(BaseModel):
@@ -336,7 +409,7 @@ async def trigger_schedule_now(
         _run_pipeline_background,
     )
     from backend.models import OAuthToken, UserApiKeys
-    from backend.encryption import decrypt
+    from backend.encryption import decrypt_or_raise
     import asyncio
 
     # Enforce plan limits
@@ -348,9 +421,9 @@ async def trigger_schedule_now(
     )
     user_keys = keys_result.scalar_one_or_none()
 
-    openai_key = decrypt(user_keys.openai_api_key) if user_keys and user_keys.openai_api_key else ""
-    elevenlabs_key = decrypt(user_keys.elevenlabs_api_key) if user_keys and user_keys.elevenlabs_api_key else ""
-    pexels_key = decrypt(user_keys.pexels_api_key) if user_keys and user_keys.pexels_api_key else ""
+    openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+    elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
+    pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
 
     if not openai_key:
         raise HTTPException(status_code=400, detail="Please add your OpenAI API key in Settings first.")
@@ -362,6 +435,10 @@ async def trigger_schedule_now(
         "elevenlabs_api_key": elevenlabs_key,
         "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
         "pexels_api_key": pexels_key,
+        # Video production preferences (match scheduler_worker / generate_video)
+        "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
+        "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
+        "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
     }
 
     # Fetch YouTube tokens
@@ -372,8 +449,8 @@ async def trigger_schedule_now(
         )
     )
     oauth_token = oauth_result.scalar_one_or_none()
-    yt_access_token = oauth_token.access_token if oauth_token else None
-    yt_refresh_token = oauth_token.refresh_token if oauth_token else None
+    yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token") if oauth_token and oauth_token.access_token else None
+    yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token") if oauth_token and oauth_token.refresh_token else None
 
     # Create video record
     from backend.models import VideoRecord

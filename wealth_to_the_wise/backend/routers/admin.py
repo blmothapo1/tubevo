@@ -20,19 +20,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.auth import get_current_admin
 from backend.database import get_db
 from backend.models import AdminAuditLog, AdminEvent, PlatformError, User, VideoRecord, WaitlistSignup
+from backend.utils import PLAN_MONTHLY_LIMITS
 
 logger = logging.getLogger("tubevo.backend.admin_router")
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-# Plan limits duplicated here to compute credits_remaining without importing
-# from videos router (avoids circular dependency risk).
-_PLAN_MONTHLY_LIMITS: dict[str, int] = {
-    "free": 1,
-    "starter": 10,
-    "pro": 50,
-    "agency": 999_999,
-}
+# Alias for backwards compat with references inside this file.
+_PLAN_MONTHLY_LIMITS = PLAN_MONTHLY_LIMITS
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -828,7 +823,7 @@ async def retry_video(
         async_session_factory as _asf,
     )
     from backend.models import UserApiKeys, OAuthToken
-    from backend.encryption import decrypt
+    from backend.encryption import decrypt_or_raise
 
     video = (await db.execute(
         select(VideoRecord).where(VideoRecord.id == video_id)
@@ -843,9 +838,9 @@ async def retry_video(
         select(UserApiKeys).where(UserApiKeys.user_id == video.user_id)
     )).scalar_one_or_none()
 
-    openai_key = decrypt(user_keys.openai_api_key) if user_keys and user_keys.openai_api_key else ""
-    elevenlabs_key = decrypt(user_keys.elevenlabs_api_key) if user_keys and user_keys.elevenlabs_api_key else ""
-    pexels_key = decrypt(user_keys.pexels_api_key) if user_keys and user_keys.pexels_api_key else ""
+    openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+    elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
+    pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
 
     if not openai_key or not elevenlabs_key:
         raise HTTPException(status_code=400, detail="User has missing API keys (OpenAI or ElevenLabs). Cannot retry.")
@@ -868,8 +863,8 @@ async def retry_video(
         )
     )).scalar_one_or_none()
 
-    yt_access = oauth.access_token if oauth else None
-    yt_refresh = oauth.refresh_token if oauth else None
+    yt_access = decrypt_or_raise(oauth.access_token, field="yt_access_token") if oauth and oauth.access_token else None
+    yt_refresh = decrypt_or_raise(oauth.refresh_token, field="yt_refresh_token") if oauth and oauth.refresh_token else None
 
     # Reset the video record
     video.status = "generating"

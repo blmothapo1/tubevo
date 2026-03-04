@@ -102,7 +102,7 @@ export default function Onboarding() {
   async function launch() {
     // Persist preferences to backend before navigating
     try {
-      await api.put('/api/videos/preferences', {
+      await api.put('/api/videos/channel-preferences', {
         niches: selectedNiches,
         tone_style: 'confident, direct, no-fluff educator',
         target_audience: 'general audience',

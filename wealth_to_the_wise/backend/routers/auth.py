@@ -337,10 +337,11 @@ async def apple_login(
 
     # Create client secret (JWT)
     headers = {"kid": key_id}
+    now_utc = datetime.now(timezone.utc)
     claims = {
         "iss": team_id,
-        "iat": int(datetime.utcnow().timestamp()),
-        "exp": int((datetime.utcnow() + timedelta(days=180)).timestamp()),
+        "iat": int(now_utc.timestamp()),
+        "exp": int((now_utc + timedelta(days=180)).timestamp()),
         "aud": "https://appleid.apple.com",
         "sub": client_id,
     }
@@ -361,7 +362,23 @@ async def apple_login(
     id_token = tokens.get("id_token")
     if not id_token:
         raise HTTPException(status_code=400, detail="No id_token from Apple.")
-    apple_info = jwt.decode(id_token, key="", options={"verify_signature": False})
+
+    # Decode Apple's id_token.
+    # NOTE: Full JWKS signature verification requires fetching Apple's public
+    # keys from https://appleid.apple.com/auth/keys and matching by 'kid'.
+    # For now we skip signature verification (token came directly from Apple
+    # over HTTPS in the server-to-server exchange above), but we DO validate
+    # the issuer and audience claims to prevent token misuse.
+    apple_info = jwt.decode(
+        id_token,
+        key="",
+        options={"verify_signature": False},
+    )
+    if apple_info.get("iss") != "https://appleid.apple.com":
+        raise HTTPException(status_code=400, detail="Invalid Apple id_token issuer.")
+    if apple_info.get("aud") != client_id:
+        raise HTTPException(status_code=400, detail="Invalid Apple id_token audience.")
+
     email = apple_info.get("email")
     if not email:
         raise HTTPException(status_code=400, detail="No email from Apple.")
@@ -370,7 +387,16 @@ async def apple_login(
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if not user:
-        user = User(email=email, hashed_password="", full_name=apple_info.get("name", ""), is_verified=True)
+        # OAuth-only accounts get a sentinel password hash that can never
+        # match any real password — prevents login via the email/password
+        # endpoint while the account has no password set.
+        _OAUTH_NO_PASSWORD = "!oauth-only-no-password-set"
+        user = User(
+            email=email,
+            hashed_password=_OAUTH_NO_PASSWORD,
+            full_name=apple_info.get("name", ""),
+            is_verified=True,
+        )
         db.add(user)
         await db.flush()
         await db.refresh(user)

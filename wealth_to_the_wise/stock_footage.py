@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import config
+from pipeline_errors import ApiAuthError, ExternalServiceError
 
 if TYPE_CHECKING:
     from scene_planner import ScenePlan
@@ -40,6 +41,12 @@ PEXELS_VIDEO_SEARCH_URL = "https://api.pexels.com/videos/search"
 
 CLIPS_DIR = Path("output/clips")
 CLIPS_DIR.mkdir(parents=True, exist_ok=True)
+
+# ── Retry configuration ─────────────────────────────────────────────
+_MAX_RETRIES = 4
+_BASE_DELAY = 2.0        # seconds
+_MAX_DELAY = 30.0
+_RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 # ── Fallback search queries (always usable for wealth/finance content) ─
 FALLBACK_QUERIES = [
@@ -142,32 +149,73 @@ def _search_pexels_videos(
     per_page: int = 5,
     *,
     page: int = 1,
+    api_key: str | None = None,
 ) -> list[dict]:
     """Search Pexels for videos matching *query*. Returns list of video dicts.
 
     The *page* parameter allows fetching different result pages to increase
     variety across generations (randomised page offsets).
+
+    Includes exponential-backoff retry on transient HTTP errors (429, 5xx)
+    and network-level failures.
     """
-    if not PEXELS_API_KEY:
-        raise RuntimeError(
+    effective_key = api_key or PEXELS_API_KEY
+    if not effective_key:
+        raise ApiAuthError(
             "PEXELS_API_KEY is not set. Get a free key at https://www.pexels.com/api/\n"
-            "Add to your .env: PEXELS_API_KEY=your-key-here"
+            "Add to your .env: PEXELS_API_KEY=your-key-here",
+            user_hint="Please add your Pexels API key in Settings → API Keys.",
         )
 
-    resp = requests.get(
-        PEXELS_VIDEO_SEARCH_URL,
-        headers={"Authorization": PEXELS_API_KEY},
-        params={
-            "query": query,
-            "per_page": per_page,
-            "page": page,
-            "orientation": "landscape",
-            "size": "medium",
-        },
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json().get("videos", [])
+    last_exc: Exception | None = None
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            resp = requests.get(
+                PEXELS_VIDEO_SEARCH_URL,
+                headers={"Authorization": effective_key},
+                params={
+                    "query": query,
+                    "per_page": per_page,
+                    "page": page,
+                    "orientation": "landscape",
+                    "size": "medium",
+                },
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                return resp.json().get("videos", [])
+            if resp.status_code in _RETRIABLE_STATUS_CODES:
+                last_exc = RuntimeError(f"Pexels API {resp.status_code}: {resp.text[:200]}")
+                delay = min(_BASE_DELAY * (2 ** (attempt - 1)), _MAX_DELAY)
+                logger.warning(
+                    "Pexels API error %d for '%s' (attempt %d/%d) — retrying in %.1fs",
+                    resp.status_code, query, attempt, _MAX_RETRIES, delay,
+                )
+                import time as _time
+                _time.sleep(delay)
+                continue
+            # Non-retriable (401, 403, etc.) — fail immediately
+            if resp.status_code in (401, 403):
+                raise ApiAuthError(
+                    f"Pexels API auth error {resp.status_code}",
+                    user_hint="Your Pexels API key appears invalid. Please update it in Settings → API Keys.",
+                )
+            resp.raise_for_status()
+        except requests.exceptions.RequestException as exc:
+            last_exc = exc
+            if attempt >= _MAX_RETRIES:
+                break
+            delay = min(_BASE_DELAY * (2 ** (attempt - 1)), _MAX_DELAY)
+            logger.warning(
+                "Pexels network error for '%s' (attempt %d/%d): %s — retrying in %.1fs",
+                query, attempt, _MAX_RETRIES, type(exc).__name__, delay,
+            )
+            import time as _time
+            _time.sleep(delay)
+
+    raise ExternalServiceError(
+        f"Pexels API call failed after {_MAX_RETRIES} retries: {last_exc}"
+    ) from last_exc
 
 
 def _pick_best_video_file(video: dict, target_height: int = 720) -> str | None:
@@ -210,6 +258,8 @@ def _download_clips_for_queries(
     seen_video_ids: set[int] | None = None,
     clip_index_start: int = 0,
     use_random_page: bool = True,
+    clips_dir: Path | None = None,
+    api_key: str | None = None,
 ) -> tuple[list[str], set[int]]:
     """Download clips for a list of queries, deduplicating by video ID.
 
@@ -218,6 +268,8 @@ def _download_clips_for_queries(
     """
     if seen_video_ids is None:
         seen_video_ids = set()
+
+    _effective_clips_dir = clips_dir or CLIPS_DIR
 
     downloaded: list[str] = []
 
@@ -229,13 +281,13 @@ def _download_clips_for_queries(
         page = random.randint(1, 3) if use_random_page else 1
 
         try:
-            videos = _search_pexels_videos(query, per_page=5, page=page)
+            videos = _search_pexels_videos(query, per_page=5, page=page, api_key=api_key)
         except Exception as e:
             logger.warning("Pexels search failed for '%s' (page %d): %s", query, page, e)
             # Retry on page 1 if random page failed
             if page > 1:
                 try:
-                    videos = _search_pexels_videos(query, per_page=5, page=1)
+                    videos = _search_pexels_videos(query, per_page=5, page=1, api_key=api_key)
                 except Exception:
                     continue
             else:
@@ -265,7 +317,7 @@ def _download_clips_for_queries(
 
             seen_video_ids.add(vid_id)
             clip_idx = clip_index_start + len(downloaded)
-            clip_path = str(CLIPS_DIR / f"clip_{clip_idx}.mp4")
+            clip_path = str(_effective_clips_dir / f"clip_{clip_idx}.mp4")
 
             try:
                 logger.info(
@@ -286,6 +338,8 @@ def download_clips_for_scenes(
     scene_plans: list,  # list[ScenePlan] — avoid import cycle
     *,
     min_clip_duration: int = 5,
+    clips_dir: Path | None = None,
+    api_key: str | None = None,
 ) -> list[dict]:
     """Download stock clips matched to each scene in the plan.
 
@@ -298,8 +352,11 @@ def download_clips_for_scenes(
       • Resolution consistency (all clips validated at ≥1280×720)
       • Randomised page offsets for generation-to-generation variety
     """
-    # Clean out old clips
-    for old in CLIPS_DIR.glob("clip_*.mp4"):
+    _effective_clips_dir = clips_dir or CLIPS_DIR
+    _effective_clips_dir.mkdir(parents=True, exist_ok=True)
+
+    # Clean out old clips in this directory
+    for old in _effective_clips_dir.glob("clip_*.mp4"):
         old.unlink()
 
     global_seen_ids: set[int] = set()
@@ -336,6 +393,8 @@ def download_clips_for_scenes(
             min_clip_duration=min_clip_duration,
             seen_video_ids=global_seen_ids,
             clip_index_start=global_clip_index,
+            clips_dir=_effective_clips_dir,
+            api_key=api_key,
         )
 
         global_clip_index += len(clips_downloaded)
@@ -353,14 +412,15 @@ def download_clips_for_scenes(
 
     total_downloaded = sum(len(sc["clips"]) for sc in scene_clips)
     if total_downloaded == 0:
-        raise RuntimeError(
+        raise ExternalServiceError(
             "Could not download any stock clips. "
-            "Check your PEXELS_API_KEY and internet connection."
+            "Check your PEXELS_API_KEY and internet connection.",
+            user_hint="Stock footage download failed. Please check your Pexels API key and try again.",
         )
 
     logger.info(
         "Scene-aware download complete: %d/%d clips across %d scenes → %s/",
-        total_downloaded, total_needed, len(scene_clips), CLIPS_DIR,
+        total_downloaded, total_needed, len(scene_clips), _effective_clips_dir,
     )
     return scene_clips
 
@@ -393,8 +453,9 @@ def download_clips_for_topic(
     )
 
     if not downloaded:
-        raise RuntimeError(
-            "Could not download any stock clips. Check your PEXELS_API_KEY and internet connection."
+        raise ExternalServiceError(
+            "Could not download any stock clips. Check your PEXELS_API_KEY and internet connection.",
+            user_hint="Stock footage download failed. Please check your Pexels API key and try again.",
         )
 
     logger.info("Downloaded %d stock clips → %s/", len(downloaded), CLIPS_DIR)

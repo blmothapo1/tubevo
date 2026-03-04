@@ -34,7 +34,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from backend.config import get_settings, logger as config_logger  # noqa: F401 — triggers logging setup
-from backend.database import create_tables, dispose_engine
+from backend.database import create_tables, dispose_engine, async_session_factory
 from backend.middleware import RequestLoggingMiddleware
 from backend.rate_limit import limiter
 from backend.routers import api_keys, auth, admin, billing, health, schedules, videos, waitlist, youtube
@@ -42,6 +42,49 @@ from backend.scheduler_worker import scheduler_loop
 from backend.analytics_worker import analytics_loop
 
 logger = logging.getLogger("tubevo.backend.app")
+
+
+# ── Phase 2: Zombie-job sweep on startup ─────────────────────────────
+
+async def _sweep_stale_jobs_on_startup() -> None:
+    """Mark every ``generating`` video as ``failed`` on server startup.
+
+    After a Railway redeploy or container crash, any in-progress pipeline
+    tasks are dead — the asyncio tasks they ran in no longer exist.
+    Rather than waiting for a per-user status poll to discover this, we
+    sweep them immediately so the dashboard shows the correct state.
+    """
+    from datetime import datetime, timezone
+    from sqlalchemy import update
+    from backend.models import VideoRecord
+
+    try:
+        async with async_session_factory() as db:
+            stmt = (
+                update(VideoRecord)
+                .where(VideoRecord.status == "generating")
+                .values(
+                    status="failed",
+                    error_message=(
+                        "Video generation was interrupted by a server restart. "
+                        "Please try again."
+                    ),
+                    error_category="timeout",
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            result = await db.execute(stmt)
+            await db.commit()
+            affected = getattr(result, "rowcount", 0)
+            if affected:
+                logger.warning(
+                    "🧹 Startup sweep: marked %d stale 'generating' jobs as failed",
+                    affected,
+                )
+            else:
+                logger.info("🧹 Startup sweep: no stale jobs found")
+    except Exception:
+        logger.exception("Startup sweep failed (non-fatal)")
 
 
 def create_app() -> FastAPI:
@@ -57,6 +100,29 @@ def create_app() -> FastAPI:
                      settings.debug, settings.cors_origins, settings.rate_limit_default)
         logger.info("═" * 60)
         await create_tables()
+
+        # ── Encryption canary — fail fast if JWT_SECRET_KEY changed ──
+        from backend.encryption import encrypt as _enc, decrypt as _dec
+        _canary = "tubevo-encryption-canary"
+        if _dec(_enc(_canary)) != _canary:
+            raise RuntimeError(
+                "FATAL: Encryption round-trip failed. "
+                "JWT_SECRET_KEY may have changed — all encrypted API keys "
+                "and OAuth tokens are now unreadable. Restore the original "
+                "key or re-encrypt all stored secrets."
+            )
+        logger.info("🔐 Encryption canary passed")
+
+        # ── Phase 2: Sweep stale "generating" jobs left over from a
+        # previous deploy / container restart (zombie protection) ─────
+        await _sweep_stale_jobs_on_startup()
+
+        # ── Phase 3: Clean up old per-run output directories ─────────
+        try:
+            from backend.routers.videos import _cleanup_old_output_dirs
+            await _cleanup_old_output_dirs(max_age_hours=24)
+        except Exception:
+            logger.warning("Startup: old output dir cleanup failed (non-fatal)")
 
         # Start the background scheduler worker
         scheduler_task = asyncio.create_task(scheduler_loop())

@@ -38,6 +38,8 @@ import tempfile
 import textwrap
 from pathlib import Path
 
+from pipeline_errors import RenderError
+
 logger = logging.getLogger("tubevo.video_builder")
 
 OUTPUT_DIR = Path("output")
@@ -114,7 +116,7 @@ def _run_ffmpeg(args: list[str], description: str = "ffmpeg") -> None:
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     if result.returncode != 0:
         logger.error("%s stderr: %s", description, result.stderr[-2000:] if result.stderr else "(none)")
-        raise RuntimeError(f"{description} failed (exit {result.returncode}): {result.stderr[-500:]}")
+        raise RenderError(f"{description} failed (exit {result.returncode}): {result.stderr[-500:]}")
 
 
 def _run_ffprobe(path: str) -> dict:
@@ -125,7 +127,7 @@ def _run_ffprobe(path: str) -> dict:
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
-        raise RuntimeError(f"ffprobe failed for {path}")
+        raise RenderError(f"ffprobe failed for {path}")
     return json.loads(result.stdout)
 
 
