@@ -1,5 +1,9 @@
 # ── Root-level ignores (repo root is one level above wealth_to_the_wise/) ──
 
+# Virtual environments
+venv*/
+.venv*/
+
 # IDE / editor local history
 .history/
 

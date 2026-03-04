@@ -16,7 +16,7 @@ client_secrets.json
 __pycache__/
 *.pyc
 *.pyo
-venv/
+venv*/
 .venv*/
 *.egg-info/
 
