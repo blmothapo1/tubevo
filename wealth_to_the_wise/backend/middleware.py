@@ -92,4 +92,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 _error_count += 1
 
         response.headers["X-Request-ID"] = request_id
+
+        # ── Security headers ─────────────────────────────────────────
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+
         return response

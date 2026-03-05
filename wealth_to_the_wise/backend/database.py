@@ -15,7 +15,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, QueuePool
 
 from backend.config import get_settings
 
@@ -99,9 +99,20 @@ engine = create_async_engine(
     _db_url,
     echo=get_settings().debug,          # SQL logging only in debug mode
     future=True,
-    # NullPool for PostgreSQL (Railway) avoids connection-pool issues
-    # with serverless-style deployments; SQLite doesn't support pooling.
-    **({"poolclass": NullPool} if not _using_sqlite else {}),
+    # SQLite: no pooling (not supported).
+    # PostgreSQL: small connection pool with recycle to avoid stale connections
+    # after Railway restarts or PG maintenance windows.
+    **(
+        {"poolclass": NullPool}
+        if _using_sqlite
+        else {
+            "poolclass": QueuePool,
+            "pool_size": 5,
+            "max_overflow": 10,
+            "pool_recycle": 300,       # recycle connections every 5 min
+            "pool_pre_ping": True,     # verify connection health before use
+        }
+    ),
 )
 
 logger.info("Database engine created: %s", "SQLite" if _using_sqlite else "PostgreSQL")

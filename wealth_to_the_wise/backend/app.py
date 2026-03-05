@@ -201,12 +201,17 @@ def create_app() -> FastAPI:
         await dispose_engine()
         logger.info("Backend shutting down.")
 
+    # Disable docs/OpenAPI schema in production — don't expose the full API
+    # surface to attackers.  Keep them enabled for local development.
+    _is_prod = settings.environment.lower() == "production"
+
     app = FastAPI(
         title=settings.app_name,
         description="SaaS backend for automated YouTube content pipelines.",
         version="0.1.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url=None if _is_prod else "/docs",
+        redoc_url=None if _is_prod else "/redoc",
+        openapi_url=None if _is_prod else "/openapi.json",
         debug=settings.debug,
         lifespan=lifespan,
     )

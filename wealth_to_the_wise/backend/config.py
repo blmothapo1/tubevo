@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────
     app_name: str = "Tubevo"
     debug: bool = False
+    environment: str = "development"   # "production" on Railway
 
     # ── Server ───────────────────────────────────────────────────────
     host: str = "0.0.0.0"
