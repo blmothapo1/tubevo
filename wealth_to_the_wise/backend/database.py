@@ -225,6 +225,13 @@ async def _apply_column_migrations() -> None:
                 rows = (await conn.execute(text(f"PRAGMA table_info({table})"))).fetchall()
                 return any(row[1] == column for row in rows)
 
+            # 0002: error_category on video_records
+            if not await _col_exists_sqlite("video_records", "error_category"):
+                await conn.execute(text(
+                    "ALTER TABLE video_records ADD COLUMN error_category VARCHAR(30)"
+                ))
+                logger.info("Applied migration: video_records.error_category")
+
             # 0003: feature_overrides_json on users
             if not await _col_exists_sqlite("users", "feature_overrides_json"):
                 await conn.execute(text(
@@ -249,6 +256,13 @@ async def _apply_column_migrations() -> None:
                     "WHERE table_name = :t AND column_name = :c"
                 ), {"t": table, "c": column})
                 return result.fetchone() is not None
+
+            # 0002: error_category on video_records
+            if not await _col_exists_pg("video_records", "error_category"):
+                await conn.execute(text(
+                    "ALTER TABLE video_records ADD COLUMN error_category VARCHAR(30)"
+                ))
+                logger.info("Applied migration: video_records.error_category")
 
             # 0003: feature_overrides_json on users
             if not await _col_exists_pg("users", "feature_overrides_json"):
