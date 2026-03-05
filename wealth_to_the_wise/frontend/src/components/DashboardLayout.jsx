@@ -93,10 +93,10 @@ export default function DashboardLayout() {
           transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
           className="flex-1 w-full max-w-6xl mx-auto"
           style={{
-            paddingLeft: 'clamp(24px, 7vw, 32px)',
-            paddingRight: 'clamp(24px, 7vw, 32px)',
-            paddingTop: 'clamp(20px, 5vw, 32px)',
-            paddingBottom: 'clamp(20px, 5vw, 32px)',
+            paddingLeft: 'clamp(32px, 10vw, 44px)',
+            paddingRight: 'clamp(32px, 10vw, 44px)',
+            paddingTop: 'clamp(24px, 5vw, 32px)',
+            paddingBottom: 'clamp(24px, 5vw, 32px)',
           }}
         >
           <Outlet />

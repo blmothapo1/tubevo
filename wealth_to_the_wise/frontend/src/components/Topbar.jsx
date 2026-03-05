@@ -31,8 +31,8 @@ export default function Topbar({ onMenuToggle, pageTitle }) {
     <header
       className="h-[60px] topbar-surface sticky top-0 z-20 flex items-center justify-between"
       style={{
-        paddingLeft: 'clamp(24px, 7vw, 32px)',
-        paddingRight: 'clamp(24px, 7vw, 32px)',
+        paddingLeft: 'clamp(32px, 10vw, 44px)',
+        paddingRight: 'clamp(32px, 10vw, 44px)',
       }}
     >
       <div className="flex items-center gap-3 min-w-0">
