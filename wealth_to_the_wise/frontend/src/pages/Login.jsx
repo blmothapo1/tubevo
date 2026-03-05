@@ -19,9 +19,9 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const me = await login(email, password);
-      // Admin users go straight to the Admin HQ
-      navigate(me?.role === 'admin' ? '/admin' : '/dashboard');
+      await login(email, password);
+      // Always land on the dashboard — admins can reach Admin HQ from sidebar
+      navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed. Please try again.');
     } finally {
