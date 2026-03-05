@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Film, CalendarClock, Settings, LogOut, X } from 'lucide-react';
+import { LayoutDashboard, Film, CalendarClock, Settings, LogOut, X, Tv2, Search, DollarSign, Image, Eye, Mic } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const links = [
@@ -8,6 +8,15 @@ const links = [
   { to: '/videos', label: 'Videos', icon: Film },
   { to: '/schedule', label: 'Schedule', icon: CalendarClock },
   { to: '/settings', label: 'Settings', icon: Settings },
+];
+
+const empireLinks = [
+  { to: '/channels', label: 'Channels', icon: Tv2 },
+  { to: '/niche', label: 'Niche Intel', icon: Search },
+  { to: '/revenue', label: 'Revenue', icon: DollarSign },
+  { to: '/thumbnails', label: 'Thumbnails', icon: Image },
+  { to: '/competitors', label: 'Competitors', icon: Eye },
+  { to: '/voices', label: 'Voice Clones', icon: Mic },
 ];
 
 export default function Sidebar({ open, onClose }) {
@@ -48,7 +57,7 @@ export default function Sidebar({ open, onClose }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 space-y-1 mt-2">
+        <nav className="flex-1 px-3 space-y-1 mt-2 overflow-y-auto">
           {links.map(({ to, label, icon: Icon }) => {
             const isActive = location.pathname === to;
             return (
@@ -84,6 +93,42 @@ export default function Sidebar({ open, onClose }) {
               </NavLink>
             );
           })}
+
+          {/* Empire OS section */}
+          <div className="pt-3 mt-3 border-t border-white/[0.06]">
+            <p className="px-3 text-[10px] font-semibold text-surface-600 uppercase tracking-wider mb-2">Empire OS</p>
+            {empireLinks.map(({ to, label, icon: Icon }) => {
+              const isActive = location.pathname === to;
+              return (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className="relative flex items-center gap-3 h-[38px] px-3 rounded-[8px] text-[13px] font-medium transition-colors duration-150"
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="sidebar-active"
+                      className="absolute inset-0 rounded-[8px] bg-brand-500/[0.15]"
+                      transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
+                    />
+                  )}
+                  <span className={`relative z-10 transition-colors duration-150 ${isActive ? 'text-brand-400' : 'text-surface-600'}`}>
+                    <Icon size={16} />
+                  </span>
+                  <span className={`relative z-10 transition-colors duration-150 ${isActive ? 'text-brand-300' : 'text-surface-700 hover:text-surface-900'}`}>
+                    {label}
+                  </span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="sidebar-accent"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-r-sm bg-brand-500"
+                      transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
+                    />
+                  )}
+                </NavLink>
+              );
+            })}
+          </div>
         </nav>
 
         {/* Logout */}

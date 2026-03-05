@@ -20,6 +20,12 @@ import AdminUsers from './pages/AdminUsers';
 import AdminVideos from './pages/AdminVideos';
 import AdminErrors from './pages/AdminErrors';
 import AdminWaitlist from './pages/AdminWaitlist';
+import Channels from './pages/Channels';
+import NicheIntel from './pages/NicheIntel';
+import Revenue from './pages/Revenue';
+import Thumbnails from './pages/Thumbnails';
+import Competitors from './pages/Competitors';
+import VoiceClones from './pages/VoiceClones';
 
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -116,6 +122,12 @@ export default function App() {
           <Route path="/videos" element={<Videos />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/channels" element={<Channels />} />
+          <Route path="/niche" element={<NicheIntel />} />
+          <Route path="/revenue" element={<Revenue />} />
+          <Route path="/thumbnails" element={<Thumbnails />} />
+          <Route path="/competitors" element={<Competitors />} />
+          <Route path="/voices" element={<VoiceClones />} />
         </Route>
       </Routes>
     </BrowserRouter>
