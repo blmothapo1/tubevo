@@ -175,9 +175,14 @@ async def _run_alembic_upgrade() -> None:
 
         await conn.run_sync(_check_and_stamp)
 
-    # Now run any pending migrations up to head
+    # Now run any pending migrations up to head.
+    # ``command.upgrade`` is synchronous and env.py calls
+    # ``asyncio.run(run_async_migrations())``.  That fails inside an
+    # already-running event loop, so we offload the entire call to a
+    # worker thread which is allowed to start its own loop.
+    import asyncio
     logger.info("Running Alembic migrations → head")
-    command.upgrade(alembic_cfg, "head")
+    await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
     logger.info("Alembic migrations complete.")
 
 
