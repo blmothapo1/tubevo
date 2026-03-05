@@ -457,10 +457,10 @@ input, select, textarea, button {
    RESPONSIVE SPACING — 4px base grid
    ══════════════════════════════════════════════════════════════ */
 
-/* Mobile-first generous padding — Apple iOS style (≥ 20px each side).
-   On portrait iPhone (≤ 430px) we use clamp() so padding scales from
-   20px on a 320px SE up to 28px on a 430px Pro Max, then fixed at
-   larger breakpoints via Tailwind sm:/lg: overrides. */
+/* Mobile-first generous padding — Apple iOS style.
+   Uses clamp() so padding scales fluidly:
+   320px SE → 20px  |  393px iPhone 15 → ~24px  |  430px Pro Max → 28px
+   The sm:/lg: Tailwind overrides in the className take over on tablets+. */
 .mobile-content-padding {
   padding-left: clamp(20px, 6vw, 28px);
   padding-right: clamp(20px, 6vw, 28px);
@@ -479,9 +479,11 @@ input, select, textarea, button {
   }
 }
 
+/* Safe-area adds to existing padding (notch / Dynamic Island / home bar).
+   Uses max() so it never shrinks padding below the design minimum. */
 .safe-area-inset {
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-left:   max(env(safe-area-inset-left, 0px), clamp(20px, 6vw, 28px));
+  padding-right:  max(env(safe-area-inset-right, 0px), clamp(20px, 6vw, 28px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
