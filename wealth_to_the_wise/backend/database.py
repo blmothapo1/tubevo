@@ -140,14 +140,16 @@ async def _run_alembic_upgrade() -> None:
     This replaces the old hand-rolled ALTER TABLE migration list with
     proper Alembic version tracking.  If the DB has never been stamped,
     we stamp the baseline first so only *new* migrations run.
+
+    **Threading note**: Alembic's ``command.*`` functions are synchronous
+    and our ``env.py`` uses ``asyncio.run()`` to drive the async engine.
+    That fails inside an already-running event loop (FastAPI's lifespan).
+    We therefore offload the ENTIRE operation to a worker thread via
+    ``asyncio.to_thread`` so it gets its own event loop.
     """
+    import asyncio
     import os
     from pathlib import Path
-
-    from alembic import command
-    from alembic.config import Config
-    from alembic.runtime.migration import MigrationContext
-    from sqlalchemy import inspect
 
     # Locate alembic.ini relative to this file
     ini_path = str(Path(__file__).resolve().parent.parent / "alembic.ini")
@@ -155,35 +157,50 @@ async def _run_alembic_upgrade() -> None:
         logger.warning("alembic.ini not found at %s — skipping migrations", ini_path)
         return
 
-    alembic_cfg = Config(ini_path)
+    def _run_in_thread() -> None:
+        """Runs in a worker thread — safe to call asyncio.run() here."""
+        from alembic import command
+        from alembic.config import Config
+        from alembic.runtime.migration import MigrationContext
+        from sqlalchemy import create_engine, inspect
 
-    # Check whether the alembic_version table already exists
-    async with engine.connect() as conn:
-        def _check_and_stamp(sync_conn):
-            ctx = MigrationContext.configure(sync_conn)
-            current_rev = ctx.get_current_revision()
-            if current_rev is None:
-                # First run on this DB — check if tables already exist
-                insp = inspect(sync_conn)
-                tables = insp.get_table_names()
-                if "users" in tables:
-                    # Existing DB that predates Alembic — stamp the baseline
-                    logger.info("Existing database detected — stamping Alembic baseline (0001)")
-                    command.stamp(alembic_cfg, "0001")
-                # If no tables exist, create_all() below will make them,
-                # then upgrade head will apply all migrations.
+        alembic_cfg = Config(ini_path)
 
-        await conn.run_sync(_check_and_stamp)
+        # Build a plain *synchronous* engine for the stamp/revision check.
+        # This avoids any async-in-async issues entirely.
+        sync_url = get_settings().database_url
+        if sync_url.startswith("postgresql+asyncpg://"):
+            sync_url = sync_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        elif sync_url.startswith("sqlite+aiosqlite://"):
+            sync_url = sync_url.replace("sqlite+aiosqlite://", "sqlite://", 1)
+        # Also handle raw Railway-style URLs
+        if sync_url.startswith("postgres://"):
+            sync_url = sync_url.replace("postgres://", "postgresql://", 1)
 
-    # Now run any pending migrations up to head.
-    # ``command.upgrade`` is synchronous and env.py calls
-    # ``asyncio.run(run_async_migrations())``.  That fails inside an
-    # already-running event loop, so we offload the entire call to a
-    # worker thread which is allowed to start its own loop.
-    import asyncio
-    logger.info("Running Alembic migrations → head")
-    await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
-    logger.info("Alembic migrations complete.")
+        sync_engine = create_engine(sync_url)
+        try:
+            with sync_engine.connect() as conn:
+                ctx = MigrationContext.configure(conn)
+                current_rev = ctx.get_current_revision()
+                if current_rev is None:
+                    insp = inspect(conn)
+                    tables = insp.get_table_names()
+                    if "users" in tables:
+                        logger.info(
+                            "Existing database detected — stamping Alembic baseline (0001)"
+                        )
+                        command.stamp(alembic_cfg, "0001")
+        finally:
+            sync_engine.dispose()
+
+        # Now run pending migrations up to head.
+        # This will execute env.py which calls asyncio.run() — that's
+        # fine because we're in a plain thread with no running loop.
+        logger.info("Running Alembic migrations → head")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Alembic migrations complete.")
+
+    await asyncio.to_thread(_run_in_thread)
 
 
 async def create_tables() -> None:
