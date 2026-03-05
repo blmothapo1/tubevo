@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
 from backend.database import async_session_factory, get_db
-from backend.encryption import decrypt, decrypt_or_raise
+from backend.encryption import decrypt, decrypt_or_raise, DecryptionFailedError
 from backend.events import emit_event
 from backend.models import ContentMemory, ContentPerformance, OAuthToken, User, UserApiKeys, UserPreferences, VideoRecord
 from backend.rate_limit import limiter
@@ -182,9 +182,18 @@ async def generate_video(
     # Decrypt stored keys (encrypted at rest via Fernet)
     # Use decrypt_or_raise for pipeline-critical keys so a silent '' cannot
     # propagate into external API calls.
-    openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
-    elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
-    pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+    try:
+        openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+        elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
+        pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+    except DecryptionFailedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Your saved API keys could not be decrypted ({exc.field_label}). "
+                "Please re-enter them in Settings → API Keys."
+            ),
+        )
 
     if not openai_key:
         raise HTTPException(
@@ -223,8 +232,23 @@ async def generate_video(
 
     # We still allow generation without YouTube connected —
     # the video will be built but not uploaded.
-    yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token") if oauth_token else None
-    yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token") if oauth_token else None
+    # If the stored token can't be decrypted (e.g. JWT_SECRET_KEY rotated),
+    # treat it the same as "no YouTube connected" instead of crashing.
+    yt_access_token: str | None = None
+    yt_refresh_token: str | None = None
+    if oauth_token:
+        try:
+            yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token")
+            yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token")
+        except DecryptionFailedError:
+            logger.warning(
+                "YouTube OAuth token for user %s could not be decrypted — "
+                "video will be generated but not uploaded. "
+                "User should re-link their YouTube account.",
+                current_user.email,
+            )
+            yt_access_token = None
+            yt_refresh_token = None
 
     # ── Create a "generating" record and commit immediately ──────────
     # We commit *before* spawning the background task so the record is
@@ -1442,9 +1466,21 @@ async def regenerate_video(
     )
     user_keys = keys_result.scalar_one_or_none()
 
-    openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
-    elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
-    pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+    openai_key = ""
+    elevenlabs_key = ""
+    pexels_key = ""
+    try:
+        openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+        elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
+        pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+    except DecryptionFailedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Your saved API keys could not be decrypted ({exc.field_label}). "
+                "Please re-enter them in Settings → API Keys."
+            ),
+        )
 
     if not openai_key:
         raise HTTPException(
@@ -1479,8 +1515,20 @@ async def regenerate_video(
         )
     )
     oauth_token = oauth_result.scalar_one_or_none()
-    yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token") if oauth_token else None
-    yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token") if oauth_token else None
+    yt_access_token: str | None = None
+    yt_refresh_token: str | None = None
+    if oauth_token:
+        try:
+            yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token")
+            yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token")
+        except DecryptionFailedError:
+            logger.warning(
+                "Regenerate: YouTube OAuth token for user %s could not be decrypted — "
+                "video will be generated but not uploaded.",
+                current_user.email,
+            )
+            yt_access_token = None
+            yt_refresh_token = None
 
     # ── Create a NEW "generating" record (preserve old one) ──────────
     new_record = VideoRecord(
