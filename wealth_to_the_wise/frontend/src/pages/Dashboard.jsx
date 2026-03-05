@@ -1,21 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { SkeletonStatCards, SkeletonVideoList } from '../components/Skeleton';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import {
   Film,
   Upload,
   CalendarClock,
-  Play,
-  Pause,
   CheckCircle2,
   Clock,
   AlertTriangle,
   Sparkles,
   RefreshCw,
   TrendingUp,
+  ArrowRight,
 } from 'lucide-react';
 
 const statusIcons = {
@@ -37,7 +39,6 @@ function timeSince(dateStr) {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [automationOn, setAutomationOn] = useState(false);
   const [stats, setStats] = useState(null);
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,15 +93,10 @@ export default function Dashboard() {
   return (
     <div className="max-w-5xl mx-auto space-y-7">
       {/* Header with personalized greeting */}
-      <FadeIn>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">
-              {greeting}, {firstName}
-            </h1>
-            <p className="text-[12px] text-surface-600 mt-2 uppercase tracking-[0.08em] font-medium">Pipeline overview</p>
-          </div>
-
+      <PageHeader
+        title={`${greeting}, ${firstName}`}
+        subtitle="Pipeline overview"
+        action={
           <div className="flex items-center gap-2">
             <motion.button
               whileHover={{ scale: 1.04 }}
@@ -111,22 +107,17 @@ export default function Dashboard() {
             >
               <RefreshCw size={16} />
             </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              onClick={() => setAutomationOn(!automationOn)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-[8px] text-[12px] font-medium tracking-wide uppercase transition-all duration-150 ${
-                automationOn
-                  ? 'bg-emerald-500/10 text-emerald-400'
-                  : 'bg-surface-200 text-surface-700 hover:bg-surface-300'
-              }`}
+            <Link
+              to="/schedule"
+              className="flex items-center gap-2 px-4 py-2 rounded-[8px] text-[12px] font-medium tracking-wide uppercase bg-surface-200 text-surface-700 hover:bg-surface-300 transition-all duration-150"
             >
-              {automationOn ? <Pause size={14} /> : <Play size={14} />}
-              {automationOn ? 'Running' : 'Start'}
-            </motion.button>
+              <CalendarClock size={14} />
+              Automation
+              <ArrowRight size={12} />
+            </Link>
           </div>
-        </div>
-      </FadeIn>
+        }
+      />
 
       {/* Stats Row */}
       <StaggerContainer className="grid grid-cols-1 sm:grid-cols-3 gap-5">
@@ -170,21 +161,6 @@ export default function Dashboard() {
         </div>
       </FadeIn>
 
-      {/* Automation Status Banner */}
-      {automationOn && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          exit={{ opacity: 0, height: 0 }}
-          className="bg-emerald-500/6 rounded-[10px] px-5 py-3 flex items-center gap-2.5"
-        >
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-soft-pulse" />
-          <p className="text-[13px] text-emerald-300">
-            Pipeline active — videos are being generated and queued automatically.
-          </p>
-        </motion.div>
-      )}
-
       {/* Recent Activity */}
       <FadeIn delay={0.3}>
         <div>
@@ -192,19 +168,16 @@ export default function Dashboard() {
             Recent Activity
           </h2>
           {activity.length === 0 ? (
-            <div className="card px-6 py-14 text-center">
-              <div className="w-12 h-12 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
-                <Sparkles size={20} className="text-brand-400" />
-              </div>
-              <p className="text-[14px] font-medium text-surface-800 mb-1.5">No videos yet</p>
-              <p className="text-[13px] text-surface-600">
-                Head to the{' '}
-                <a href="/videos" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
-                  Videos
-                </a>{' '}
-                page to generate your first one.
-              </p>
-            </div>
+            <EmptyState
+              icon={Sparkles}
+              title="No videos yet"
+              description="Head to the Videos page to generate your first one."
+              action={
+                <Link to="/videos" className="btn-primary text-[13px]">
+                  Create First Video <ArrowRight size={14} />
+                </Link>
+              }
+            />
           ) : (
             <div className="card overflow-hidden">
               {activity.map((item, i) => {

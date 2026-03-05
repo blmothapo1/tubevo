@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonStatCards } from '../components/Skeleton';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import {
   Eye, Plus, Trash2, X, Users, Play, Film, TrendingUp, TrendingDown, Minus, ExternalLink,
 } from 'lucide-react';
@@ -72,18 +74,16 @@ export default function Competitors() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <FadeIn>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-white">Competitors</h1>
-            <p className="text-surface-600 text-[13px] mt-1">Monitor competitor channels and track their growth</p>
-          </div>
+      <PageHeader
+        title="Competitors"
+        subtitle="Monitor competitor channels and track their growth"
+        action={
           <button onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-[13px] font-medium transition-colors">
+            className="btn-primary flex items-center gap-2 text-[13px]">
             <Plus size={16} /> Track Competitor
           </button>
-        </div>
-      </FadeIn>
+        }
+      />
 
       {/* Add modal */}
       <AnimatePresence>
@@ -92,7 +92,7 @@ export default function Competitors() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowAdd(false)}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="glass rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              className="card !rounded-[20px] p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-white font-semibold">Track Competitor</h2>
                 <button onClick={() => setShowAdd(false)} className="text-surface-600 hover:text-white"><X size={18} /></button>
@@ -100,15 +100,15 @@ export default function Competitors() {
               <div className="space-y-3">
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Channel name (e.g., Graham Stephan)"
-                  className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-white text-[13px] placeholder:text-surface-600 focus:outline-none focus:ring-1 focus:ring-brand-500/50" />
+                  className="input-field" />
                 <input value={form.youtube_channel_id} onChange={(e) => setForm({ ...form, youtube_channel_id: e.target.value })}
                   placeholder="YouTube Channel ID (e.g., UCGy7SkBjcIAgTiwkXEtPnYg)"
-                  className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-white text-[13px] placeholder:text-surface-600 focus:outline-none focus:ring-1 focus:ring-brand-500/50" />
+                  className="input-field" />
               </div>
               <div className="flex gap-3 mt-4">
-                <button onClick={() => setShowAdd(false)} className="flex-1 py-2.5 rounded-xl border border-white/[0.06] text-surface-700 text-[13px] font-medium hover:bg-white/[0.02]">Cancel</button>
+                <button onClick={() => setShowAdd(false)} className="btn-secondary flex-1 text-[13px]">Cancel</button>
                 <button onClick={addCompetitor} disabled={adding || !form.name.trim() || !form.youtube_channel_id.trim()}
-                  className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-[13px] font-medium disabled:opacity-50 transition-colors">
+                  className="btn-primary flex-1 text-[13px] disabled:opacity-50">
                   {adding ? 'Adding…' : 'Add'}
                 </button>
               </div>
@@ -119,18 +119,14 @@ export default function Competitors() {
 
       {/* Competitor list */}
       {competitors.length === 0 ? (
-        <FadeIn>
-          <div className="glass rounded-2xl p-12 text-center">
-            <Eye size={40} className="mx-auto text-surface-600 mb-4" />
-            <p className="text-white font-medium mb-1">No competitors tracked</p>
-            <p className="text-surface-600 text-[13px]">Add competitor YouTube channels to monitor their growth and content strategy.</p>
-          </div>
-        </FadeIn>
+        <EmptyState icon={Eye} title="No competitors tracked"
+          description="Add competitor YouTube channels to monitor their growth and content strategy."
+          action={<button onClick={() => setShowAdd(true)} className="btn-primary text-[13px]">Track Competitor</button>} />
       ) : (
         <StaggerContainer className="space-y-3">
           {competitors.map((c) => (
             <StaggerItem key={c.id}>
-              <div className="glass rounded-2xl overflow-hidden">
+              <div className="card overflow-hidden">
                 <div className="p-5 flex items-center justify-between cursor-pointer hover:bg-white/[0.01] transition-colors"
                   onClick={() => toggleExpand(c.id)}>
                   <div className="flex items-center gap-4">

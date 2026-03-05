@@ -40,6 +40,12 @@
 
   --color-well: #0c0c0e;
 
+  /* Tokenized borders — replaces scattered rgba values */
+  --border-subtle:  rgba(255,255,255,0.06);
+  --border-default: rgba(255,255,255,0.08);
+  --border-strong:  rgba(255,255,255,0.12);
+  --border-hover:   rgba(255,255,255,0.10);
+
   --shadow-s1: 0 1px 2px rgba(0,0,0,0.2);
   --shadow-s2: 0 2px 8px rgba(0,0,0,0.25), 0 0 1px rgba(0,0,0,0.1);
   --shadow-s3: 0 8px 32px rgba(0,0,0,0.45), 0 0 1px rgba(0,0,0,0.15);
@@ -64,6 +70,11 @@
   --color-surface-900: #1d1d1f;
 
   --color-well: #e8e8ec;
+
+  --border-subtle:  rgba(0,0,0,0.06);
+  --border-default: rgba(0,0,0,0.08);
+  --border-strong:  rgba(0,0,0,0.12);
+  --border-hover:   rgba(0,0,0,0.10);
 
   --shadow-s1: 0 1px 2px rgba(0,0,0,0.06);
   --shadow-s2: 0 2px 8px rgba(0,0,0,0.08), 0 0 1px rgba(0,0,0,0.04);
@@ -134,13 +145,13 @@ input, select, textarea, button {
   background: rgba(17, 17, 19, 0.82);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid var(--border-subtle);
 }
 [data-theme="light"] .glass {
   background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .glass-light {
   background: rgba(17, 17, 19, 0.5);
@@ -151,6 +162,16 @@ input, select, textarea, button {
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+
+/* ── Sidebar & Topbar surface — persistent panels ── */
+.sidebar-surface {
+  background: var(--color-surface-100);
+  border-right: 1px solid var(--border-subtle);
+}
+.topbar-surface {
+  background: var(--color-surface-100);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 /* ── Elevation shadows ───────────────────────────── */
@@ -164,37 +185,24 @@ input, select, textarea, button {
 /* ── Card — layered surface (S2) with subtle border ─ */
 .card {
   background: var(--color-surface-200);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   box-shadow: none;
   transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 .card:hover {
-  border-color: rgba(255,255,255,0.10);
-}
-[data-theme="light"] .card {
-  border-color: rgba(0,0,0,0.06);
-}
-[data-theme="light"] .card:hover {
-  border-color: rgba(0,0,0,0.10);
+  border-color: var(--border-hover);
 }
 .card-elevated {
   background: var(--color-surface-200);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   box-shadow: none;
   transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 .card-elevated:hover {
-  border-color: rgba(255,255,255,0.10);
+  border-color: var(--border-hover);
   transform: translateY(-1px);
-  box-shadow: var(--shadow-s3);
-}
-[data-theme="light"] .card-elevated {
-  border-color: rgba(0,0,0,0.06);
-}
-[data-theme="light"] .card-elevated:hover {
-  border-color: rgba(0,0,0,0.10);
   box-shadow: var(--shadow-s3);
 }
 
@@ -224,10 +232,7 @@ input, select, textarea, button {
   gap: 12px;
   padding-bottom: 12px;
   margin-bottom: 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-[data-theme="light"] .module-header {
-  border-bottom-color: rgba(0,0,0,0.06);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 /* ── Input styling — polished well style ─────────── */
@@ -236,14 +241,11 @@ input, select, textarea, button {
   padding: 10px 14px;
   border-radius: var(--radius-md);
   background: var(--color-well);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid var(--border-default);
   color: var(--color-surface-900);
   font-size: 14px;
   line-height: 1.6;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-[data-theme="light"] .input-premium {
-  border-color: rgba(0,0,0,0.08);
 }
 .input-premium::placeholder {
   color: var(--color-surface-600);
@@ -253,13 +255,30 @@ input, select, textarea, button {
   border-color: rgba(37, 99, 235, 0.6);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
-[data-theme="light"] .input-premium:focus {
-  border-color: rgba(37, 99, 235, 0.6);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-}
 .input-premium:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* ── Input field — for inline inputs in modals/forms ── */
+.input-field {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-well);
+  border: 1px solid var(--border-subtle);
+  color: var(--color-surface-900);
+  font-size: 13px;
+  line-height: 1.5;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input-field::placeholder {
+  color: var(--color-surface-600);
+}
+.input-field:focus {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.5);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 /* ── Button — primary (filled) ───────────────────── */
@@ -308,7 +327,7 @@ input, select, textarea, button {
   font-weight: 500;
   color: var(--color-surface-800);
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid var(--border-strong);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -318,12 +337,6 @@ input, select, textarea, button {
 .btn-secondary:focus-visible {
   outline: 2px solid var(--color-brand-400);
   outline-offset: 2px;
-}
-[data-theme="light"] .btn-secondary {
-  border-color: rgba(0,0,0,0.12);
-}
-[data-theme="light"] .btn-secondary:hover {
-  background: var(--color-surface-300);
 }
 
 /* ── Skeleton loader animation ───────────────────── */
@@ -429,11 +442,8 @@ body::before {
 /* ── Thin divider — ultra-subtle ─────────────────── */
 .divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--border-subtle);
   border: none;
-}
-[data-theme="light"] .divider {
-  background: rgba(0, 0, 0, 0.06);
 }
 
 /* ── Monospace utility for API keys ──────────────── */
@@ -468,13 +478,10 @@ body::before {
   justify-content: space-between;
   min-height: 68px;
   padding: 14px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .setting-row:last-child {
   border-bottom: none;
-}
-[data-theme="light"] .setting-row {
-  border-bottom-color: rgba(0,0,0,0.04);
 }
 
 /* ── Danger zone ─────────────────────────────────── */

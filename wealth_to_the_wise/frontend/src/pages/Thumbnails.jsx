@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonStatCards } from '../components/Skeleton';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import {
   Image, Beaker, Trophy, RotateCcw, XCircle, CheckCircle2, Clock, MousePointerClick,
 } from 'lucide-react';
@@ -52,21 +54,10 @@ export default function Thumbnails() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <FadeIn>
-        <div>
-          <h1 className="text-xl font-semibold text-white">Thumbnail A/B Testing</h1>
-          <p className="text-surface-600 text-[13px] mt-1">Test thumbnail variants to maximize click-through rate</p>
-        </div>
-      </FadeIn>
+      <PageHeader title="Thumbnail A/B Testing" subtitle="Test thumbnail variants to maximize click-through rate" />
 
       {experiments.length === 0 ? (
-        <FadeIn>
-          <div className="glass rounded-2xl p-12 text-center">
-            <Image size={40} className="mx-auto text-surface-600 mb-4" />
-            <p className="text-white font-medium mb-1">No experiments yet</p>
-            <p className="text-surface-600 text-[13px]">Thumbnail experiments are automatically created when you generate videos with multiple thumbnail concepts.</p>
-          </div>
-        </FadeIn>
+        <EmptyState icon={Image} title="No experiments yet" description="Thumbnail experiments are automatically created when you generate videos with multiple thumbnail concepts." />
       ) : (
         <StaggerContainer className="space-y-4">
           {experiments.map((exp) => {
@@ -74,7 +65,7 @@ export default function Thumbnails() {
             const StatusIcon = style.icon;
             return (
               <StaggerItem key={exp.id}>
-                <div className="glass rounded-2xl p-5">
+                <div className="card p-5">
                   {/* Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">

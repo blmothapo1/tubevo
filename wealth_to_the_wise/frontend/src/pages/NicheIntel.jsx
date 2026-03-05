@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonStatCards } from '../components/Skeleton';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import {
   Search, TrendingUp, BarChart3, Zap, Target, ArrowUpRight, ArrowDownRight, Minus,
 } from 'lucide-react';
@@ -55,16 +57,11 @@ export default function NicheIntel() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <FadeIn>
-        <div>
-          <h1 className="text-xl font-semibold text-white">Niche Intelligence</h1>
-          <p className="text-surface-600 text-[13px] mt-1">Analyze niches and discover high-demand topics</p>
-        </div>
-      </FadeIn>
+      <PageHeader title="Niche Intelligence" subtitle="Analyze niches and discover high-demand topics" />
 
       {/* Scan input */}
       <FadeIn delay={0.05}>
-        <div className="glass rounded-2xl p-5">
+        <div className="card p-5">
           <div className="flex gap-3">
             <div className="relative flex-1">
               <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-600" />
@@ -72,12 +69,12 @@ export default function NicheIntel() {
                 value={niche}
                 onChange={(e) => setNiche(e.target.value)}
                 placeholder="Enter a niche to analyze (e.g., personal finance, crypto trading)"
-                className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-white text-[13px] placeholder:text-surface-600 focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+                className="input-field !pl-11"
                 onKeyDown={(e) => e.key === 'Enter' && runScan()}
               />
             </div>
             <button onClick={runScan} disabled={scanning || !niche.trim()}
-              className="px-6 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-[13px] font-medium disabled:opacity-50 transition-colors flex items-center gap-2">
+              className="btn-primary flex items-center gap-2 text-[13px]">
               <Zap size={16} /> {scanning ? 'Scanning…' : 'Scan'}
             </button>
           </div>
@@ -85,7 +82,7 @@ export default function NicheIntel() {
       </FadeIn>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 glass rounded-xl w-fit">
+      <div className="flex gap-1 p-1 bg-surface-100 rounded-[10px] w-fit">
         {['snapshots', 'topics'].map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${tab === t ? 'bg-brand-500/20 text-brand-400' : 'text-surface-600 hover:text-surface-900'}`}>
@@ -97,18 +94,12 @@ export default function NicheIntel() {
       {/* Snapshots tab */}
       {tab === 'snapshots' && (
         snapshots.length === 0 ? (
-          <FadeIn>
-            <div className="glass rounded-2xl p-12 text-center">
-              <BarChart3 size={40} className="mx-auto text-surface-600 mb-4" />
-              <p className="text-white font-medium mb-1">No niche scans yet</p>
-              <p className="text-surface-600 text-[13px]">Run your first scan above to analyze a niche.</p>
-            </div>
-          </FadeIn>
+          <EmptyState icon={BarChart3} title="No niche scans yet" description="Run your first scan above to analyze a niche." />
         ) : (
           <StaggerContainer className="space-y-3">
             {snapshots.map((s) => (
               <StaggerItem key={s.id}>
-                <div className="glass rounded-2xl p-5">
+                <div className="card p-5">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="text-white font-medium text-[14px]">{s.niche}</h3>
@@ -159,18 +150,12 @@ export default function NicheIntel() {
       {/* Topics tab */}
       {tab === 'topics' && (
         topics.length === 0 ? (
-          <FadeIn>
-            <div className="glass rounded-2xl p-12 text-center">
-              <Target size={40} className="mx-auto text-surface-600 mb-4" />
-              <p className="text-white font-medium mb-1">No topics discovered</p>
-              <p className="text-surface-600 text-[13px]">Run niche scans to discover topic ideas.</p>
-            </div>
-          </FadeIn>
+          <EmptyState icon={Target} title="No topics discovered" description="Run niche scans to discover topic ideas." />
         ) : (
           <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {topics.map((t) => (
               <StaggerItem key={t.id}>
-                <div className="glass rounded-2xl p-4">
+                <div className="card p-4">
                   <p className="text-white text-[13px] font-medium">{t.topic}</p>
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-surface-600 text-[11px]">Demand: {t.estimated_demand}</span>

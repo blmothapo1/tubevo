@@ -50,6 +50,14 @@ export const colors = {
   success: '#34d399',
   warning: '#fbbf24',
   error:   '#f87171',
+
+  // Borders — tokenized for consistent theming
+  border: {
+    subtle:  'var(--border-subtle)',
+    default: 'var(--border-default)',
+    strong:  'var(--border-strong)',
+    hover:   'var(--border-hover)',
+  },
 };
 
 // ── Spacing (8pt grid) ──────────────────────────────────

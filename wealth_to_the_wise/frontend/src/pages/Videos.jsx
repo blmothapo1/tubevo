@@ -4,6 +4,7 @@ import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonVideoList } from '../components/Skeleton';
 import ConfettiCelebration from '../components/ConfettiCelebration';
+import EmptyState from '../components/EmptyState';
 import {
   CheckCircle,
   XCircle,
@@ -522,21 +523,11 @@ export default function Videos() {
       {loading ? (
         <SkeletonVideoList />
       ) : videos.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2, ease }}
-          className="card px-6 py-14 text-center"
-          data-tour="video-list"
-        >
-          <div className="w-14 h-14 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
-            <Sparkles size={24} className="text-brand-400" />
-          </div>
-          <h3 className="text-[14px] font-semibold text-white mb-2">No videos yet</h3>
-          <p className="text-[13px] text-surface-600 max-w-sm mx-auto">
-            Use the form above to generate your first AI-powered video. It takes about 2–3 minutes.
-          </p>
-        </motion.div>
+        <EmptyState
+          icon={Sparkles}
+          title="No videos yet"
+          description="Use the form above to generate your first AI-powered video. It takes about 2–3 minutes."
+        />
       ) : (
         <StaggerContainer className="card" staggerDelay={0.03} data-tour="video-list">
           {videos.map((video) => {

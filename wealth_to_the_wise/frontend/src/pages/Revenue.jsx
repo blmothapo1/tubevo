@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonStatCards } from '../components/Skeleton';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import {
   DollarSign, TrendingUp, BarChart3, Plus, X, CreditCard, Percent, Film,
 } from 'lucide-react';
@@ -72,25 +74,23 @@ export default function Revenue() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <FadeIn>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-white">Revenue</h1>
-            <p className="text-surface-600 text-[13px] mt-1">Track income from all sources</p>
-          </div>
+      <PageHeader
+        title="Revenue"
+        subtitle="Track income from all sources"
+        action={
           <button onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-[13px] font-medium transition-colors">
+            className="btn-primary flex items-center gap-2 text-[13px]">
             <Plus size={16} /> Log Revenue
           </button>
-        </div>
-      </FadeIn>
+        }
+      />
 
       {/* Stat cards */}
       {summary && (
         <FadeIn delay={0.05}>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {statCards.map(({ label, value, icon: Icon, gradient, iconColor }) => (
-              <div key={label} className={`glass rounded-2xl p-4 bg-gradient-to-br ${gradient}`}>
+              <div key={label} className={`card p-4 bg-gradient-to-br ${gradient}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <Icon size={16} className={iconColor} />
                   <span className="text-surface-600 text-[11px]">{label}</span>
@@ -105,7 +105,7 @@ export default function Revenue() {
       {/* Source breakdown */}
       {summary && (
         <FadeIn delay={0.1}>
-          <div className="glass rounded-2xl p-5">
+          <div className="card p-5">
             <h3 className="text-white font-medium text-[14px] mb-3">Revenue by Source</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
@@ -125,7 +125,7 @@ export default function Revenue() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 glass rounded-xl w-fit">
+      <div className="flex gap-1 p-1 bg-surface-100 rounded-[10px] w-fit">
         {['overview', 'events'].map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${tab === t ? 'bg-brand-500/20 text-brand-400' : 'text-surface-600 hover:text-surface-900'}`}>
@@ -137,16 +137,12 @@ export default function Revenue() {
       {/* Daily breakdown */}
       {tab === 'overview' && (
         daily.length === 0 ? (
-          <FadeIn><div className="glass rounded-2xl p-12 text-center">
-            <BarChart3 size={40} className="mx-auto text-surface-600 mb-4" />
-            <p className="text-white font-medium mb-1">No revenue data yet</p>
-            <p className="text-surface-600 text-[13px]">Log revenue events to see daily breakdowns.</p>
-          </div></FadeIn>
+          <EmptyState icon={BarChart3} title="No revenue data yet" description="Log revenue events to see daily breakdowns." />
         ) : (
           <StaggerContainer className="space-y-2">
             {daily.map((d) => (
               <StaggerItem key={d.id}>
-                <div className="glass rounded-xl p-4 flex items-center justify-between">
+                <div className="card p-4 flex items-center justify-between">
                   <div>
                     <p className="text-white text-[13px] font-medium">{d.agg_date}</p>
                     <p className="text-surface-600 text-[11px] mt-0.5">{d.video_count} videos</p>
@@ -169,16 +165,12 @@ export default function Revenue() {
       {/* Events */}
       {tab === 'events' && (
         events.length === 0 ? (
-          <FadeIn><div className="glass rounded-2xl p-12 text-center">
-            <CreditCard size={40} className="mx-auto text-surface-600 mb-4" />
-            <p className="text-white font-medium mb-1">No events recorded</p>
-            <p className="text-surface-600 text-[13px]">Log your first revenue event to get started.</p>
-          </div></FadeIn>
+          <EmptyState icon={CreditCard} title="No events recorded" description="Log your first revenue event to get started." />
         ) : (
           <StaggerContainer className="space-y-2">
             {events.map((e) => (
               <StaggerItem key={e.id}>
-                <div className="glass rounded-xl p-4 flex items-center justify-between">
+                <div className="card p-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${SOURCE_COLORS[e.source] || 'bg-white/5 text-surface-600'}`}>{e.source}</span>
                     <span className="text-surface-600 text-[12px]">{e.event_date}</span>
@@ -194,14 +186,14 @@ export default function Revenue() {
       {/* Add event modal */}
       {showAdd && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAdd(false)}>
-          <div className="glass rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div className="card !rounded-[20px] p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-semibold">Log Revenue Event</h2>
               <button onClick={() => setShowAdd(false)} className="text-surface-600 hover:text-white"><X size={18} /></button>
             </div>
             <div className="space-y-3">
               <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-white text-[13px] focus:outline-none focus:ring-1 focus:ring-brand-500/50">
+                className="input-field">
                 <option value="manual">Manual</option>
                 <option value="adsense">AdSense</option>
                 <option value="affiliate">Affiliate</option>
@@ -209,15 +201,15 @@ export default function Revenue() {
               </select>
               <input type="number" placeholder="Amount (cents)" value={form.amount_cents}
                 onChange={(e) => setForm({ ...form, amount_cents: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-white text-[13px] placeholder:text-surface-600 focus:outline-none focus:ring-1 focus:ring-brand-500/50" />
+                className="input-field" />
               <input type="date" value={form.event_date}
                 onChange={(e) => setForm({ ...form, event_date: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-white text-[13px] focus:outline-none focus:ring-1 focus:ring-brand-500/50" />
+                className="input-field" />
             </div>
             <div className="flex gap-3 mt-4">
-              <button onClick={() => setShowAdd(false)} className="flex-1 py-2.5 rounded-xl border border-white/[0.06] text-surface-700 text-[13px] font-medium hover:bg-white/[0.02]">Cancel</button>
+              <button onClick={() => setShowAdd(false)} className="btn-secondary flex-1 text-[13px]">Cancel</button>
               <button onClick={addEvent} disabled={adding || !form.amount_cents || !form.event_date}
-                className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-[13px] font-medium disabled:opacity-50 transition-colors">
+                className="btn-primary flex-1 text-[13px] disabled:opacity-50">
                 {adding ? 'Saving…' : 'Save'}
               </button>
             </div>

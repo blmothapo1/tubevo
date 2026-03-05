@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonCard } from '../components/Skeleton';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import {
   Plus,
   CalendarClock,
@@ -56,24 +58,20 @@ export default function Schedule() {
   return (
     <FadeIn className="max-w-4xl mx-auto space-y-7">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">
-            Automation
-          </h1>
-          <p className="text-[12px] text-surface-600 mt-2 uppercase tracking-[0.08em] font-medium">
-            Schedule recurring video generation
-          </p>
-        </div>
-        <motion.button
-          onClick={() => setShowCreate(true)}
-          whileTap={{ scale: 0.98 }}
-          className="btn-primary flex items-center gap-2 text-xs uppercase tracking-wide shrink-0"
-        >
-          <Plus size={14} />
-          <span className="hidden sm:inline">New Schedule</span>
-        </motion.button>
-      </div>
+      <PageHeader
+        title="Automation"
+        subtitle="Schedule recurring video generation"
+        action={
+          <motion.button
+            onClick={() => setShowCreate(true)}
+            whileTap={{ scale: 0.98 }}
+            className="btn-primary flex items-center gap-2 text-xs uppercase tracking-wide shrink-0"
+          >
+            <Plus size={14} />
+            <span className="hidden sm:inline">New Schedule</span>
+          </motion.button>
+        }
+      />
 
       {/* Error */}
       <AnimatePresence>
@@ -111,7 +109,21 @@ export default function Schedule() {
           <SkeletonCard />
         </div>
       ) : schedules.length === 0 ? (
-        <EmptyState onCreateClick={() => setShowCreate(true)} />
+        <EmptyState
+          icon={CalendarClock}
+          title="No schedules yet"
+          description="Create your first automation schedule to generate and post videos on autopilot."
+          action={
+            <motion.button
+              onClick={() => setShowCreate(true)}
+              whileTap={{ scale: 0.98 }}
+              className="btn-primary inline-flex items-center gap-2 text-xs uppercase tracking-wide"
+            >
+              <Plus size={16} />
+              Create your first schedule
+            </motion.button>
+          }
+        />
       ) : (
         <StaggerContainer className="space-y-4" staggerDelay={0.06}>
           {schedules.map((schedule) => (
@@ -133,40 +145,6 @@ export default function Schedule() {
         </StaggerContainer>
       )}
     </FadeIn>
-  );
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════ */
-/*  Empty State                                                       */
-/* ═══════════════════════════════════════════════════════════════════ */
-
-function EmptyState({ onCreateClick }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: 0.1, ease }}
-      className="card p-14 text-center"
-    >
-      <div className="w-12 h-12 rounded-[10px] bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
-        <CalendarClock size={22} className="text-brand-400" />
-      </div>
-      <h3 className="text-[14px] font-semibold text-white mb-2">
-        No schedules yet
-      </h3>
-      <p className="text-[13px] text-surface-600 max-w-sm mx-auto mb-6">
-        Create your first automation schedule to generate and post videos on autopilot.
-      </p>
-      <motion.button
-        onClick={onCreateClick}
-        whileTap={{ scale: 0.98 }}
-        className="btn-primary inline-flex items-center gap-2 text-xs uppercase tracking-wide"
-      >
-        <Plus size={16} />
-        Create your first schedule
-      </motion.button>
-    </motion.div>
   );
 }
 

@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonStatCards } from '../components/Skeleton';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import {
   Tv2, Plus, Trash2, Star, Link2, Youtube, ExternalLink, X,
 } from 'lucide-react';
@@ -57,20 +59,18 @@ export default function Channels() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <FadeIn>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-white">Channels</h1>
-            <p className="text-surface-600 text-[13px] mt-1">Manage your YouTube channels</p>
-          </div>
+      <PageHeader
+        title="Channels"
+        subtitle="Manage your YouTube channels"
+        action={
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-[13px] font-medium transition-colors"
+            className="btn-primary flex items-center gap-2 text-[13px]"
           >
             <Plus size={16} /> Add Channel
           </button>
-        </div>
-      </FadeIn>
+        }
+      />
 
       {/* Create modal */}
       <AnimatePresence>
@@ -79,7 +79,7 @@ export default function Channels() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowCreate(false)}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="glass rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              className="card p-6 w-full max-w-md !rounded-[20px]" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-white font-semibold">New Channel</h2>
                 <button onClick={() => setShowCreate(false)} className="text-surface-600 hover:text-white"><X size={18} /></button>
@@ -88,13 +88,13 @@ export default function Channels() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Channel name"
-                className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-white text-[13px] placeholder:text-surface-600 focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+                className="input-field"
                 onKeyDown={(e) => e.key === 'Enter' && createChannel()}
               />
               <div className="flex gap-3 mt-4">
-                <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-xl border border-white/[0.06] text-surface-700 text-[13px] font-medium hover:bg-white/[0.02]">Cancel</button>
+                <button onClick={() => setShowCreate(false)} className="btn-secondary flex-1 !py-2.5 text-[13px]">Cancel</button>
                 <button onClick={createChannel} disabled={creating || !newName.trim()}
-                  className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-[13px] font-medium disabled:opacity-50 transition-colors">
+                  className="btn-primary flex-1 !py-2.5 text-[13px] disabled:opacity-50">
                   {creating ? 'Creating…' : 'Create'}
                 </button>
               </div>
@@ -105,18 +105,16 @@ export default function Channels() {
 
       {/* Channel list */}
       {channels.length === 0 ? (
-        <FadeIn>
-          <div className="glass rounded-2xl p-12 text-center">
-            <Tv2 size={40} className="mx-auto text-surface-600 mb-4" />
-            <p className="text-white font-medium mb-1">No channels yet</p>
-            <p className="text-surface-600 text-[13px]">Add your first channel to get started with multi-channel management.</p>
-          </div>
-        </FadeIn>
+        <EmptyState
+          icon={Tv2}
+          title="No channels yet"
+          description="Add your first channel to get started with multi-channel management."
+        />
       ) : (
         <StaggerContainer className="space-y-3">
           {channels.map((ch) => (
             <StaggerItem key={ch.id}>
-              <div className="glass rounded-2xl p-5 flex items-center justify-between group">
+              <div className="card p-5 flex items-center justify-between group">
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${ch.is_default ? 'bg-brand-500/20' : 'bg-white/[0.04]'}`}>
                     {ch.youtube_connected ? <Youtube size={18} className="text-red-400" /> : <Tv2 size={18} className="text-surface-600" />}

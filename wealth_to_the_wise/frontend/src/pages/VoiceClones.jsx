@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonStatCards } from '../components/Skeleton';
+import PageHeader from '../components/PageHeader';
+import EmptyState from '../components/EmptyState';
 import {
   Mic, Plus, Trash2, X, RefreshCw, CheckCircle2, Clock, AlertTriangle, Loader2,
 } from 'lucide-react';
@@ -67,18 +69,16 @@ export default function VoiceClones() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <FadeIn>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-white">Voice Clones</h1>
-            <p className="text-surface-600 text-[13px] mt-1">Create and manage AI voice clones for your videos</p>
-          </div>
+      <PageHeader
+        title="Voice Clones"
+        subtitle="Create and manage AI voice clones for your videos"
+        action={
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-[13px] font-medium transition-colors">
+            className="btn-primary flex items-center gap-2 text-[13px]">
             <Plus size={16} /> New Voice
           </button>
-        </div>
-      </FadeIn>
+        }
+      />
 
       {/* Create modal */}
       <AnimatePresence>
@@ -87,7 +87,7 @@ export default function VoiceClones() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowCreate(false)}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="glass rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              className="card !rounded-[20px] p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-white font-semibold">New Voice Clone</h2>
                 <button onClick={() => setShowCreate(false)} className="text-surface-600 hover:text-white"><X size={18} /></button>
@@ -95,17 +95,17 @@ export default function VoiceClones() {
               <div className="space-y-3">
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Voice name (e.g., Professional Male)"
-                  className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-white text-[13px] placeholder:text-surface-600 focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+                  className="input-field"
                   onKeyDown={(e) => e.key === 'Enter' && createClone()} />
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Description (optional)"
                   rows={3}
-                  className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-white text-[13px] placeholder:text-surface-600 focus:outline-none focus:ring-1 focus:ring-brand-500/50 resize-none" />
+                  className="input-field !resize-none" />
               </div>
               <div className="flex gap-3 mt-4">
-                <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-xl border border-white/[0.06] text-surface-700 text-[13px] font-medium hover:bg-white/[0.02]">Cancel</button>
+                <button onClick={() => setShowCreate(false)} className="btn-secondary flex-1 text-[13px]">Cancel</button>
                 <button onClick={createClone} disabled={creating || !form.name.trim()}
-                  className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-[13px] font-medium disabled:opacity-50 transition-colors">
+                  className="btn-primary flex-1 text-[13px] disabled:opacity-50">
                   {creating ? 'Creating…' : 'Create'}
                 </button>
               </div>
@@ -116,13 +116,9 @@ export default function VoiceClones() {
 
       {/* Clone list */}
       {clones.length === 0 ? (
-        <FadeIn>
-          <div className="glass rounded-2xl p-12 text-center">
-            <Mic size={40} className="mx-auto text-surface-600 mb-4" />
-            <p className="text-white font-medium mb-1">No voice clones yet</p>
-            <p className="text-surface-600 text-[13px]">Create your first AI voice clone to use in video generation.</p>
-          </div>
-        </FadeIn>
+        <EmptyState icon={Mic} title="No voice clones yet"
+          description="Create your first AI voice clone to use in video generation."
+          action={<button onClick={() => setShowCreate(true)} className="btn-primary text-[13px]">New Voice</button>} />
       ) : (
         <StaggerContainer className="space-y-3">
           {clones.map((clone) => {
@@ -130,7 +126,7 @@ export default function VoiceClones() {
             const StatusIcon = style.icon;
             return (
               <StaggerItem key={clone.id}>
-                <div className="glass rounded-2xl p-5">
+                <div className="card p-5">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${style.bg}`}>
