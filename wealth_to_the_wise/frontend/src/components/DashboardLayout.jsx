@@ -91,7 +91,13 @@ export default function DashboardLayout() {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-          className="flex-1 w-full max-w-6xl mx-auto mobile-content-padding sm:px-8 sm:py-7 lg:px-10 lg:py-8 safe-area-inset"
+          className="flex-1 w-full max-w-6xl mx-auto"
+          style={{
+            paddingLeft: 'clamp(24px, 7vw, 32px)',
+            paddingRight: 'clamp(24px, 7vw, 32px)',
+            paddingTop: 'clamp(20px, 5vw, 32px)',
+            paddingBottom: 'clamp(20px, 5vw, 32px)',
+          }}
         >
           <Outlet />
         </motion.main>
