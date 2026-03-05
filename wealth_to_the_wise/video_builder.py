@@ -597,7 +597,7 @@ def _composite_main_section(
         "-vf", vf,
         "-t", f"{narration_duration:.2f}",
         "-c:v", "libx264", "-preset", ENCODING_PRESET, "-b:v", VIDEO_BITRATE,
-        "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+        "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
         "-pix_fmt", "yuv420p",
         "-shortest",
         output_path,
@@ -644,9 +644,14 @@ def _assemble_final(
         f.write(f"file '{main_section_path}'\n")
         f.write(f"file '{outro_with_audio}'\n")
 
+    # Re-encode rather than stream-copy to avoid glitch artefacts at
+    # concat segment boundaries (different encoder settings, frame padding).
     _run_ffmpeg([
         "-f", "concat", "-safe", "0", "-i", concat_list,
-        "-c", "copy",
+        "-c:v", "libx264", "-preset", ENCODING_PRESET, "-b:v", VIDEO_BITRATE,
+        "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
         output_path,
     ], "assemble final video")
 
@@ -682,7 +687,7 @@ def _enforce_size_limit(video_path: str) -> str:
     _run_ffmpeg([
         "-i", video_path,
         "-c:v", "libx264", "-preset", "slow", "-b:v", target_bitrate,
-        "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+        "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
         "-pix_fmt", "yuv420p",
         compressed_path,
     ], "compress oversized video")
