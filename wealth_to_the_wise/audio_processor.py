@@ -83,8 +83,6 @@ def trim_silence(input_path: str, output_path: str) -> str:
     Uses FFmpeg's silenceremove filter:
     - First pass: remove leading silence
     - Second pass: remove trailing silence (via areverse trick)
-    - Final: convert to stereo + add a tiny fade-out at the very end to
-      prevent codec-boundary artefacts (the "end glitch").
     """
     _run_ffmpeg([
         "-i", input_path,
@@ -96,12 +94,7 @@ def trim_silence(input_path: str, output_path: str) -> str:
             f"areverse,"
             f"silenceremove=start_periods=1:start_threshold={SILENCE_THRESHOLD_DB}dB"
             f":start_duration={SILENCE_MIN_DURATION}:start_silence=0.05,"
-            f"areverse,"
-            # Tiny fade-out at the very end to kill any trailing artefact
-            f"afade=t=out:st=0:d=0.05:curve=tri"
-            # (st=0 is relative to the end of stream here — FFmpeg
-            #  will clamp it; we fix the start time below in the
-            #  _finalize_audio step which knows the real duration.)
+            f"areverse"
         ),
         "-c:a", "libmp3lame", "-q:a", "2",
         output_path,
@@ -319,9 +312,9 @@ def mix_with_ducking(
             f"level_in=1:"
             f"level_sc=1 [ducked_music];"
             # Mix ducked music with voice — use 'first' duration so it ends
-            # with the voice, then apply a short fade-out to kill any glitch
-            "[voice][ducked_music] amix=inputs=2:duration=first:dropout_transition=0,"
-            "afade=t=out:st=0:d=0.08:curve=tri [mixed];"
+            # with the voice track. The finalize step (Step 5) handles the
+            # end-of-stream fade-out where the actual duration is known.
+            "[voice][ducked_music] amix=inputs=2:duration=first:dropout_transition=0 [mixed];"
             # Final: ensure stereo output (belt-and-suspenders)
             "[mixed] aformat=channel_layouts=stereo [out]"
         ),
