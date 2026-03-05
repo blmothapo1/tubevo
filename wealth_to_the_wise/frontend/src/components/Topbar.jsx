@@ -57,7 +57,7 @@ export default function Topbar({ onMenuToggle, pageTitle }) {
           {connected ? (
             <>
               <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-soft-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+                <span className="animate-ripple absolute inline-flex h-full w-full rounded-full text-emerald-400" />
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
               </span>
               <span className="hidden sm:inline truncate max-w-[140px]">

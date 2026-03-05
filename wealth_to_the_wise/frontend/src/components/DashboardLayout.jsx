@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import Sidebar from './Sidebar';
+import Sidebar, { SIDEBAR_W_EXPANDED, SIDEBAR_W_COLLAPSED } from './Sidebar';
 import Topbar from './Topbar';
+import CommandPalette from './CommandPalette';
 import OnboardingTutorial from './OnboardingTutorial';
 import useOnboarding from '../hooks/useOnboarding';
 import { DeviceDebugOverlay } from '../hooks/useDevice.jsx';
+
+const LS_KEY = 'tubevo-sidebar-collapsed';
 
 /* Map routes to page titles for the topbar breadcrumb */
 const PAGE_TITLES = {
@@ -23,8 +26,34 @@ const PAGE_TITLES = {
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
+  });
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { showTutorial, completeTutorial } = useOnboarding();
+
+  // Persist sidebar collapse preference
+  const toggleCollapse = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(LS_KEY, next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
+  }, []);
+
+  // ⌘K global shortcut
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCmdPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // Auto-close mobile sidebar on route change
   useEffect(() => {
@@ -32,13 +61,27 @@ export default function DashboardLayout() {
   }, [location.pathname]);
 
   const pageTitle = PAGE_TITLES[location.pathname] || '';
+  const sidebarWidth = sidebarCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;
 
   return (
     <div className="min-h-screen bg-surface-50 overflow-safe">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {/* Ambient gradient mesh — living background */}
+      <div className="ambient-mesh" aria-hidden="true" />
 
-      {/* Main content — offset on desktop to account for persistent sidebar */}
-      <div className="min-h-screen flex flex-col lg:ml-[260px]">
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleCollapse}
+        onCommandPalette={() => setCmdPaletteOpen(true)}
+      />
+
+      {/* Main content — offset for sidebar with smooth transition */}
+      <motion.div
+        animate={{ marginLeft: `${sidebarWidth}px` }}
+        transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+        className="min-h-screen flex flex-col max-lg:!ml-0"
+      >
         <Topbar
           onMenuToggle={() => setSidebarOpen((prev) => !prev)}
           pageTitle={pageTitle}
@@ -52,7 +95,14 @@ export default function DashboardLayout() {
         >
           <Outlet />
         </motion.main>
-      </div>
+      </motion.div>
+
+      {/* ⌘K Command Palette */}
+      <CommandPalette
+        open={cmdPaletteOpen}
+        onClose={() => setCmdPaletteOpen(false)}
+        onNavigate={(path) => { setCmdPaletteOpen(false); navigate(path); }}
+      />
 
       {/* Onboarding tutorial overlay */}
       <AnimatePresence>
@@ -61,7 +111,6 @@ export default function DashboardLayout() {
         )}
       </AnimatePresence>
 
-      {/* Dev debug overlay — only shows in dev mode with ?debug=device */}
       <DeviceDebugOverlay />
     </div>
   );

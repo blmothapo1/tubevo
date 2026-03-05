@@ -2,6 +2,7 @@
  * Reusable framer-motion wrappers for consistent, premium animations.
  * Apple-style: subtle, fast, purposeful — nothing gratuitous.
  */
+import { useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 
 const ease = [0.25, 0.1, 0.25, 1]; // Apple's ease curve
@@ -86,5 +87,33 @@ export function PressScale({ children, className = '', as = 'div', ...props }) {
     >
       {children}
     </Component>
+  );
+}
+
+/**
+ * GlowCard — card with mouse-tracking radial glow on hover.
+ * Uses CSS custom properties for zero-JS-paint overhead.
+ */
+export function GlowCard({ children, className = '', ...props }) {
+  const ref = useRef(null);
+
+  const handleMouseMove = useCallback((e) => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    ref.current.style.setProperty('--mouse-x', `${x}%`);
+    ref.current.style.setProperty('--mouse-y', `${y}%`);
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      className={`bento-tile ${className}`}
+      {...props}
+    >
+      {children}
+    </div>
   );
 }
