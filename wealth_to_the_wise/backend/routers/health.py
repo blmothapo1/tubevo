@@ -29,7 +29,7 @@ async def health_check(request: Request) -> HealthResponse:
 
     settings = get_settings()
     env = "development" if settings.debug else "production"
-    return HealthResponse(status="ok", version="0.1.0", environment=env)
+    return HealthResponse(status="ok", version=request.app.version, environment=env)
 
 
 @router.get("/health/metrics")
