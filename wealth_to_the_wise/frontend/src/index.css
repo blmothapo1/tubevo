@@ -617,6 +617,7 @@ body::before {
 @media (max-width: 640px) {
   .bento-grid {
     grid-template-columns: 1fr;
+    gap: 14px;
   }
   .bento-wide, .bento-full {
     grid-column: span 1;
@@ -662,11 +663,11 @@ body::before {
 }
 .onboarding-mobile-modal .onboarding-card {
   width: 100%;
-  max-width: calc(100vw - 0px);
+  max-width: calc(100vw - 48px);
   max-height: 70vh;
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   overflow-y: auto;
-  margin: 0 16px;
+  margin: 0 24px;
   margin-bottom: 0;
 }
 @media (min-width: 640px) {

@@ -30,7 +30,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-50 flex items-center justify-center px-5 relative overflow-hidden">
+    <div className="min-h-screen bg-surface-50 flex items-center justify-center px-6 relative overflow-hidden">
       {/* Ambient background — subtle */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[350px] bg-brand-600/4 rounded-full blur-[100px] pointer-events-none" />
 
