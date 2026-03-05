@@ -69,6 +69,12 @@ class User(Base):
         DateTime(timezone=True), nullable=True,
     )
 
+    # ── Empire OS feature flags (Phase 0) ────────────────────────────
+    # JSON dict of per-user flag overrides, e.g. {"empire.multi_channel": true}
+    feature_overrides_json: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+    )
+
     # ── Timestamps ───────────────────────────────────────────────────
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow,
@@ -97,6 +103,12 @@ class VideoRecord(Base):
     )
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=False, index=True,
+    )
+
+    # ── Empire OS: multi-channel (Phase 0) ───────────────────────────
+    # NULL = legacy / default channel (backward-compat)
+    channel_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=True, index=True,
     )
 
     # ── Content ──────────────────────────────────────────────────────
@@ -252,6 +264,11 @@ class PostingSchedule(Base):
         String(36), ForeignKey("users.id"), nullable=False, index=True,
     )
 
+    # ── Empire OS: multi-channel (Phase 0) ───────────────────────────
+    channel_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=True, index=True,
+    )
+
     # Human-readable label, e.g. "Daily Finance Shorts"
     name: Mapped[str] = mapped_column(String(200), nullable=False, default="My Schedule")
 
@@ -308,6 +325,11 @@ class ContentMemory(Base):
         String(36), ForeignKey("users.id"), nullable=False, index=True,
     )
 
+    # ── Empire OS: multi-channel (Phase 0) ───────────────────────────
+    channel_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=True, index=True,
+    )
+
     # The topic string used for generation
     topic: Mapped[str] = mapped_column(String(300), nullable=False)
 
@@ -347,6 +369,12 @@ class UserPreferences(Base):
     )
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id"), unique=True, nullable=False, index=True,
+    )
+
+    # ── Empire OS: multi-channel (Phase 0) ───────────────────────────
+    # NULL = legacy / default channel preferences
+    channel_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=True,
     )
 
     # ── Channel identity ─────────────────────────────────────────────
@@ -405,6 +433,11 @@ class ContentPerformance(Base):
     )
     video_record_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("video_records.id"), nullable=False, index=True,
+    )
+
+    # ── Empire OS: multi-channel (Phase 0) ───────────────────────────
+    channel_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=True, index=True,
     )
 
     # ── What was used ────────────────────────────────────────────────
@@ -587,3 +620,349 @@ class PlatformError(Base):
 
     def __repr__(self) -> str:
         return f"<PlatformError {self.type} resolved={self.resolved} at={self.created_at}>"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# EMPIRE OS — New tables (Phase 0 scaffolding)
+#
+# All tables below are created by Alembic migrations 0003-0009.
+# They are fully isolated — no existing table is dropped or renamed.
+# ══════════════════════════════════════════════════════════════════════
+
+
+class Channel(Base):
+    """A YouTube channel managed by a user (Feature 1: Multi-Channel).
+
+    Users can have multiple channels, each connected to a different
+    YouTube account.  The ``is_default`` flag marks the channel used
+    when no explicit channel_id is provided in API calls.
+    """
+
+    __tablename__ = "channels"
+    __table_args__ = (
+        UniqueConstraint("user_id", "youtube_channel_id", name="uq_user_yt_channel"),
+        Index("ix_channel_user", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    platform: Mapped[str] = mapped_column(String(20), nullable=False, default="youtube")
+
+    # YouTube channel identity (nullable until connected)
+    youtube_channel_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # Link to the OAuth token used for this channel
+    oauth_token_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("oauth_tokens.id"), nullable=True,
+    )
+
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<Channel {self.name} user={self.user_id} yt={self.youtube_channel_id}>"
+
+
+class NicheSnapshot(Base):
+    """Periodic snapshot of niche health metrics (Feature 2: Niche Intel).
+
+    One row per (channel, niche, date) — populated by the niche worker.
+    """
+
+    __tablename__ = "niche_snapshots"
+    __table_args__ = (
+        UniqueConstraint("channel_id", "niche", "snapshot_date", name="uq_niche_snap"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    channel_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=False, index=True,
+    )
+    niche: Mapped[str] = mapped_column(String(200), nullable=False)
+    snapshot_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
+
+    saturation_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    trending_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    search_volume_est: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    competitor_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Raw API response cache (JSON)
+    data_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<NicheSnapshot {self.niche} date={self.snapshot_date} channel={self.channel_id}>"
+
+
+class NicheTopic(Base):
+    """Individual topic discovered during niche analysis (Feature 2)."""
+
+    __tablename__ = "niche_topics"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    snapshot_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("niche_snapshots.id"), nullable=False, index=True,
+    )
+    topic: Mapped[str] = mapped_column(String(300), nullable=False)
+    estimated_demand: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    competition_level: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="medium",
+    )
+    source: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="youtube_search",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<NicheTopic '{self.topic[:40]}' demand={self.estimated_demand}>"
+
+
+class RevenueEvent(Base):
+    """A single revenue event attributed to a channel/video (Feature 3).
+
+    Dedup via UniqueConstraint on (source, external_id).
+    """
+
+    __tablename__ = "revenue_events"
+    __table_args__ = (
+        UniqueConstraint("source", "external_id", name="uq_revenue_dedup"),
+        Index("ix_revenue_channel_date", "channel_id", "event_date"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    channel_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=False,
+    )
+    video_record_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("video_records.id"), nullable=True, index=True,
+    )
+    source: Mapped[str] = mapped_column(String(30), nullable=False)
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
+    event_date: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
+    external_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<RevenueEvent {self.source} ${self.amount_cents/100:.2f} channel={self.channel_id}>"
+
+
+class RevenueDailyAgg(Base):
+    """Daily revenue aggregation per channel (Feature 3)."""
+
+    __tablename__ = "revenue_daily_agg"
+    __table_args__ = (
+        UniqueConstraint("channel_id", "agg_date", name="uq_rev_agg_date"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    channel_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=False, index=True,
+    )
+    agg_date: Mapped[str] = mapped_column(String(10), nullable=False)
+    total_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    adsense_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    affiliate_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stripe_cents: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    video_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<RevenueDailyAgg {self.agg_date} ${self.total_cents/100:.2f} channel={self.channel_id}>"
+
+
+class ThumbExperiment(Base):
+    """A thumbnail A/B test for a specific video (Feature 4)."""
+
+    __tablename__ = "thumb_experiments"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    channel_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=False, index=True,
+    )
+    video_record_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("video_records.id"), nullable=False, unique=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="running",
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    concluded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    winner_variant_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True,
+    )
+    rotation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<ThumbExperiment {self.id[:8]} status={self.status} video={self.video_record_id}>"
+
+
+class ThumbVariant(Base):
+    """A single thumbnail variant within an A/B experiment (Feature 4)."""
+
+    __tablename__ = "thumb_variants"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    experiment_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("thumb_experiments.id"), nullable=False, index=True,
+    )
+    concept: Mapped[str] = mapped_column(String(50), nullable=False)
+    file_path: Mapped[str] = mapped_column(Text, nullable=False)
+    impressions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    clicks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ctr_pct: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    deployed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<ThumbVariant {self.concept} exp={self.experiment_id[:8]} active={self.is_active}>"
+
+
+class CompetitorChannel(Base):
+    """A competitor channel being tracked (Feature 5: Spy Mode)."""
+
+    __tablename__ = "competitor_channels"
+    __table_args__ = (
+        UniqueConstraint("channel_id", "youtube_channel_id", name="uq_comp_yt_channel"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    channel_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=False, index=True,
+    )
+    youtube_channel_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    subscriber_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<CompetitorChannel {self.name} yt={self.youtube_channel_id}>"
+
+
+class CompetitorSnapshot(Base):
+    """Point-in-time snapshot of competitor channel metrics (Feature 5)."""
+
+    __tablename__ = "competitor_snapshots"
+    __table_args__ = (
+        UniqueConstraint("competitor_id", "snapshot_date", name="uq_comp_snap_date"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    competitor_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("competitor_channels.id"), nullable=False, index=True,
+    )
+    snapshot_date: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    subscriber_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_views: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    video_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    recent_videos_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    avg_views_per_video: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    top_tags_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<CompetitorSnapshot comp={self.competitor_id[:8]} date={self.snapshot_date}>"
+
+
+class VoiceClone(Base):
+    """A cloned voice created via ElevenLabs (Feature 6).
+
+    Lifecycle: pending → processing → ready (or failed) → deleted
+    """
+
+    __tablename__ = "voice_clones"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True,
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+
+    # Populated after ElevenLabs clone creation completes
+    elevenlabs_voice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # pending | processing | ready | failed | deleted
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+
+    # Object storage key for the uploaded audio sample
+    sample_file_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sample_duration_secs: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    labels_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    preview_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<VoiceClone {self.name} status={self.status} user={self.user_id}>"

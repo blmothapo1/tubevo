@@ -37,9 +37,17 @@ from backend.config import get_settings, logger as config_logger  # noqa: F401 �
 from backend.database import create_tables, dispose_engine, async_session_factory
 from backend.middleware import RequestLoggingMiddleware
 from backend.rate_limit import limiter
-from backend.routers import api_keys, auth, admin, billing, health, schedules, videos, waitlist, youtube
+from backend.routers import (
+    api_keys, auth, admin, billing, health, schedules, videos, waitlist, youtube,
+    # Empire OS routers (Phase 0 — scaffold only, gated by feature flags)
+    channels, competitors, niche_intel, revenue, thumb_experiments, voice_clones,
+)
 from backend.scheduler_worker import scheduler_loop
 from backend.analytics_worker import analytics_loop
+from backend.feature_flags import (
+    FF_COMPETITOR_SPY, FF_NICHE_INTEL, FF_REVENUE, FF_THUMB_AB, FF_VOICE_CLONE,
+    is_globally_enabled,
+)
 
 logger = logging.getLogger("tubevo.backend.app")
 
@@ -117,6 +125,13 @@ def create_app() -> FastAPI:
         # previous deploy / container restart (zombie protection) ─────
         await _sweep_stale_jobs_on_startup()
 
+        # ── Empire OS: Backfill default channels for legacy users ────
+        try:
+            from backend.workers.channel_migration import backfill_default_channels
+            await backfill_default_channels()
+        except Exception:
+            logger.warning("Channel backfill failed (non-fatal)")
+
         # ── Phase 3: Clean up old per-run output directories ─────────
         try:
             from backend.routers.videos import _cleanup_old_output_dirs
@@ -132,11 +147,44 @@ def create_app() -> FastAPI:
         analytics_task = asyncio.create_task(analytics_loop())
         logger.info("📊 Analytics worker task created")
 
+        # ── Empire OS workers (conditionally started behind feature flags) ──
+        empire_tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
+
+        if is_globally_enabled(FF_NICHE_INTEL):
+            from backend.workers.niche_worker import niche_loop
+            empire_tasks.append(asyncio.create_task(niche_loop()))
+            logger.info("🔍 Niche intelligence worker started")
+
+        if is_globally_enabled(FF_REVENUE):
+            from backend.workers.revenue_worker import revenue_loop
+            empire_tasks.append(asyncio.create_task(revenue_loop()))
+            logger.info("💰 Revenue worker started")
+
+        if is_globally_enabled(FF_THUMB_AB):
+            from backend.workers.thumb_ab_worker import thumb_ab_loop
+            empire_tasks.append(asyncio.create_task(thumb_ab_loop()))
+            logger.info("🖼️ Thumbnail A/B worker started")
+
+        if is_globally_enabled(FF_COMPETITOR_SPY):
+            from backend.workers.competitor_worker import competitor_loop
+            empire_tasks.append(asyncio.create_task(competitor_loop()))
+            logger.info("🕵️ Competitor monitoring worker started")
+
+        if is_globally_enabled(FF_VOICE_CLONE):
+            from backend.workers.voice_clone_worker import voice_clone_loop
+            empire_tasks.append(asyncio.create_task(voice_clone_loop()))
+            logger.info("🎙️ Voice clone worker started")
+
+        if not empire_tasks:
+            logger.info("⚡ Empire OS: no workers enabled (all feature flags off)")
+
         yield
 
         # ── Shutdown ──
         scheduler_task.cancel()
         analytics_task.cancel()
+        for t in empire_tasks:
+            t.cancel()
         try:
             await scheduler_task
         except asyncio.CancelledError:
@@ -145,6 +193,11 @@ def create_app() -> FastAPI:
             await analytics_task
         except asyncio.CancelledError:
             pass
+        for t in empire_tasks:
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
         await dispose_engine()
         logger.info("Backend shutting down.")
 
@@ -207,6 +260,14 @@ def create_app() -> FastAPI:
     app.include_router(youtube.router)
     app.include_router(schedules.router)
     app.include_router(waitlist.router)
+
+    # ── Empire OS routers (all gated by feature flags at router level) ──
+    app.include_router(channels.router)
+    app.include_router(niche_intel.router)
+    app.include_router(revenue.router)
+    app.include_router(thumb_experiments.router)
+    app.include_router(competitors.router)
+    app.include_router(voice_clones.router)
 
     return app
 
