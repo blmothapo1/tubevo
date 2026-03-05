@@ -451,7 +451,9 @@ async def _run_pipeline_inner(
         _err_category = "unknown"
         if PipelineError is not None and isinstance(e, PipelineError):
             _err_category = e.category
-            safe_msg = e.user_hint  # Use the user-friendly message
+            # Store user-friendly message + technical detail for admin debugging
+            _technical = mask_secrets(str(e))
+            safe_msg = f"{e.user_hint}\n\n[Detail: {_technical}]" if _technical != e.user_hint else e.user_hint
         result = {"error": safe_msg, "_error_type": "pipeline", "_error_category": _err_category, "_stack": safe_tb}
 
     # ── Update the DB record with results ────────────────────────────

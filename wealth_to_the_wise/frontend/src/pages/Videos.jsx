@@ -181,12 +181,15 @@ export default function Videos() {
   }, []);
 
   // ── Poll for status when a job is active ──
+  const pollFailCountRef = useRef(0);
   useEffect(() => {
     if (!activeJobId) return;
+    pollFailCountRef.current = 0;
 
     async function pollStatus() {
       try {
         const { data } = await api.get(`/api/videos/${activeJobId}/status`);
+        pollFailCountRef.current = 0; // reset on success
 
         // Update progress in real-time
         setProgressPct(data.progress_pct || 0);
@@ -215,8 +218,19 @@ export default function Videos() {
           triggerFirstVideoConfetti();
         }
         fetchVideos();
-      } catch {
-        // Network error — keep polling
+      } catch (err) {
+        pollFailCountRef.current += 1;
+        // Stop polling after 10 consecutive failures (e.g. 401 auth expired)
+        if (pollFailCountRef.current >= 10) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+          setActiveJobId(null);
+          setGenerating(false);
+          setProgressPct(0);
+          setProgressStep('');
+          setPipelineStartedAt(null);
+          setMessage({ type: 'error', text: 'Lost connection to the server. Please refresh the page.' });
+        }
       }
     }
 
