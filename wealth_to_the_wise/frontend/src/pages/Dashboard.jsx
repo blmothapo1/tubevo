@@ -52,7 +52,7 @@ function BentoTile({ to, icon: Icon, iconColor, gradient, label, value, desc, de
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay, ease: [0.25, 0.1, 0.25, 1] }}
     >
-      <Link to={to} className={`bento-tile group block card p-5 h-full transition-all duration-200 hover:border-[var(--border-strong)] ${className}`}>
+      <Link to={to} className={`bento-tile group block card p-5 max-sm:p-4 h-full transition-all duration-200 hover:border-[var(--border-strong)] ${className}`}>
         <div className="flex items-center justify-between mb-3">
           <div className={`w-9 h-9 rounded-[10px] bg-gradient-to-br ${gradient} flex items-center justify-center`}>
             <Icon size={17} className={iconColor} />
@@ -60,7 +60,7 @@ function BentoTile({ to, icon: Icon, iconColor, gradient, label, value, desc, de
           <ArrowRight size={14} className="text-surface-500 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all duration-200" />
         </div>
         {value !== undefined && (
-          <p className="text-[28px] font-bold text-white tabular-nums tracking-tight leading-none mb-1">
+          <p className="text-[24px] sm:text-[28px] font-bold text-white tabular-nums tracking-tight leading-none mb-1">
             <AnimatedNumber value={value} />
           </p>
         )}
@@ -158,7 +158,7 @@ export default function Dashboard() {
           transition={{ duration: 0.35, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
           className="bento-wide"
         >
-          <div className="card p-5 h-full">
+          <div className="card p-5 max-sm:p-4 h-full">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <TrendingUp size={14} className="text-surface-600" />
@@ -234,7 +234,7 @@ export default function Dashboard() {
                       initial={{ opacity: 0, x: -6 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.3 + i * 0.03, duration: 0.2 }}
-                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.02] transition-colors duration-150"
+                      className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-3.5 hover:bg-white/[0.02] transition-colors duration-150"
                     >
                       <div className="w-8 h-8 rounded-[8px] bg-surface-200 flex items-center justify-center shrink-0">
                         <Icon size={14} className={cfg.color} />

@@ -459,11 +459,11 @@ input, select, textarea, button {
 
 /* Mobile-first generous padding — Apple iOS style.
    Uses clamp() so padding scales fluidly:
-   320px SE → 20px  |  393px iPhone 15 → ~24px  |  430px Pro Max → 28px
+   320px SE → 24px  |  393px iPhone 15 → ~28px  |  430px Pro Max → 32px
    The sm:/lg: Tailwind overrides in the className take over on tablets+. */
 .mobile-content-padding {
-  padding-left: clamp(20px, 6vw, 28px);
-  padding-right: clamp(20px, 6vw, 28px);
+  padding-left: clamp(24px, 7vw, 32px);
+  padding-right: clamp(24px, 7vw, 32px);
   padding-top: 24px;
   padding-bottom: 24px;
 }
@@ -472,7 +472,7 @@ input, select, textarea, button {
 @media (max-width: 430px) {
   .bento-tile .card,
   .bento-tile.card {
-    padding: 16px !important;
+    padding: 14px !important;
   }
   .card > .grid {
     gap: 10px;
@@ -482,8 +482,8 @@ input, select, textarea, button {
 /* Safe-area adds to existing padding (notch / Dynamic Island / home bar).
    Uses max() so it never shrinks padding below the design minimum. */
 .safe-area-inset {
-  padding-left:   max(env(safe-area-inset-left, 0px), clamp(20px, 6vw, 28px));
-  padding-right:  max(env(safe-area-inset-right, 0px), clamp(20px, 6vw, 28px));
+  padding-left:   max(env(safe-area-inset-left, 0px), clamp(24px, 7vw, 32px));
+  padding-right:  max(env(safe-area-inset-right, 0px), clamp(24px, 7vw, 32px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -641,10 +641,16 @@ body::before {
 @media (max-width: 640px) {
   .bento-grid {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
   }
   .bento-wide, .bento-full {
     grid-column: span 1;
+  }
+}
+/* Give the bento grid tighter gap on portrait phones */
+@media (max-width: 430px) {
+  .bento-grid {
+    gap: 10px;
   }
 }
 
