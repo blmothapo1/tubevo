@@ -208,7 +208,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         description="SaaS backend for automated YouTube content pipelines.",
-        version="0.1.0",
+        version="0.1.1",
         docs_url=None if _is_prod else "/docs",
         redoc_url=None if _is_prod else "/redoc",
         openapi_url=None if _is_prod else "/openapi.json",
