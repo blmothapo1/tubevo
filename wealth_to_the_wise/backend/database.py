@@ -203,21 +203,105 @@ async def _run_alembic_upgrade() -> None:
     await asyncio.to_thread(_run_in_thread)
 
 
+async def _apply_column_migrations() -> None:
+    """Add columns to existing tables that ``create_all`` can't handle.
+
+    ``Base.metadata.create_all`` creates *new* tables but cannot ALTER
+    existing ones.  This helper applies the few ADD COLUMN changes that
+    the Empire OS migrations (0003, 0005) require.
+
+    Every statement is guarded by an existence check so it's safe to run
+    on every startup — it's a no-op once the columns exist.
+
+    For SQLite (dev/test) the information_schema trick doesn't work, so
+    we use ``PRAGMA table_info`` instead.
+    """
+    from sqlalchemy import text
+
+    async with engine.begin() as conn:
+        if _using_sqlite:
+            # SQLite path — use PRAGMA table_info
+            async def _col_exists_sqlite(table: str, column: str) -> bool:
+                rows = (await conn.execute(text(f"PRAGMA table_info({table})"))).fetchall()
+                return any(row[1] == column for row in rows)
+
+            # 0003: feature_overrides_json on users
+            if not await _col_exists_sqlite("users", "feature_overrides_json"):
+                await conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN feature_overrides_json TEXT"
+                ))
+                logger.info("Applied migration: users.feature_overrides_json")
+
+            # 0005: channel_id on existing tables
+            for table in ["video_records", "posting_schedules", "content_memory",
+                          "content_performance", "user_preferences"]:
+                if not await _col_exists_sqlite(table, "channel_id"):
+                    await conn.execute(text(
+                        f"ALTER TABLE {table} ADD COLUMN channel_id VARCHAR(36) "
+                        f"REFERENCES channels(id)"
+                    ))
+                    logger.info("Applied migration: %s.channel_id", table)
+        else:
+            # PostgreSQL path — use information_schema
+            async def _col_exists_pg(table: str, column: str) -> bool:
+                result = await conn.execute(text(
+                    "SELECT 1 FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c"
+                ), {"t": table, "c": column})
+                return result.fetchone() is not None
+
+            # 0003: feature_overrides_json on users
+            if not await _col_exists_pg("users", "feature_overrides_json"):
+                await conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN feature_overrides_json TEXT"
+                ))
+                logger.info("Applied migration: users.feature_overrides_json")
+
+            # 0005: channel_id FK on existing tables
+            tables_with_index = [
+                "video_records", "posting_schedules",
+                "content_memory", "content_performance",
+            ]
+            tables_without_index = ["user_preferences"]
+
+            for table in tables_with_index + tables_without_index:
+                if not await _col_exists_pg(table, "channel_id"):
+                    await conn.execute(text(
+                        f"ALTER TABLE {table} ADD COLUMN channel_id VARCHAR(36) "
+                        f"REFERENCES channels(id)"
+                    ))
+                    logger.info("Applied migration: %s.channel_id", table)
+
+            # Create indexes (PostgreSQL only)
+            for table in tables_with_index:
+                idx_name = f"ix_{table}_channel_id"
+                exists = (await conn.execute(text(
+                    "SELECT 1 FROM pg_indexes WHERE indexname = :idx"
+                ), {"idx": idx_name})).fetchone()
+                if not exists:
+                    # CREATE INDEX can't run inside a transaction on some PG
+                    # versions, but ALTER TABLE ... ADD ... can. Use plain index.
+                    await conn.execute(text(
+                        f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} (channel_id)"
+                    ))
+                    logger.info("Applied migration: index %s", idx_name)
+
+    logger.info("Column migrations complete.")
+
+
 async def create_tables() -> None:
-    """Create all tables that don't exist yet.
+    """Create all tables that don't exist yet, then apply column migrations.
 
     Uses SQLAlchemy's ``create_all`` with ``checkfirst=True`` (the default)
     so only *missing* tables are created — existing ones are left untouched.
 
-    Alembic migrations (``alembic upgrade head``) should be run manually or
-    via a one-off Railway command when schema changes require ALTER TABLE.
-    We deliberately do NOT run Alembic programmatically at startup because
-    its synchronous ``asyncio.run()`` in ``env.py`` clashes with FastAPI's
-    already-running event loop, causing crash-loops on Railway.
+    Then runs lightweight ALTER TABLE statements for columns that
+    ``create_all`` can't add to pre-existing tables.
     """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables verified / created.")
+    await _apply_column_migrations()
+    logger.info("Database tables verified / created / migrated.")
 
 
 async def dispose_engine() -> None:
