@@ -9,6 +9,7 @@ import useOnboarding from '../hooks/useOnboarding';
 import { DeviceDebugOverlay } from '../hooks/useDevice.jsx';
 
 const LS_KEY = 'tubevo-sidebar-collapsed';
+const LG_BREAKPOINT = 1024; // Tailwind's lg: breakpoint
 
 /* Map routes to page titles for the topbar breadcrumb */
 const PAGE_TITLES = {
@@ -30,9 +31,21 @@ export default function DashboardLayout() {
     try { return localStorage.getItem(LS_KEY) === '1'; } catch { return false; }
   });
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= LG_BREAKPOINT : true
+  );
   const location = useLocation();
   const navigate = useNavigate();
   const { showTutorial, completeTutorial } = useOnboarding();
+
+  // Track viewport size to gate sidebar margin animation
+  useEffect(() => {
+    const mql = window.matchMedia(`(min-width: ${LG_BREAKPOINT}px)`);
+    const onChange = (e) => setIsDesktop(e.matches);
+    mql.addEventListener('change', onChange);
+    setIsDesktop(mql.matches);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
 
   // Persist sidebar collapse preference
   const toggleCollapse = useCallback(() => {
@@ -76,11 +89,11 @@ export default function DashboardLayout() {
         onCommandPalette={() => setCmdPaletteOpen(true)}
       />
 
-      {/* Main content — offset for sidebar with smooth transition */}
+      {/* Main content — offset for sidebar on desktop only */}
       <motion.div
-        animate={{ marginLeft: `${sidebarWidth}px` }}
+        animate={{ marginLeft: isDesktop ? `${sidebarWidth}px` : '0px' }}
         transition={{ type: 'spring', stiffness: 400, damping: 32 }}
-        className="min-h-screen flex flex-col max-lg:!ml-0"
+        className="min-h-screen flex flex-col"
       >
         <Topbar
           onMenuToggle={() => setSidebarOpen((prev) => !prev)}
@@ -93,10 +106,10 @@ export default function DashboardLayout() {
           transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
           className="flex-1 w-full max-w-6xl mx-auto"
           style={{
-            paddingLeft: 'clamp(32px, 10vw, 44px)',
-            paddingRight: 'clamp(32px, 10vw, 44px)',
-            paddingTop: 'clamp(24px, 5vw, 32px)',
-            paddingBottom: 'clamp(24px, 5vw, 32px)',
+            paddingLeft: 'clamp(16px, 5vw, 32px)',
+            paddingRight: 'clamp(16px, 5vw, 32px)',
+            paddingTop: 'clamp(20px, 4vw, 32px)',
+            paddingBottom: 'clamp(20px, 4vw, 32px)',
           }}
         >
           <Outlet />
