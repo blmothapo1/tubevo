@@ -6,12 +6,10 @@ import Topbar from './Topbar';
 import CommandPalette from './CommandPalette';
 import OnboardingTutorial from './OnboardingTutorial';
 import useOnboarding from '../hooks/useOnboarding';
-import { DeviceDebugOverlay } from '../hooks/useDevice.jsx';
 
 const LS_KEY = 'tubevo-sidebar-collapsed';
-const LG_BREAKPOINT = 1024; // Tailwind's lg: breakpoint
+const LG_BREAKPOINT = 1024;
 
-/* Map routes to page titles for the topbar breadcrumb */
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
   '/videos': 'Videos',
@@ -38,7 +36,7 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const { showTutorial, completeTutorial } = useOnboarding();
 
-  // Track viewport size to gate sidebar margin animation
+  // Track viewport — gates sidebar margin animation to desktop only
   useEffect(() => {
     const mql = window.matchMedia(`(min-width: ${LG_BREAKPOINT}px)`);
     const onChange = (e) => setIsDesktop(e.matches);
@@ -47,7 +45,6 @@ export default function DashboardLayout() {
     return () => mql.removeEventListener('change', onChange);
   }, []);
 
-  // Persist sidebar collapse preference
   const toggleCollapse = useCallback(() => {
     setSidebarCollapsed((prev) => {
       const next = !prev;
@@ -76,8 +73,21 @@ export default function DashboardLayout() {
   const pageTitle = PAGE_TITLES[location.pathname] || '';
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_W_COLLAPSED : SIDEBAR_W_EXPANDED;
 
+  /*
+   * On mobile (<1024px) we render a plain <div> so Framer Motion cannot
+   * inject an inline margin-left style. On desktop we use <motion.div>
+   * for the smooth sidebar-offset spring animation.
+   */
+  const Wrapper = isDesktop ? motion.div : 'div';
+  const wrapperMotionProps = isDesktop
+    ? {
+        animate: { marginLeft: `${sidebarWidth}px` },
+        transition: { type: 'spring', stiffness: 400, damping: 32 },
+      }
+    : {};
+
   return (
-    <div className="min-h-screen bg-surface-50 overflow-safe">
+    <div className="min-h-screen bg-surface-50" style={{ overflowX: 'hidden', maxWidth: '100vw' }}>
       {/* Ambient gradient mesh — living background */}
       <div className="ambient-mesh" aria-hidden="true" />
 
@@ -89,11 +99,11 @@ export default function DashboardLayout() {
         onCommandPalette={() => setCmdPaletteOpen(true)}
       />
 
-      {/* Main content — offset for sidebar on desktop only */}
-      <motion.div
-        animate={{ marginLeft: isDesktop ? `${sidebarWidth}px` : '0px' }}
-        transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+      {/* Main content — plain div on mobile, motion.div on desktop */}
+      <Wrapper
+        {...wrapperMotionProps}
         className="min-h-screen flex flex-col"
+        style={!isDesktop ? { marginLeft: 0, maxWidth: '100vw' } : undefined}
       >
         <Topbar
           onMenuToggle={() => setSidebarOpen((prev) => !prev)}
@@ -110,11 +120,13 @@ export default function DashboardLayout() {
             paddingRight: 'clamp(16px, 5vw, 32px)',
             paddingTop: 'clamp(20px, 4vw, 32px)',
             paddingBottom: 'clamp(20px, 4vw, 32px)',
+            overflowX: 'hidden',
+            minWidth: 0,
           }}
         >
           <Outlet />
         </motion.main>
-      </motion.div>
+      </Wrapper>
 
       {/* ⌘K Command Palette */}
       <CommandPalette
@@ -129,8 +141,6 @@ export default function DashboardLayout() {
           <OnboardingTutorial onComplete={completeTutorial} />
         )}
       </AnimatePresence>
-
-      <DeviceDebugOverlay />
     </div>
   );
 }

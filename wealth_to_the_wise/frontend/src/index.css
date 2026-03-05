@@ -93,12 +93,15 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
   width: 100%;
+  max-width: 100vw;
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
   background-color: var(--color-surface-50);
   color: var(--color-surface-900);
   font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', system-ui, BlinkMacSystemFont, sans-serif;
@@ -629,8 +632,15 @@ body::before {
 /* ── Bento grid — spatial dashboard layout ───────── */
 .bento-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+  max-width: 100%;
+  overflow: hidden;
+}
+.bento-grid > * {
+  min-width: 0;        /* allow grid children to shrink below content size */
+  max-width: 100%;
+  overflow: hidden;
 }
 .bento-wide {
   grid-column: span 3;
@@ -640,7 +650,7 @@ body::before {
 }
 @media (max-width: 640px) {
   .bento-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
   .bento-wide, .bento-full {

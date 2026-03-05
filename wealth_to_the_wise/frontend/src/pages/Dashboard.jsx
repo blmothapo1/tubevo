@@ -114,7 +114,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 min-w-0 overflow-hidden">
       {/* Header */}
       <PageHeader
         title={`${greeting}, ${firstName}`}
