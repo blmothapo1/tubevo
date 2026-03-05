@@ -204,11 +204,20 @@ async def _run_alembic_upgrade() -> None:
 
 
 async def create_tables() -> None:
-    """Create all tables that don't exist yet, then run Alembic migrations."""
+    """Create all tables that don't exist yet.
+
+    Uses SQLAlchemy's ``create_all`` with ``checkfirst=True`` (the default)
+    so only *missing* tables are created — existing ones are left untouched.
+
+    Alembic migrations (``alembic upgrade head``) should be run manually or
+    via a one-off Railway command when schema changes require ALTER TABLE.
+    We deliberately do NOT run Alembic programmatically at startup because
+    its synchronous ``asyncio.run()`` in ``env.py`` clashes with FastAPI's
+    already-running event loop, causing crash-loops on Railway.
+    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    await _run_alembic_upgrade()
-    logger.info("Database tables verified / created / migrated.")
+    logger.info("Database tables verified / created.")
 
 
 async def dispose_engine() -> None:
