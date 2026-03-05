@@ -180,11 +180,11 @@ def test_upload_returns_refreshed_token():
 
 
 def test_pipeline_background_persists_refreshed_token():
-    """_run_pipeline_background must contain _refreshed_yt_access_token persistence logic."""
+    """_run_pipeline_inner must contain _refreshed_yt_access_token persistence logic."""
     import inspect
-    from backend.routers.videos import _run_pipeline_background
+    from backend.routers.videos import _run_pipeline_inner
 
-    source = inspect.getsource(_run_pipeline_background)
+    source = inspect.getsource(_run_pipeline_inner)
     assert "_refreshed_yt_access_token" in source, (
         "Pipeline background must persist refreshed YouTube token"
     )

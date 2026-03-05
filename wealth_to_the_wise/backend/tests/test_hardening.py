@@ -162,9 +162,9 @@ class TestStorageAbstraction:
             _guard_local_storage_in_production()  # should not raise
 
     def test_pipeline_uploads_before_success(self):
-        """_run_pipeline_background must upload artifacts before marking success."""
+        """_run_pipeline_inner must upload artifacts before marking success."""
         source = inspect.getsource(
-            importlib.import_module("backend.routers.videos")._run_pipeline_background
+            importlib.import_module("backend.routers.videos")._run_pipeline_inner
         )
         # The storage upload block should appear BEFORE the final status assignment
         upload_idx = source.find("get_storage")
@@ -178,7 +178,7 @@ class TestStorageAbstraction:
     def test_storage_failure_marks_job_failed(self):
         """If StorageUploadError is raised, pipeline must set status='failed'."""
         source = inspect.getsource(
-            importlib.import_module("backend.routers.videos")._run_pipeline_background
+            importlib.import_module("backend.routers.videos")._run_pipeline_inner
         )
         assert "StorageUploadError" in source
         assert "external_service" in source, "Storage failure must use 'external_service' error category"

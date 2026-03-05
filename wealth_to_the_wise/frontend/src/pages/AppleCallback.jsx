@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api, { setTokens } from '../lib/api';
+import api, { setAccessToken } from '../lib/api';
 
 export default function AppleCallback() {
   const navigate = useNavigate();
@@ -11,7 +11,7 @@ export default function AppleCallback() {
     if (code) {
       api.post('/auth/apple', { code })
         .then(({ data }) => {
-          setTokens(data.access_token, data.refresh_token);
+          setAccessToken(data.access_token);
           navigate('/dashboard');
         })
         .catch(() => {

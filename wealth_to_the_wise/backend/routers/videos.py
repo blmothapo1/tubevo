@@ -62,6 +62,12 @@ PIPELINE_TIMEOUT_SECONDS = 10 * 60  # 10 minutes
 # If a record has been "generating" for longer than this, mark it failed.
 STALE_JOB_MINUTES = 15
 
+# ── Concurrency limiter ─────────────────────────────────────────────
+# Cap simultaneous video generations to avoid OOM from multiple FFmpeg
+# processes + OpenAI/ElevenLabs streams hitting at once.
+MAX_CONCURRENT_PIPELINES = int(os.environ.get("MAX_CONCURRENT_PIPELINES", "3"))
+_pipeline_semaphore = asyncio.Semaphore(MAX_CONCURRENT_PIPELINES)
+
 # YouTube video category ID (22 = "People & Blogs")
 DEFAULT_VIDEO_CATEGORY = os.environ.get("DEFAULT_VIDEO_CATEGORY", "22")
 
@@ -306,11 +312,43 @@ async def _run_pipeline_background(
 
     Uses its own DB session (the request session is already closed).
     Wraps the synchronous pipeline in asyncio.to_thread with a timeout.
+
+    Acquires ``_pipeline_semaphore`` to limit concurrent FFmpeg / AI
+    calls and prevent OOM on Railway's single container.
     """
-    logger.info("Background pipeline starting for record %s", record_id)
+    logger.info(
+        "Background pipeline queued for record %s (semaphore: %d/%d available)",
+        record_id,
+        _pipeline_semaphore._value,  # noqa: SLF001 — just for logging
+        MAX_CONCURRENT_PIPELINES,
+    )
 
     # Initialise in-memory progress tracker
-    _progress_store[record_id] = {"step": "Starting…", "pct": 0, "started_at": time.time()}
+    _progress_store[record_id] = {"step": "Queued — waiting for slot…", "pct": 0, "started_at": time.time()}
+
+    async with _pipeline_semaphore:
+        logger.info("Background pipeline STARTING for record %s (slot acquired)", record_id)
+        _progress_store[record_id]["step"] = "Starting…"
+        await _run_pipeline_inner(
+            record_id=record_id,
+            topic=topic,
+            user_id=user_id,
+            user_api_keys=user_api_keys,
+            yt_access_token=yt_access_token,
+            yt_refresh_token=yt_refresh_token,
+        )
+
+
+async def _run_pipeline_inner(
+    *,
+    record_id: str,
+    topic: str,
+    user_id: str,
+    user_api_keys: dict,
+    yt_access_token: str | None,
+    yt_refresh_token: str | None,
+) -> None:
+    """Inner pipeline logic — called once the semaphore slot is acquired."""
 
     # ── Phase 7: Fetch past titles from content memory ───────────────
     past_titles: list[str] = []

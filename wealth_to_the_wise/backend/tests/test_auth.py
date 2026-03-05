@@ -52,7 +52,23 @@ async def _signup(client: AsyncClient, body: dict | None = None) -> tuple[dict, 
 
 async def _login(client: AsyncClient, email: str = "alice@example.com", password: str = "strongpass123") -> tuple[dict, int]:
     resp = await client.post("/auth/login", json={"email": email, "password": password})
+    # Propagate Set-Cookie into the client cookie jar so subsequent
+    # requests (e.g. /auth/refresh) include the httpOnly refresh cookie.
+    for cookie_header in resp.headers.get_list("set-cookie"):
+        # parse "name=value; ..." — we only need the name=value part
+        name_value = cookie_header.split(";")[0]
+        if "=" in name_value:
+            name, value = name_value.split("=", 1)
+            client.cookies.set(name.strip(), value.strip())
     return resp.json(), resp.status_code
+
+
+def _extract_refresh_cookie(client: AsyncClient) -> str | None:
+    """Pull the refresh_token value from the test client's cookie jar."""
+    for cookie in client.cookies.jar:
+        if cookie.name == "refresh_token":
+            return cookie.value
+    return None
 
 
 # ── Signup ───────────────────────────────────────────────────────────
@@ -101,8 +117,9 @@ async def test_login_success(client: AsyncClient):
     data, status = await _login(client)
     assert status == 200
     assert "access_token" in data
-    assert "refresh_token" in data
     assert data["token_type"] == "bearer"
+    # refresh_token is now in an httpOnly cookie, not in the body
+    assert "refresh_token" not in data
 
 
 @pytest.mark.anyio
@@ -173,14 +190,19 @@ async def test_refresh_token(client: AsyncClient):
     await _signup(client)
     tokens, _ = await _login(client)
 
-    resp = await client.post("/auth/refresh", json={
-        "refresh_token": tokens["refresh_token"],
-    })
+    # The refresh token now lives in an httpOnly cookie set by login.
+    # httpx's AsyncClient captures Set-Cookie automatically in its jar,
+    # so subsequent requests send it back.
+    refresh_cookie = _extract_refresh_cookie(client)
+    assert refresh_cookie, "Login should set a refresh_token cookie"
+
+    resp = await client.post("/auth/refresh", json={})
     assert resp.status_code == 200
     data = resp.json()
     assert "access_token" in data
-    assert "refresh_token" in data
     assert data["token_type"] == "bearer"
+    # refresh_token is rotated in the cookie, not in the body
+    assert "refresh_token" not in data
 
 
 @pytest.mark.anyio
@@ -188,9 +210,9 @@ async def test_refresh_with_access_token_fails(client: AsyncClient):
     await _signup(client)
     tokens, _ = await _login(client)
 
-    resp = await client.post("/auth/refresh", json={
-        "refresh_token": tokens["access_token"],  # wrong token type
-    })
+    # Manually set the cookie to the access token (wrong token type)
+    client.cookies.set("refresh_token", tokens["access_token"])
+    resp = await client.post("/auth/refresh", json={})
     assert resp.status_code == 401
 
 

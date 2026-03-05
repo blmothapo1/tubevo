@@ -29,14 +29,21 @@ logger = logging.getLogger("tubevo.backend.billing")
 
 router = APIRouter(prefix="/billing", tags=["Billing"])
 
-# Price IDs — set these in Stripe Dashboard → Products → Pricing
-# For now, map plan names to placeholder price IDs.
-# Replace these with your real Stripe Price IDs.
-PLAN_PRICE_MAP: dict[str, str] = {
-    "starter": "price_1T48StEi8DhCMyZZVtmPJevL",   # $29/mo
-    "pro":     "price_1T48X6Ei8DhCMyZZyCAgEIg4",   # $79/mo
-    "agency":  "price_1T48XlEi8DhCMyZZcQIy50R6",   # $199/mo
-}
+
+def _get_price_map() -> dict[str, str]:
+    """Build the plan → Stripe Price ID mapping from environment variables.
+
+    This ensures price IDs are never hardcoded and can be changed without
+    a code deploy.  Missing IDs are filtered out so only configured plans
+    are offered.
+    """
+    s = get_settings()
+    raw = {
+        "starter": s.stripe_price_starter,
+        "pro": s.stripe_price_pro,
+        "agency": s.stripe_price_agency,
+    }
+    return {plan: pid for plan, pid in raw.items() if pid}
 
 
 def _get_stripe() -> None:
@@ -63,7 +70,7 @@ async def create_checkout_session(
     body = await request.json()
     plan = body.get("plan", "pro")
 
-    price_id = PLAN_PRICE_MAP.get(plan)
+    price_id = _get_price_map().get(plan)
     if not price_id:
         raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
 
@@ -209,7 +216,7 @@ async def stripe_webhook(
             if price_id:
                 # Reverse-lookup the plan name from the price ID
                 plan_name = None
-                for pname, pid in PLAN_PRICE_MAP.items():
+                for pname, pid in _get_price_map().items():
                     if pid == price_id:
                         plan_name = pname
                         break

@@ -21,7 +21,7 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,6 +59,40 @@ logger = logging.getLogger("tubevo.backend.auth_router")
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 RESET_TOKEN_LIFETIME_MINUTES = 60  # password-reset link valid for 1 hour
+
+# ── Cookie name for the httpOnly refresh token ───────────────────────
+_REFRESH_COOKIE = "refresh_token"
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    """Set the refresh token as an httpOnly, Secure, SameSite=None cookie.
+
+    SameSite=None is required because the frontend (tubevo.us) talks to a
+    separate backend origin (api.tubevo.us) — a cross-site request.
+    The Secure flag ensures it's only sent over HTTPS.
+    """
+    settings = get_settings()
+    max_age = settings.jwt_refresh_token_expire_days * 86400  # days → seconds
+    response.set_cookie(
+        key=_REFRESH_COOKIE,
+        value=refresh_token,
+        httponly=True,
+        secure=True,            # HTTPS only
+        samesite="none",        # cross-origin (frontend ≠ backend domain)
+        max_age=max_age,
+        path="/auth",           # only sent to /auth/* endpoints
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    """Delete the refresh-token cookie."""
+    response.delete_cookie(
+        key=_REFRESH_COOKIE,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/auth",
+    )
 
 
 # ── POST /auth/signup ────────────────────────────────────────────────
@@ -123,10 +157,15 @@ async def signup(
 @limiter.limit("30/minute")
 async def login(
     request: Request,
+    response: Response,
     body: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
-    """Authenticate with email + password. Returns JWT tokens."""
+    """Authenticate with email + password.
+
+    Returns the access token in the JSON body and sets the refresh token
+    as an httpOnly cookie — never exposed to JavaScript.
+    """
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
@@ -155,10 +194,21 @@ async def login(
 
     logger.info("User logged in: %s", user.email)
 
+    refresh = create_refresh_token(user.id)
+    _set_refresh_cookie(response, refresh)
+
     return TokenResponse(
         access_token=create_access_token(user.id, user.email),
-        refresh_token=create_refresh_token(user.id),
     )
+
+
+# ── POST /auth/logout ───────────────────────────────────────────────
+
+@router.post("/logout", response_model=MessageResponse)
+async def logout(response: Response) -> MessageResponse:
+    """Clear the httpOnly refresh-token cookie."""
+    _clear_refresh_cookie(response)
+    return MessageResponse(message="Logged out.")
 
 
 # ── POST /auth/refresh ──────────────────────────────────────────────
@@ -167,11 +217,24 @@ async def login(
 @limiter.limit("30/minute")
 async def refresh_tokens(
     request: Request,
+    response: Response,
     body: RefreshRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
-    """Exchange a valid refresh token for a new access + refresh pair."""
-    payload = decode_token(body.refresh_token)
+    """Exchange a valid refresh token for a new access + refresh pair.
+
+    The refresh token is read from the httpOnly cookie first.  Falls back
+    to the JSON body for backward compatibility with older clients.
+    """
+    # Prefer the httpOnly cookie; fall back to JSON body (legacy clients)
+    raw_token = request.cookies.get(_REFRESH_COOKIE) or body.refresh_token
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token provided.",
+        )
+
+    payload = decode_token(raw_token)
 
     if payload.get("type") != "refresh":
         raise HTTPException(
@@ -189,9 +252,12 @@ async def refresh_tokens(
             detail="User not found or deactivated.",
         )
 
+    # Rotate refresh token and set the new one as a cookie
+    new_refresh = create_refresh_token(user.id)
+    _set_refresh_cookie(response, new_refresh)
+
     return TokenResponse(
         access_token=create_access_token(user.id, user.email),
-        refresh_token=create_refresh_token(user.id),
     )
 
 
@@ -318,6 +384,7 @@ async def reset_password(
 @limiter.limit("20/minute")
 async def apple_login(
     request: Request,
+    response: Response,
     body: AppleLoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -409,8 +476,10 @@ async def apple_login(
         db.add(user)
         logger.info("Auto-promoted %s to admin role (Apple login).", user.email)
 
+    refresh = create_refresh_token(user.id)
+    _set_refresh_cookie(response, refresh)
+
     return TokenResponse(
         access_token=create_access_token(user.id, user.email),
-        refresh_token=create_refresh_token(user.id),
         token_type="bearer",
     )

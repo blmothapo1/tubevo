@@ -56,17 +56,22 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """Returned on successful login or token refresh."""
+    """Returned on successful login or token refresh.
+
+    ``refresh_token`` is always set as an httpOnly cookie and omitted
+    from the JSON body in production.  It appears in the body only when
+    the ``_include_refresh_in_body`` internal flag is set (kept for
+    backward-compat with the mobile/Apple flow).
+    """
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
 
 
 # ── Auth: Token refresh ─────────────────────────────────────────────
 
 class RefreshRequest(BaseModel):
-    """POST /auth/refresh body."""
-    refresh_token: str
+    """POST /auth/refresh body (legacy — new clients use the httpOnly cookie)."""
+    refresh_token: str = ""
 
 
 # ── Auth: User profile ──────────────────────────────────────────────

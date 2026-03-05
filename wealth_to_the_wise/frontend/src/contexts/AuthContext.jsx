@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { setTokens, clearTokens, getAccessToken, API_BASE } from '../lib/api';
+import { setAccessToken, clearTokens, getAccessToken, API_BASE } from '../lib/api';
 
 const AuthContext = createContext(null);
 
@@ -9,10 +9,9 @@ export function AuthProvider({ children }) {
 
   const fetchUser = useCallback(async () => {
     try {
-      // Use raw fetch with the current access token — avoids axios interceptors
-      // that can race or redirect on stale refresh-token scenarios.
       const token = getAccessToken();
       const res = await fetch(`${API_BASE}/auth/me`, {
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -21,7 +20,7 @@ export function AuthProvider({ children }) {
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
       setUser(data);
-      return data;               // ← return so callers can inspect
+      return data;
     } catch {
       setUser(null);
       clearTokens();
@@ -40,10 +39,9 @@ export function AuthProvider({ children }) {
   }, [fetchUser]);
 
   async function login(email, password) {
-    // Use raw fetch for login — bypasses axios interceptors which can
-    // interfere when stale tokens exist in localStorage.
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
+      credentials: 'include',          // receive the httpOnly cookie
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
@@ -54,9 +52,9 @@ export function AuthProvider({ children }) {
       throw error;
     }
     const data = await res.json();
-    setTokens(data.access_token, data.refresh_token);
+    setAccessToken(data.access_token);  // memory + localStorage, no refresh token
     const me = await fetchUser();
-    return me;                   // return the user profile, not the token blob
+    return me;
   }
 
   async function signup(email, password, full_name) {
@@ -75,7 +73,16 @@ export function AuthProvider({ children }) {
     return data;
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      // Tell backend to clear the httpOnly refresh cookie
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // best-effort — still clear local state even if backend unreachable
+    }
     clearTokens();
     setUser(null);
   }

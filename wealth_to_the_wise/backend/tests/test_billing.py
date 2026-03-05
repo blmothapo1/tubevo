@@ -61,6 +61,7 @@ async def test_checkout_requires_auth(client: AsyncClient):
 async def test_checkout_graceful_failure(client: AsyncClient):
     """Checkout returns a meaningful response depending on Stripe config.
 
+    - 400 = price IDs not configured (env vars missing)
     - 503 = Stripe key not configured at all
     - 502 = Stripe key present but API call failed (e.g. bad price ID)
     - 200 = Stripe key AND valid price IDs configured → checkout URL returned
@@ -72,7 +73,7 @@ async def test_checkout_graceful_failure(client: AsyncClient):
         headers={"Authorization": f"Bearer {tokens['access_token']}"},
     )
     # Any of these is acceptable depending on the environment's Stripe config
-    assert resp.status_code in (200, 502, 503)
+    assert resp.status_code in (200, 400, 502, 503)
 
 
 @pytest.mark.anyio

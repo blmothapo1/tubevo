@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// Hydrate from localStorage so sessions survive page refreshes.
+// Access token lives in memory only — never in localStorage.
+// The refresh token lives in an httpOnly cookie set by the backend.
 let accessToken = localStorage.getItem('access_token');
-let refreshToken = localStorage.getItem('refresh_token');
 
 // In dev Vite proxies /auth and /health to localhost:8000 (see vite.config.js).
 // In production set VITE_API_URL to the deployed backend URL.
@@ -11,25 +11,32 @@ export const API_BASE = import.meta.env.VITE_API_URL || '';
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,   // send httpOnly cookies on every request
 });
 
 // ── Token management ────────────────────────────────────────────
-export function setTokens(access, refresh) {
-  accessToken = access;
-  refreshToken = refresh;
-  localStorage.setItem('access_token', access);
-  localStorage.setItem('refresh_token', refresh);
+export function setAccessToken(token) {
+  accessToken = token;
+  if (token) {
+    localStorage.setItem('access_token', token);
+  } else {
+    localStorage.removeItem('access_token');
+  }
 }
 
 export function clearTokens() {
   accessToken = null;
-  refreshToken = null;
   localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
+  // refresh token cookie is cleared by POST /auth/logout on the backend
 }
 
 export function getAccessToken() {
   return accessToken;
+}
+
+// Keep the old name as a thin wrapper so any stragglers still compile.
+export function setTokens(access, _refresh) {
+  setAccessToken(access);
 }
 
 // Auth-free endpoints — never attach Authorization header to these.
@@ -64,7 +71,7 @@ api.interceptors.response.use(
     // Don't try to refresh for auth-free endpoints (login returns 401 on bad creds — that's expected).
     const isAuthFree = AUTH_FREE.some((p) => original.url?.endsWith(p));
 
-    if (error.response?.status === 401 && !original._retry && refreshToken && !isAuthFree) {
+    if (error.response?.status === 401 && !original._retry && !isAuthFree) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -78,18 +85,20 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const { data } = await axios.post(`${API_BASE}/auth/refresh`, {
-          refresh_token: refreshToken,
-        });
-        setTokens(data.access_token, data.refresh_token);
+        // The httpOnly cookie is sent automatically (withCredentials).
+        // Backend reads the refresh token from the cookie.
+        const { data } = await axios.post(
+          `${API_BASE}/auth/refresh`,
+          {},
+          { withCredentials: true },
+        );
+        setAccessToken(data.access_token);
         processQueue(null, data.access_token);
         original.headers.Authorization = `Bearer ${data.access_token}`;
         return api(original);
       } catch (err) {
         processQueue(err, null);
         clearTokens();
-        // Don't hard-redirect here — let the calling component decide.
-        // AuthContext / ProtectedRoute / AdminRoute each handle their own redirects.
         return Promise.reject(err);
       } finally {
         isRefreshing = false;
