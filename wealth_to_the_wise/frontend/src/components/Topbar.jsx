@@ -28,7 +28,7 @@ export default function Topbar({ onMenuToggle, pageTitle }) {
     .slice(0, 2);
 
   return (
-    <header className="h-[60px] topbar-surface sticky top-0 z-20 flex items-center justify-between px-6 sm:px-7 lg:px-8 safe-area-inset">
+    <header className="h-[60px] topbar-surface sticky top-0 z-20 flex items-center justify-between mobile-content-padding sm:px-8 lg:px-10 safe-area-inset">
       <div className="flex items-center gap-3 min-w-0">
         {/* Hamburger — mobile only (sidebar is persistent on desktop) */}
         <button

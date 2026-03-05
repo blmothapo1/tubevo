@@ -164,7 +164,7 @@ export default function AdminErrors() {
   return (
     <div className="min-h-screen bg-surface-50 flex flex-col">
       {/* ── Top bar ───────────────────────────────────────────────── */}
-      <header className="h-[60px] glass sticky top-0 z-20 flex items-center justify-between px-5 sm:px-8 safe-area-inset">
+      <header className="h-[60px] glass sticky top-0 z-20 flex items-center justify-between mobile-content-padding sm:px-8 safe-area-inset">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/admin')}
@@ -185,7 +185,7 @@ export default function AdminErrors() {
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-6 py-6 sm:px-7 sm:py-8 lg:px-8">
+      <main className="flex-1 w-full max-w-6xl mx-auto mobile-content-padding sm:px-8 sm:py-8 lg:px-10">
 
         {/* ── Page title ─────────────────────────────────────────── */}
         <FadeIn>
