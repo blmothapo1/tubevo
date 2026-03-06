@@ -36,6 +36,7 @@ from backend.database import async_session_factory, get_db
 from backend.encryption import decrypt, decrypt_or_raise, DecryptionFailedError
 from backend.events import emit_event
 from backend.models import Channel, ContentMemory, ContentPerformance, OAuthToken, User, UserApiKeys, UserPreferences, VideoRecord
+from backend.models import AdminEvent, PlatformError, RevenueEvent, ThumbExperiment, ThumbVariant, TrendAlert
 from backend.rate_limit import limiter
 from backend.utils import PLAN_MONTHLY_LIMITS
 
@@ -1551,16 +1552,62 @@ async def clear_failed_videos(
 ):
     """Delete all failed VideoRecords for the current user.
 
-    This cleans up the video history and stops failed records from
-    cluttering the dashboard.  It does NOT affect successful videos.
+    Properly cascades through all FK-dependent tables before removing
+    the video records themselves.
     """
     from sqlalchemy import delete as sa_delete
 
-    result = await db.execute(
-        sa_delete(VideoRecord).where(
+    # 1. Collect the IDs of failed records
+    failed_ids_result = await db.execute(
+        select(VideoRecord.id).where(
             VideoRecord.user_id == current_user.id,
             VideoRecord.status == "failed",
         )
+    )
+    failed_ids = [r[0] for r in failed_ids_result.all()]
+
+    if not failed_ids:
+        return {"deleted": 0, "message": "No failed videos to clear."}
+
+    # 2. Delete ThumbVariants linked through ThumbExperiments
+    exp_ids_result = await db.execute(
+        select(ThumbExperiment.id).where(
+            ThumbExperiment.video_record_id.in_(failed_ids)
+        )
+    )
+    exp_ids = [r[0] for r in exp_ids_result.all()]
+    if exp_ids:
+        await db.execute(
+            sa_delete(ThumbVariant).where(ThumbVariant.experiment_id.in_(exp_ids))
+        )
+
+    # 3. Delete ThumbExperiments (NOT NULL FK → video_records)
+    await db.execute(
+        sa_delete(ThumbExperiment).where(ThumbExperiment.video_record_id.in_(failed_ids))
+    )
+
+    # 4. Delete ContentPerformance (NOT NULL FK → video_records)
+    await db.execute(
+        sa_delete(ContentPerformance).where(ContentPerformance.video_record_id.in_(failed_ids))
+    )
+
+    # 5. NULL out nullable FKs in other tables
+    await db.execute(
+        update(AdminEvent).where(AdminEvent.video_id.in_(failed_ids)).values(video_id=None)
+    )
+    await db.execute(
+        update(PlatformError).where(PlatformError.video_id.in_(failed_ids)).values(video_id=None)
+    )
+    await db.execute(
+        update(RevenueEvent).where(RevenueEvent.video_record_id.in_(failed_ids)).values(video_record_id=None)
+    )
+    await db.execute(
+        update(TrendAlert).where(TrendAlert.video_record_id.in_(failed_ids)).values(video_record_id=None)
+    )
+
+    # 6. Finally delete the video records themselves
+    result = await db.execute(
+        sa_delete(VideoRecord).where(VideoRecord.id.in_(failed_ids))
     )
     deleted = getattr(result, "rowcount", 0) or 0
     await db.commit()
