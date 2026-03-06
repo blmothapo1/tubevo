@@ -4,9 +4,112 @@ import {
   Radar, Zap, Rocket, X, RefreshCw, Eye, Play, Bot,
   TrendingUp, AlertTriangle, CheckCircle, Clock, Flame,
   Settings as SettingsIcon, ChevronDown, ChevronUp,
-  BarChart3, Target, Shield, Loader2
+  BarChart3, Target, Shield, Loader2, Sparkles, Check
 } from 'lucide-react';
 import api from '../lib/api';
+
+/* ── Available niches (matches Onboarding) ── */
+const ALL_NICHES = [
+  'Personal Finance', 'Investing / Stocks', 'Business & Entrepreneurship',
+  'Self-Improvement', 'Psychology', 'Productivity', 'Tech & AI',
+  'True Crime', 'Horror Stories', 'Mystery & Conspiracy',
+  'History', 'Science & Space', 'Fitness & Health',
+  'Luxury & Wealth', 'Geography & World Facts',
+];
+
+/* ── Inline niche quick-setup ── */
+function NicheSetup({ onComplete }) {
+  const [selected, setSelected] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const toggle = (niche) =>
+    setSelected(prev =>
+      prev.includes(niche) ? prev.filter(n => n !== niche) : prev.length < 5 ? [...prev, niche] : prev
+    );
+
+  const handleSave = async () => {
+    if (selected.length === 0) return;
+    setSaving(true);
+    setError('');
+    try {
+      await api.put('/api/videos/channel-preferences', {
+        niches: selected,
+        tone_style: 'confident, direct, no-fluff educator',
+        target_audience: 'general audience',
+        channel_goal: 'growth',
+        posting_frequency: 'weekly',
+      });
+      onComplete();
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to save niches');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="bento-tile rounded-2xl border border-brand-500/20 bg-surface-800/80 p-8 max-w-2xl mx-auto"
+    >
+      {/* Glow bar */}
+      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-brand-400 to-transparent rounded-t-2xl" />
+
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 mb-4">
+          <Sparkles className="w-7 h-7 text-brand-400" />
+        </div>
+        <h2 className="text-lg font-bold text-primary">Pick Your Niches</h2>
+        <p className="text-sm text-muted mt-1 max-w-md mx-auto">
+          Choose up to 5 topics the Trend Radar should monitor for viral opportunities.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 justify-center mb-6">
+        {ALL_NICHES.map(niche => {
+          const active = selected.includes(niche);
+          return (
+            <button
+              key={niche}
+              onClick={() => toggle(niche)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border transition-all duration-150 ${
+                active
+                  ? 'bg-brand-500/15 text-brand-400 border-brand-500/30 shadow-sm shadow-brand-500/10'
+                  : 'text-muted border-surface-700/50 bg-surface-700/30 hover:border-surface-600 hover:text-primary'
+              }`}
+            >
+              {active && <Check className="w-3 h-3" />}
+              {niche}
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="text-center text-xs text-muted mb-4">
+        {selected.length}/5 selected {selected.length === 0 && '— pick at least one'}
+      </p>
+
+      {error && (
+        <p className="text-center text-xs text-red-400 mb-3">{error}</p>
+      )}
+
+      <div className="flex justify-center">
+        <button
+          onClick={handleSave}
+          disabled={selected.length === 0 || saving}
+          className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold
+                     bg-brand-500 text-white rounded-xl hover:bg-brand-400
+                     transition-colors disabled:opacity-40 shadow-md shadow-brand-500/20"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4" />}
+          {saving ? 'Saving…' : 'Activate Trend Radar'}
+        </button>
+      </div>
+    </motion.div>
+  );
+}
 
 /* ── Confidence badge ── */
 function ConfidenceBadge({ score }) {
@@ -385,6 +488,7 @@ export default function TrendRadar() {
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('active');
   const [error, setError] = useState('');
+  const [needsNiches, setNeedsNiches] = useState(false);
 
   const filterMap = {
     active: 'detected,generating,ready',
@@ -422,20 +526,40 @@ export default function TrendRadar() {
     } catch { /* silent */ }
   }, []);
 
+  const checkNiches = useCallback(async () => {
+    try {
+      const { data } = await api.get('/api/videos/channel-preferences');
+      if (!data.niches || data.niches.length === 0) {
+        setNeedsNiches(true);
+        return false;
+      }
+      setNeedsNiches(false);
+      return true;
+    } catch {
+      setNeedsNiches(true);
+      return false;
+    }
+  }, []);
+
   // Initial load + poll every 30s
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([fetchAlerts(), fetchStats(), fetchSettings()]);
+      const hasNiches = await checkNiches();
+      if (hasNiches) {
+        await Promise.all([fetchAlerts(), fetchStats(), fetchSettings()]);
+      }
       setLoading(false);
     };
     load();
     const interval = setInterval(() => {
-      fetchAlerts();
-      fetchStats();
+      if (!needsNiches) {
+        fetchAlerts();
+        fetchStats();
+      }
     }, 30_000);
     return () => clearInterval(interval);
-  }, [fetchAlerts, fetchStats, fetchSettings]);
+  }, [fetchAlerts, fetchStats, fetchSettings, checkNiches, needsNiches]);
 
   // Refetch when filter changes
   useEffect(() => { fetchAlerts(); }, [filter, fetchAlerts]);
@@ -446,10 +570,24 @@ export default function TrendRadar() {
       const { data } = await api.post('/api/trends/scan');
       await Promise.all([fetchAlerts(), fetchStats()]);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Scan failed');
+      const detail = err.response?.data?.detail || 'Scan failed';
+      if (detail.toLowerCase().includes('niche') || detail.toLowerCase().includes('onboarding')) {
+        setNeedsNiches(true);
+      } else {
+        setError(detail);
+      }
     } finally {
       setScanning(false);
     }
+  };
+
+  const handleNicheSetupComplete = async () => {
+    setNeedsNiches(false);
+    setLoading(true);
+    await Promise.all([fetchAlerts(), fetchStats(), fetchSettings()]);
+    setLoading(false);
+    // Auto-trigger first scan after setup
+    handleScan();
   };
 
   const handlePublish = async (id) => {
@@ -493,6 +631,26 @@ export default function TrendRadar() {
   };
 
   const readyCount = stats?.total_ready || 0;
+
+  /* ── If no niches, show inline quick-setup ── */
+  if (!loading && needsNiches) {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-xl font-bold text-primary flex items-center gap-2">
+            <Radar className="w-6 h-6 text-brand-400" />
+            Trend Radar
+          </h1>
+          <p className="text-sm text-muted mt-0.5">
+            Autonomous trend detection → video generation → one-tap publish
+          </p>
+        </div>
+
+        <NicheSetup onComplete={handleNicheSetupComplete} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
