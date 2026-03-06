@@ -29,7 +29,7 @@ logger = logging.getLogger("tubevo.adaptive_engine")
 
 # All known style categories
 TITLE_STYLES = ["curiosity", "direct_benefit", "contrarian", "question", "data_driven"]
-THUMBNAIL_STYLES = ["bold_curiosity", "contrarian_dramatic", "clean_authority"]
+THUMBNAIL_STYLES = ["bold_curiosity", "contrarian_dramatic", "clean_authority", "ai_cinematic"]
 
 # Minimum data points before adaptation kicks in
 MIN_DATA_POINTS = 5

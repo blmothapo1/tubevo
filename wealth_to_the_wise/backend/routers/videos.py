@@ -1105,9 +1105,13 @@ def _run_pipeline_locked(
 
         # ── Step 5: Generate thumbnail variants ────────────────────
         _report("Generating thumbnails…", 80)
-        logger.info("Pipeline step 5/6: Generating 3 thumbnail variants")
+        logger.info("Pipeline step 5/6: Generating thumbnail variants (including AI)")
         from thumbnail import generate_thumbnail, generate_thumbnail_variants
-        thumbnail_variants = generate_thumbnail_variants(metadata["title"], output_dir=str(run_dir))
+        thumbnail_variants = generate_thumbnail_variants(
+            metadata["title"],
+            output_dir=str(run_dir),
+            openai_api_key=_openai_key,
+        )
         # Select primary thumbnail based on adaptive profile recommendation
         _recommended_thumb = _perf_profile.get("recommended_thumbnail_style", "bold_curiosity") if _perf_profile else "bold_curiosity"
         thumbnail_path = None

@@ -1,29 +1,35 @@
 """
 thumbnail.py - Generate branded YouTube thumbnail variants.
 
-Creates 1280x720 thumbnails with 3 distinct concept styles:
-  1. Bold Curiosity   - high-contrast text, teal accent
-  2. Contrarian Dramatic - dark split layout, red-orange accent
-  3. Clean Authority   - minimal, professional, blue accent
+Creates 1280x720 thumbnails with up to 4 distinct concept styles:
+  1. Bold Curiosity        - high-contrast text, teal accent
+  2. Contrarian Dramatic   - dark split layout, red-orange accent
+  3. Clean Authority       - minimal, professional, blue accent
+  4. AI Cinematic          - DALL·E 3 generated background + text overlay
 
-Pure gradient backgrounds, Pillow only, zero external dependencies.
+Styles 1-3 use pure gradient backgrounds (Pillow only).
+Style 4 requires an OpenAI API key and generates a unique background per topic.
+Falls back to gradient styles if the API call fails.
 
 Usage:
     from thumbnail import generate_thumbnail, generate_thumbnail_variants
 
     path = generate_thumbnail(title="5 Frugal Habits That Build Wealth Fast")
     paths = generate_thumbnail_variants(title="...", output_dir="output")
+    paths = generate_thumbnail_variants(title="...", openai_api_key="sk-...")  # includes AI variant
 """
 
 from __future__ import annotations
 
 import hashlib
+import io
 import logging
 import os
 import random
 import textwrap
 from pathlib import Path
 
+import requests
 from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger("tubevo.thumbnail")
@@ -336,6 +342,174 @@ def _generate_clean_authority(title, draw, img):
 
 
 # ========================================================================
+# AI BACKGROUND GENERATION (DALL·E 3)
+# ========================================================================
+
+# Niche-specific prompt modifiers for better backgrounds
+_NICHE_PROMPTS = {
+    "finance": "gold coins, stock charts, luxury lifestyle, wealth symbols",
+    "real_estate": "modern architecture, luxury homes, city skylines",
+    "tech": "futuristic technology, circuit boards, holographic displays",
+    "crypto": "digital currency, blockchain, neon data streams",
+    "business": "corporate office, handshake, success, skyscrapers",
+    "health": "wellness, vitality, healthy lifestyle, nature",
+    "general": "dramatic cinematic scene, motivational, powerful imagery",
+}
+
+
+def _build_dalle_prompt(title: str, niche: str | None = None) -> str:
+    """Build a DALL·E 3 prompt for a thumbnail background.
+
+    The prompt is designed to produce a dramatic, cinematic background
+    WITHOUT any text — our code overlays the text separately.
+    """
+    niche_hint = _NICHE_PROMPTS.get((niche or "general").lower(), _NICHE_PROMPTS["general"])
+
+    return (
+        f"A dramatic, cinematic YouTube thumbnail background image for a video titled "
+        f'"{title}". '
+        f"Visual elements: {niche_hint}. "
+        f"Style: dark moody atmosphere, dramatic lighting with volumetric rays, "
+        f"rich color grading, shallow depth of field, ultra-high quality. "
+        f"The image should be a BACKGROUND ONLY — absolutely NO text, NO letters, "
+        f"NO words, NO numbers, NO watermarks, NO logos anywhere in the image. "
+        f"No human faces. Cinematic 16:9 aspect ratio."
+    )
+
+
+def generate_ai_background(
+    title: str,
+    *,
+    openai_api_key: str,
+    niche: str | None = None,
+    size: tuple[int, int] = (WIDTH, HEIGHT),
+) -> Image.Image | None:
+    """Generate a thumbnail background image via DALL·E 3.
+
+    Returns a PIL Image sized to (WIDTH, HEIGHT), or None on failure.
+    Falls back gracefully — never raises.
+    """
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=openai_api_key)
+
+        prompt = _build_dalle_prompt(title, niche)
+        logger.info("Generating AI thumbnail background via DALL·E 3…")
+
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size="1792x1024",  # closest to 16:9 that DALL·E 3 supports
+            quality="standard",
+            n=1,
+        )
+
+        if not response.data:
+            logger.warning("DALL·E 3 returned empty data")
+            return None
+
+        image_url = response.data[0].url
+        if not image_url:
+            logger.warning("DALL·E 3 returned no image URL")
+            return None
+
+        # Download the image
+        img_response = requests.get(image_url, timeout=30)
+        img_response.raise_for_status()
+
+        img = Image.open(io.BytesIO(img_response.content)).convert("RGB")
+
+        # Resize/crop to exact thumbnail dimensions
+        img = img.resize(size, Image.Resampling.LANCZOS)
+
+        logger.info("AI background generated successfully (%dx%d)", size[0], size[1])
+        return img
+
+    except Exception as e:
+        logger.warning("AI background generation failed (non-fatal): %s", e)
+        return None
+
+
+def _generate_ai_cinematic(title, draw, img, *, ai_bg: Image.Image | None = None):
+    """Concept 4: AI Cinematic - DALL·E 3 background + bold text overlay.
+
+    If ai_bg is None (API failed), falls back to a dark cinematic gradient.
+    """
+    if ai_bg:
+        # Paste the AI background
+        img.paste(ai_bg)
+        # Re-acquire draw context since we replaced the image data
+        draw = ImageDraw.Draw(img)
+
+        # Darken the bottom third for text readability
+        overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        for y in range(HEIGHT // 3, HEIGHT):
+            alpha = int(180 * ((y - HEIGHT // 3) / (HEIGHT * 2 / 3)))
+            overlay_draw.line([(0, y), (WIDTH, y)], fill=(0, 0, 0, alpha))
+        img.paste(Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB"))
+        draw = ImageDraw.Draw(img)
+
+        # Subtle top vignette too
+        for y in range(0, HEIGHT // 5):
+            alpha = int(120 * (1 - y / (HEIGHT // 5)))
+            draw.line([(0, y), (WIDTH, y)], fill=(0, 0, 0))
+    else:
+        # Fallback: dark cinematic gradient
+        for y in range(HEIGHT):
+            ratio = y / HEIGHT
+            r = int(8 + 12 * ratio)
+            g = int(5 + 8 * ratio)
+            b = int(20 + 30 * ratio)
+            draw.line([(0, y), (WIDTH, y)], fill=(r, g, b))
+
+    # Accent: subtle warm glow line at top
+    draw.rectangle([(0, 0), (WIDTH, 3)], fill=(255, 165, 50))
+
+    # TUBEVO badge (top-left, glass-morphism style)
+    badge_font = _load_font(_FONT_BOLD, 22)
+    badge_text = "TUBEVO"
+    bb = draw.textbbox((0, 0), badge_text, font=badge_font)
+    bw = bb[2] - bb[0] + 24
+    bh = bb[3] - bb[1] + 14
+    draw.rounded_rectangle(
+        [(28, 22), (28 + bw, 22 + bh)],
+        radius=6,
+        fill=(0, 0, 0, 160) if ai_bg else (20, 15, 40),
+    )
+    draw.text((40, 26), badge_text, fill=(255, 200, 60), font=badge_font)
+
+    # Hook text — large, dramatic
+    hook = make_hook_text(title, "bold_curiosity")  # reuse bold bank
+    hook_font = _load_font(_FONT_BOLD, 78)
+    hook_lines = textwrap.fill(hook, width=16).split("\n")[:2]
+
+    y = HEIGHT // 2 - len(hook_lines) * 50 - 10
+    for line in hook_lines:
+        # Shadow
+        draw.text((44, y + 4), line, fill=(0, 0, 0), font=hook_font)
+        draw.text((42, y + 2), line, fill=(0, 0, 0), font=hook_font)
+        # Main text — warm accent
+        draw.text((40, y), line, fill=(255, 200, 60), font=hook_font)
+        y += 90
+
+    # Title (white, below hook)
+    title_font = _load_font(_FONT_BOLD, 44)
+    lines = textwrap.fill(title.upper(), width=24).split("\n")[:3]
+    y += 15
+    for line in lines:
+        # Heavy shadow for readability on any background
+        draw.text((44, y + 3), line, fill=(0, 0, 0), font=title_font)
+        draw.text((42, y + 1), line, fill=(0, 0, 0), font=title_font)
+        draw.text((40, y), line, fill=(255, 255, 255), font=title_font)
+        y += 54
+
+    # Bottom accent bar
+    draw.rectangle([(0, HEIGHT - 5), (WIDTH, HEIGHT)], fill=(255, 165, 50))
+
+
+# ========================================================================
 # PUBLIC API
 # ========================================================================
 
@@ -343,11 +517,17 @@ _CONCEPT_GENERATORS = {
     "bold_curiosity": _generate_bold_curiosity,
     "contrarian_dramatic": _generate_contrarian_dramatic,
     "clean_authority": _generate_clean_authority,
+    "ai_cinematic": _generate_ai_cinematic,
 }
 
 
-def generate_thumbnail(title, *, output_path=None, concept="bold_curiosity"):
-    """Generate a branded thumbnail and return the file path."""
+def generate_thumbnail(title, *, output_path=None, concept="bold_curiosity", openai_api_key=None, niche=None):
+    """Generate a branded thumbnail and return the file path.
+
+    For the ``ai_cinematic`` concept, pass ``openai_api_key`` to enable
+    DALL·E 3 background generation. Without it, a dark gradient fallback
+    is used.
+    """
     output_path = output_path or str(OUTPUT_DIR / "thumbnail.jpg")
     logger.info("Generating thumbnail (concept=%s) for: %s", concept, title)
 
@@ -355,7 +535,15 @@ def generate_thumbnail(title, *, output_path=None, concept="bold_curiosity"):
     draw = ImageDraw.Draw(img)
 
     generator = _CONCEPT_GENERATORS.get(concept, _generate_bold_curiosity)
-    generator(title, draw, img)
+
+    if concept == "ai_cinematic":
+        # Generate AI background if we have a key
+        ai_bg = None
+        if openai_api_key:
+            ai_bg = generate_ai_background(title, openai_api_key=openai_api_key, niche=niche)
+        generator(title, draw, img, ai_bg=ai_bg)
+    else:
+        generator(title, draw, img)
 
     img.save(output_path, "JPEG", quality=92)
     size_kb = os.path.getsize(output_path) / 1024
@@ -365,18 +553,40 @@ def generate_thumbnail(title, *, output_path=None, concept="bold_curiosity"):
     return output_path
 
 
-def generate_thumbnail_variants(title, *, output_dir=None):
-    """Generate all 3 thumbnail concept variants.
+def generate_thumbnail_variants(title, *, output_dir=None, openai_api_key=None, niche=None):
+    """Generate thumbnail concept variants.
+
+    Without ``openai_api_key``: generates 3 template variants.
+    With ``openai_api_key``: generates 4 variants (3 template + 1 AI).
 
     Returns a list of dicts: [{"concept": str, "path": str}, ...]
     """
     output_dir = output_dir or str(OUTPUT_DIR)
     results = []
-    for concept_name in _CONCEPT_GENERATORS:
+
+    # Always generate the 3 template-based variants
+    for concept_name in ("bold_curiosity", "contrarian_dramatic", "clean_authority"):
         filename = f"thumbnail_{concept_name}.jpg"
         path = str(Path(output_dir) / filename)
         generate_thumbnail(title, output_path=path, concept=concept_name)
         results.append({"concept": concept_name, "path": path})
+
+    # Generate AI variant if we have an OpenAI key
+    if openai_api_key:
+        try:
+            ai_path = str(Path(output_dir) / "thumbnail_ai_cinematic.jpg")
+            generate_thumbnail(
+                title,
+                output_path=ai_path,
+                concept="ai_cinematic",
+                openai_api_key=openai_api_key,
+                niche=niche,
+            )
+            results.append({"concept": "ai_cinematic", "path": ai_path})
+            logger.info("AI cinematic thumbnail generated successfully")
+        except Exception as e:
+            logger.warning("AI thumbnail generation failed (non-fatal): %s", e)
+
     logger.info("Generated %d thumbnail variants", len(results))
     return results
 
@@ -391,7 +601,9 @@ if __name__ == "__main__":
         if len(sys.argv) > 1
         else "Housing Market Crash Explained"
     )
-    variants = generate_thumbnail_variants(test_title)
+    # Pass OPENAI_API_KEY env var to test AI variant
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    variants = generate_thumbnail_variants(test_title, openai_api_key=api_key or None)
     for v in variants:
         print(f"  {v['concept']}: {v['path']}")
     print("Done!")

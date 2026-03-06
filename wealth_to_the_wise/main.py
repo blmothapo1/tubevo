@@ -96,12 +96,20 @@ def step_build_video(audio_path: str, title: str, script: str) -> str:
 
 
 def step_generate_thumbnail(title: str) -> str:
-    """Generate a branded YouTube thumbnail. Returns the image path."""
+    """Generate a branded YouTube thumbnail. Returns the image path.
+
+    Attempts AI-generated background via DALL·E 3 if OPENAI_API_KEY is set.
+    """
     logger.info("═" * 60)
     logger.info("  STEP 4b — Generating thumbnail")
     logger.info("═" * 60)
     from thumbnail import generate_thumbnail
-    thumb_path = generate_thumbnail(title)
+    api_key = config.OPENAI_API_KEY or None
+    thumb_path = generate_thumbnail(
+        title,
+        concept="ai_cinematic" if api_key else "bold_curiosity",
+        openai_api_key=api_key,
+    )
     return thumb_path
 
 
