@@ -142,13 +142,25 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
     # ── Per-user in-flight guard ─────────────────────────────────────
     # Skip if user already has a video generating — don't pile up jobs.
     # The schedule will simply fire again on the next poll cycle.
-    from backend.routers.videos import user_has_inflight_video
+    from backend.routers.videos import user_has_inflight_video, is_circuit_broken
     if await user_has_inflight_video(user.id, db):
         logger.info(
             "Schedule %s: user %s already has a video generating — deferring to next cycle.",
             schedule.id, user.email,
         )
         # Don't advance next_run_at — retry on next poll (5 min)
+        return
+
+    # ── Circuit breaker: stop auto-generating if last N all failed ───
+    if await is_circuit_broken(user.id, db):
+        logger.warning(
+            "Schedule %s: user %s circuit breaker tripped — last videos all failed. "
+            "Pausing auto-generation to save API credits. User must generate manually to reset.",
+            schedule.id, user.email,
+        )
+        delta = FREQUENCY_DELTAS.get(schedule.frequency, FREQUENCY_DELTAS["weekly"])
+        schedule.next_run_at = now + delta
+        schedule.updated_at = now
         return
 
     # Get user API keys

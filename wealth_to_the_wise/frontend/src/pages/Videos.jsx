@@ -25,6 +25,7 @@ import {
   TrendingUp,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from 'lucide-react';
 
 const ease = [0.25, 0.1, 0.25, 1];
@@ -120,6 +121,10 @@ export default function Videos() {
 
   // ── Phase 6: Regenerating state (track which video is being regenerated) ──
   const [regeneratingId, setRegeneratingId] = useState(null);
+
+  // ── Clear failed videos state ──
+  const [clearingFailed, setClearingFailed] = useState(false);
+  const failedCount = videos.filter((v) => v.status === 'failed').length;
 
   // ── Topic suggestions state ──
   const [suggestions, setSuggestions] = useState([]);
@@ -298,6 +303,20 @@ export default function Videos() {
       }
       setGenerating(false);
       setProgressStep('');
+    }
+  }
+
+  // ── Clear all failed videos ──
+  async function handleClearFailed() {
+    setClearingFailed(true);
+    try {
+      const { data } = await api.delete('/api/videos/clear-failed');
+      setMessage({ type: 'success', text: `Cleared ${data.deleted} failed video${data.deleted === 1 ? '' : 's'}.` });
+      fetchVideos();
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to clear failed videos.' });
+    } finally {
+      setClearingFailed(false);
     }
   }
 
@@ -524,6 +543,34 @@ export default function Videos() {
           )}
         </AnimatePresence>
       </motion.form>
+
+      {/* Clear Failed Banner */}
+      <AnimatePresence>
+        {failedCount > 0 && !loading && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -6, height: 0 }}
+            transition={{ duration: 0.2, ease }}
+            className="mt-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-red-500/6 border border-red-500/10"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle size={14} className="text-red-400 shrink-0" />
+              <span className="text-xs text-red-400">
+                {failedCount} failed video{failedCount === 1 ? '' : 's'} — these don't count toward your plan limit.
+              </span>
+            </div>
+            <button
+              onClick={handleClearFailed}
+              disabled={clearingFailed}
+              className="shrink-0 flex items-center gap-1.5 text-xs font-medium text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/15 px-3 py-1.5 rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 size={12} className={clearingFailed ? 'animate-spin' : ''} />
+              {clearingFailed ? 'Clearing…' : 'Clear All Failed'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Video List */}
       {loading ? (

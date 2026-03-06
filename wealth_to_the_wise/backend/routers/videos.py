@@ -69,6 +69,13 @@ STALE_JOB_MINUTES = 15
 MAX_CONCURRENT_PIPELINES = int(os.environ.get("MAX_CONCURRENT_PIPELINES", "1"))
 _pipeline_semaphore = asyncio.Semaphore(MAX_CONCURRENT_PIPELINES)
 
+# ── Circuit breaker ─────────────────────────────────────────────────
+# If the last N consecutive video attempts for a user ALL failed,
+# stop auto-generating to prevent burning API credits on a known-bad
+# environment (e.g. FFmpeg OOM on Railway).  Manual "Generate" from the
+# UI still works — only scheduler / trend radar auto-generation is paused.
+CIRCUIT_BREAKER_THRESHOLD = 3  # 3 consecutive failures → pause auto-gen
+
 # ── Per-user in-flight tracking ─────────────────────────────────────
 # Prevents the same user from having multiple videos generating at once
 # (scheduler + trend radar + manual could all collide).
@@ -858,6 +865,30 @@ async def user_has_inflight_video(user_id: str, db: AsyncSession) -> bool:
     return active_count > 0
 
 
+async def is_circuit_broken(user_id: str, db: AsyncSession) -> bool:
+    """Return True if the user's last N video attempts ALL failed.
+
+    Used by scheduler_worker and trend_radar_worker to stop auto-generating
+    videos when there's a persistent infrastructure failure (e.g. FFmpeg OOM).
+    This prevents burning API credits on doomed pipelines.
+
+    Manual generation from the UI is NOT blocked — only automated generation.
+    The circuit resets automatically once any video succeeds.
+    """
+    stmt = (
+        select(VideoRecord.status)
+        .where(VideoRecord.user_id == user_id)
+        .order_by(VideoRecord.created_at.desc())
+        .limit(CIRCUIT_BREAKER_THRESHOLD)
+    )
+    recent_statuses = (await db.execute(stmt)).scalars().all()
+
+    if len(recent_statuses) < CIRCUIT_BREAKER_THRESHOLD:
+        return False  # Not enough history to judge
+
+    return all(s == "failed" for s in recent_statuses)
+
+
 # ── Per-record pipeline locks ─────────────────────────────────────────
 # Allow parallel pipeline runs for DIFFERENT records while preventing
 # duplicate concurrent runs for the SAME record_id.
@@ -1483,6 +1514,8 @@ async def video_stats(
     )).scalar() or 0
 
     # Monthly usage for plan limit display
+    # Exclude failed videos — they don't count toward the user's quota
+    # (server-side rendering failures shouldn't penalise the user).
     plan = current_user.plan or "free"
     limit = PLAN_MONTHLY_LIMITS.get(plan, PLAN_MONTHLY_LIMITS["free"])
     now = datetime.now(timezone.utc)
@@ -1493,6 +1526,7 @@ async def video_stats(
         .where(
             VideoRecord.user_id == current_user.id,
             VideoRecord.created_at >= month_start,
+            VideoRecord.status.notin_(["failed"]),
         )
     )
     monthly_used = (await db.execute(monthly_stmt)).scalar() or 0
@@ -1506,6 +1540,33 @@ async def video_stats(
         monthly_limit=limit,
         plan=plan,
     )
+
+
+# ── DELETE /api/videos/clear-failed ──────────────────────────────────
+
+@router.delete("/clear-failed")
+async def clear_failed_videos(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete all failed VideoRecords for the current user.
+
+    This cleans up the video history and stops failed records from
+    cluttering the dashboard.  It does NOT affect successful videos.
+    """
+    from sqlalchemy import delete as sa_delete
+
+    result = await db.execute(
+        sa_delete(VideoRecord).where(
+            VideoRecord.user_id == current_user.id,
+            VideoRecord.status == "failed",
+        )
+    )
+    deleted = getattr(result, "rowcount", 0) or 0
+    await db.commit()
+
+    logger.info("Cleared %d failed video records for user %s", deleted, current_user.email)
+    return {"deleted": deleted, "message": f"Cleared {deleted} failed video(s)."}
 
 
 # ── GET /api/videos/{video_id}/download ──────────────────────────────

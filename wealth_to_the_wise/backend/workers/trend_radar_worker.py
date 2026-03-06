@@ -332,9 +332,18 @@ async def _process_detected_alerts(db) -> int:
             continue
 
         # Check if user already has a video in-flight — don't pile up
-        from backend.routers.videos import user_has_inflight_video
+        from backend.routers.videos import user_has_inflight_video, is_circuit_broken
         if await user_has_inflight_video(uid, db):
             logger.info("Trend Radar: user %s already has a video generating — skipping", user.email)
+            continue
+
+        # ── Circuit breaker: stop auto-generating if last N all failed ──
+        if await is_circuit_broken(uid, db):
+            logger.warning(
+                "Trend Radar: user %s circuit breaker tripped — last videos all failed. "
+                "Skipping auto-generation to save API credits.",
+                user.email,
+            )
             continue
 
         # Get API keys
