@@ -139,6 +139,18 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
         schedule.updated_at = now
         return
 
+    # ── Per-user in-flight guard ─────────────────────────────────────
+    # Skip if user already has a video generating — don't pile up jobs.
+    # The schedule will simply fire again on the next poll cycle.
+    from backend.routers.videos import user_has_inflight_video
+    if await user_has_inflight_video(user.id, db):
+        logger.info(
+            "Schedule %s: user %s already has a video generating — deferring to next cycle.",
+            schedule.id, user.email,
+        )
+        # Don't advance next_run_at — retry on next poll (5 min)
+        return
+
     # Get user API keys
     keys_result = await db.execute(
         select(UserApiKeys).where(UserApiKeys.user_id == user.id)

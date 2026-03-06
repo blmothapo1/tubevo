@@ -344,6 +344,14 @@ async def publish_trend(
                 detail="Please add your API keys in Settings before generating videos.",
             )
 
+        # Check if user already has a video in-flight
+        from backend.routers.videos import user_has_inflight_video
+        if await user_has_inflight_video(current_user.id, db):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have a video generating. Please wait for it to finish first.",
+            )
+
         channel = None
         if alert.channel_id:
             channel = (await db.execute(
@@ -463,6 +471,15 @@ async def regenerate_trend(
     )).scalar_one_or_none()
 
     if keys and keys.openai_api_key and keys.elevenlabs_api_key:
+        # Check if user already has a video in-flight
+        from backend.routers.videos import user_has_inflight_video
+        if await user_has_inflight_video(current_user.id, db):
+            await db.commit()
+            return {
+                "message": "You already have a video generating. This trend will be retried automatically once it finishes.",
+                "status": "detected",
+            }
+
         channel = None
         if alert.channel_id:
             channel = (await db.execute(

@@ -65,8 +65,16 @@ STALE_JOB_MINUTES = 15
 # ── Concurrency limiter ─────────────────────────────────────────────
 # Cap simultaneous video generations to avoid OOM from multiple FFmpeg
 # processes + OpenAI/ElevenLabs streams hitting at once.
-MAX_CONCURRENT_PIPELINES = int(os.environ.get("MAX_CONCURRENT_PIPELINES", "3"))
+# Railway single-container: default to 1 to prevent OOM kills.
+MAX_CONCURRENT_PIPELINES = int(os.environ.get("MAX_CONCURRENT_PIPELINES", "1"))
 _pipeline_semaphore = asyncio.Semaphore(MAX_CONCURRENT_PIPELINES)
+
+# ── Per-user in-flight tracking ─────────────────────────────────────
+# Prevents the same user from having multiple videos generating at once
+# (scheduler + trend radar + manual could all collide).
+# Tracks user_id → record_id of the video currently generating.
+_user_inflight: dict[str, str] = {}
+_user_inflight_lock = asyncio.Lock()
 
 # YouTube video category ID (22 = "People & Blogs")
 DEFAULT_VIDEO_CATEGORY = os.environ.get("DEFAULT_VIDEO_CATEGORY", "22")
@@ -256,6 +264,36 @@ async def generate_video(
             yt_access_token = None
             yt_refresh_token = None
 
+    # ── Per-user in-flight guard ────────────────────────────────────
+    # Prevent the same user from having multiple videos generating at once.
+    # Check both in-memory tracker AND DB for active "generating" jobs.
+    async with _user_inflight_lock:
+        if current_user.id in _user_inflight:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have a video generating. Please wait for it to finish before starting another.",
+            )
+
+    # Also check DB for generating jobs (survives container restarts)
+    active_stmt = (
+        select(func.count())
+        .select_from(VideoRecord)
+        .where(
+            VideoRecord.user_id == current_user.id,
+            VideoRecord.status == "generating",
+        )
+    )
+    active_count = (await db.execute(active_stmt)).scalar() or 0
+    if active_count > 0:
+        # Clean up stale ones first, then re-check
+        await _cleanup_stale_jobs(current_user.id, db)
+        active_count = (await db.execute(active_stmt)).scalar() or 0
+        if active_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have a video generating. Please wait for it to finish before starting another.",
+            )
+
     # ── Create a "generating" record and commit immediately ──────────
     # We commit *before* spawning the background task so the record is
     # guaranteed to exist in the DB when the task tries to read it.
@@ -323,20 +361,30 @@ async def _run_pipeline_background(
         MAX_CONCURRENT_PIPELINES,
     )
 
+    # Register this user as having an in-flight video
+    async with _user_inflight_lock:
+        _user_inflight[user_id] = record_id
+
     # Initialise in-memory progress tracker
     _progress_store[record_id] = {"step": "Queued — waiting for slot…", "pct": 0, "started_at": time.time()}
 
-    async with _pipeline_semaphore:
-        logger.info("Background pipeline STARTING for record %s (slot acquired)", record_id)
-        _progress_store[record_id]["step"] = "Starting…"
-        await _run_pipeline_inner(
-            record_id=record_id,
-            topic=topic,
-            user_id=user_id,
-            user_api_keys=user_api_keys,
-            yt_access_token=yt_access_token,
-            yt_refresh_token=yt_refresh_token,
-        )
+    try:
+        async with _pipeline_semaphore:
+            logger.info("Background pipeline STARTING for record %s (slot acquired)", record_id)
+            _progress_store[record_id]["step"] = "Starting…"
+            await _run_pipeline_inner(
+                record_id=record_id,
+                topic=topic,
+                user_id=user_id,
+                user_api_keys=user_api_keys,
+                yt_access_token=yt_access_token,
+                yt_refresh_token=yt_refresh_token,
+            )
+    finally:
+        # Always unregister the user from in-flight tracking
+        async with _user_inflight_lock:
+            _user_inflight.pop(user_id, None)
+        logger.info("Background pipeline FINISHED for record %s — user slot freed", record_id)
 
 
 async def _run_pipeline_inner(
@@ -755,6 +803,30 @@ async def _cleanup_stale_jobs(user_id: str, db: AsyncSession) -> None:
     if getattr(result, "rowcount", 0):  # type: ignore[attr-defined]
         await db.commit()
         logger.info("Cleaned up %d stale 'generating' jobs for user %s", getattr(result, "rowcount", 0), user_id)
+
+
+async def user_has_inflight_video(user_id: str, db: AsyncSession) -> bool:
+    """Check if a user already has a video in-flight (generating).
+
+    Checks both the in-memory tracker (fast) and the DB (survives restarts).
+    Used by scheduler and trend radar workers to skip users who already
+    have an active pipeline — prevents resource contention.
+    """
+    # Fast path: check in-memory tracker
+    if user_id in _user_inflight:
+        return True
+
+    # Slow path: check DB (picks up jobs from before container restart)
+    active_stmt = (
+        select(func.count())
+        .select_from(VideoRecord)
+        .where(
+            VideoRecord.user_id == user_id,
+            VideoRecord.status == "generating",
+        )
+    )
+    active_count = (await db.execute(active_stmt)).scalar() or 0
+    return active_count > 0
 
 
 # ── Per-record pipeline locks ─────────────────────────────────────────
@@ -1499,6 +1571,21 @@ async def regenerate_video(
 
     if record.status == "generating":
         raise HTTPException(status_code=409, detail="This video is already being generated.")
+
+    # ── Per-user in-flight guard ────────────────────────────────────
+    async with _user_inflight_lock:
+        if current_user.id in _user_inflight:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have a video generating. Please wait for it to finish before starting another.",
+            )
+    if await user_has_inflight_video(current_user.id, db):
+        await _cleanup_stale_jobs(current_user.id, db)
+        if await user_has_inflight_video(current_user.id, db):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have a video generating. Please wait for it to finish before starting another.",
+            )
 
     # ── Fetch the user's API keys (BYOK) ─────────────────────────────
     keys_result = await db.execute(

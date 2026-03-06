@@ -845,6 +845,14 @@ async def retry_video(
     if not openai_key or not elevenlabs_key:
         raise HTTPException(status_code=400, detail="User has missing API keys (OpenAI or ElevenLabs). Cannot retry.")
 
+    # Check if user already has a video in-flight
+    from backend.routers.videos import user_has_inflight_video
+    if await user_has_inflight_video(video.user_id, db):
+        raise HTTPException(
+            status_code=409,
+            detail="This user already has a video generating. Wait for it to finish before retrying.",
+        )
+
     user_api_keys = {
         "openai_api_key": openai_key,
         "elevenlabs_api_key": elevenlabs_key,

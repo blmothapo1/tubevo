@@ -291,6 +291,8 @@ export default function Videos() {
         setMessage({ type: 'error', text: 'Rate limit reached. Try again later.' });
       } else if (err.response?.status === 403) {
         setMessage({ type: 'error', text: detail || 'You have reached your plan limit this month.' });
+      } else if (err.response?.status === 409) {
+        setMessage({ type: 'error', text: detail || 'A video is already generating. Please wait for it to finish.' });
       } else {
         setMessage({ type: 'error', text: detail || 'Generation failed.' });
       }
@@ -316,7 +318,11 @@ export default function Videos() {
       }
     } catch (err) {
       const detail = err.response?.data?.detail;
-      setMessage({ type: 'error', text: detail || 'Regeneration failed.' });
+      if (err.response?.status === 409) {
+        setMessage({ type: 'error', text: detail || 'A video is already generating. Please wait for it to finish.' });
+      } else {
+        setMessage({ type: 'error', text: detail || 'Regeneration failed.' });
+      }
     } finally {
       setRegeneratingId(null);
     }

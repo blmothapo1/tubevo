@@ -37,7 +37,7 @@ _DEFAULT_INTERVAL_SECS = 60 * 60 * 6
 # Worker poll interval (check every 5 minutes if any user is due for a scan)
 _POLL_INTERVAL = 5 * 60
 # Max trends to auto-generate per user per scan cycle
-_MAX_AUTO_GENERATE_PER_CYCLE = 2
+_MAX_AUTO_GENERATE_PER_CYCLE = 1
 # Min confidence to auto-trigger video generation
 _AUTO_GENERATE_MIN_CONFIDENCE = 65
 
@@ -305,6 +305,12 @@ async def _process_detected_alerts(db) -> int:
         # Check quota
         if not await _check_plan_quota(db, user):
             logger.info("Trend Radar: user %s at quota limit, skipping generation", user.email)
+            continue
+
+        # Check if user already has a video in-flight — don't pile up
+        from backend.routers.videos import user_has_inflight_video
+        if await user_has_inflight_video(uid, db):
+            logger.info("Trend Radar: user %s already has a video generating — skipping", user.email)
             continue
 
         # Get API keys
