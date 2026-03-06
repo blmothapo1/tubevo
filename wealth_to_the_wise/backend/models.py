@@ -926,6 +926,136 @@ class CompetitorSnapshot(Base):
         return f"<CompetitorSnapshot comp={self.competitor_id[:8]} date={self.snapshot_date}>"
 
 
+class TrendAlert(Base):
+    """Detected trend + auto-generated video ready for one-tap publish.
+
+    Lifecycle: detected → scanning → generating → ready → published | dismissed | failed
+    """
+
+    __tablename__ = "trend_alerts"
+    __table_args__ = (
+        Index("ix_trend_user_status", "user_id", "status"),
+        Index("ix_trend_channel_created", "channel_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True,
+    )
+    channel_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("channels.id"), nullable=True, index=True,
+    )
+
+    # ── Trend info ───────────────────────────────────────────────────
+    trend_topic: Mapped[str] = mapped_column(String(300), nullable=False)
+    trend_source: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="niche_analysis",
+    )  # niche_analysis | google_trends | competitor_gap | youtube_trending
+    confidence_score: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=50,
+    )  # 0-100
+    estimated_demand: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=5,
+    )  # 1-10
+    competition_level: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="medium",
+    )  # low | medium | high
+    niche: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    reasoning: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ── Generated video reference ────────────────────────────────────
+    video_record_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("video_records.id"), nullable=True, index=True,
+    )
+
+    # ── Generated title / script preview ─────────────────────────────
+    generated_title: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    script_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
+    thumbnail_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ── Status: detected | scanning | generating | ready | published | dismissed | failed
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="detected", index=True,
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # ── Autopilot ────────────────────────────────────────────────────
+    auto_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # ── Timestamps ───────────────────────────────────────────────────
+    detected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    generation_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    ready_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<TrendAlert '{self.trend_topic[:40]}' status={self.status} confidence={self.confidence_score}>"
+
+
+class TrendRadarSettings(Base):
+    """Per-user Trend Radar configuration."""
+
+    __tablename__ = "trend_radar_settings"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), unique=True, nullable=False, index=True,
+    )
+
+    # Master toggle
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # Autopilot: auto-publish when confidence >= threshold
+    autopilot_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    autopilot_min_confidence: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=80,
+    )  # 0-100
+    autopilot_daily_cap: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1,
+    )  # max auto-publishes per day
+
+    # Scan frequency in minutes
+    scan_interval_minutes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=360,
+    )  # 6 hours default
+
+    # Minimum confidence to show in queue
+    min_confidence_threshold: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=40,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<TrendRadarSettings user={self.user_id} enabled={self.is_enabled} autopilot={self.autopilot_enabled}>"
+
+
 class VoiceClone(Base):
     """A cloned voice created via ElevenLabs (Feature 6).
 

@@ -21,6 +21,7 @@ const PAGE_TITLES = {
   '/thumbnails': 'Thumbnails',
   '/competitors': 'Competitors',
   '/voices': 'Voice Clones',
+  '/trends': 'Trend Radar',
 };
 
 export default function DashboardLayout() {

@@ -42,6 +42,7 @@ FF_REVENUE = "empire.revenue"
 FF_THUMB_AB = "empire.thumb_ab"
 FF_COMPETITOR_SPY = "empire.competitor_spy"
 FF_VOICE_CLONE = "empire.voice_clone"
+FF_TREND_RADAR = "empire.trend_radar"
 
 ALL_FLAGS = frozenset({
     FF_MULTI_CHANNEL,
@@ -50,6 +51,7 @@ ALL_FLAGS = frozenset({
     FF_THUMB_AB,
     FF_COMPETITOR_SPY,
     FF_VOICE_CLONE,
+    FF_TREND_RADAR,
 })
 
 # ── Environment variable mapping ─────────────────────────────────────

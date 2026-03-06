@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Film, CalendarClock, Settings, Tv2, Search,
-  DollarSign, Image, Eye, Mic, Shield, ArrowRight, Command,
+  DollarSign, Image, Eye, Mic, Shield, ArrowRight, Command, Radar,
 } from 'lucide-react';
 
 const ALL_COMMANDS = [
@@ -10,6 +10,7 @@ const ALL_COMMANDS = [
   { id: 'videos', label: 'Videos', desc: 'Manage generated videos', icon: Film, path: '/videos', keywords: ['content', 'generate', 'list'] },
   { id: 'schedule', label: 'Automation', desc: 'Recurring schedules', icon: CalendarClock, path: '/schedule', keywords: ['cron', 'recurring', 'auto'] },
   { id: 'settings', label: 'Settings', desc: 'Account & preferences', icon: Settings, path: '/settings', keywords: ['account', 'profile', 'api', 'keys'] },
+  { id: 'trends', label: 'Trend Radar', desc: 'Auto-detect & publish trends', icon: Radar, path: '/trends', keywords: ['trend', 'radar', 'autopilot', 'viral', 'detect', 'hot'] },
   { id: 'channels', label: 'Channels', desc: 'YouTube channels', icon: Tv2, path: '/channels', keywords: ['youtube', 'connect'] },
   { id: 'niche', label: 'Niche Intel', desc: 'Analyze niches & topics', icon: Search, path: '/niche', keywords: ['research', 'topic', 'trending', 'scan'] },
   { id: 'revenue', label: 'Revenue', desc: 'Track income', icon: DollarSign, path: '/revenue', keywords: ['money', 'earnings', 'adsense', 'income'] },

@@ -40,12 +40,13 @@ from backend.rate_limit import limiter
 from backend.routers import (
     api_keys, auth, admin, billing, health, schedules, videos, waitlist, youtube,
     # Empire OS routers (Phase 0 — scaffold only, gated by feature flags)
-    channels, competitors, niche_intel, revenue, thumb_experiments, voice_clones,
+    channels, competitors, niche_intel, revenue, thumb_experiments, trend_radar, voice_clones,
 )
 from backend.scheduler_worker import scheduler_loop
 from backend.analytics_worker import analytics_loop
 from backend.feature_flags import (
     FF_COMPETITOR_SPY, FF_NICHE_INTEL, FF_REVENUE, FF_THUMB_AB, FF_VOICE_CLONE,
+    FF_TREND_RADAR,
     is_globally_enabled,
 )
 
@@ -175,6 +176,11 @@ def create_app() -> FastAPI:
             empire_tasks.append(asyncio.create_task(voice_clone_loop()))
             logger.info("🎙️ Voice clone worker started")
 
+        if is_globally_enabled(FF_TREND_RADAR):
+            from backend.workers.trend_radar_worker import trend_radar_loop
+            empire_tasks.append(asyncio.create_task(trend_radar_loop()))
+            logger.info("📡 Trend Radar worker started")
+
         if not empire_tasks:
             logger.info("⚡ Empire OS: no workers enabled (all feature flags off)")
 
@@ -273,6 +279,7 @@ def create_app() -> FastAPI:
     app.include_router(thumb_experiments.router)
     app.include_router(competitors.router)
     app.include_router(voice_clones.router)
+    app.include_router(trend_radar.router)
 
     return app
 

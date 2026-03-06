@@ -26,6 +26,7 @@ import Revenue from './pages/Revenue';
 import Thumbnails from './pages/Thumbnails';
 import Competitors from './pages/Competitors';
 import VoiceClones from './pages/VoiceClones';
+import TrendRadar from './pages/TrendRadar';
 
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -128,6 +129,7 @@ export default function App() {
           <Route path="/thumbnails" element={<Thumbnails />} />
           <Route path="/competitors" element={<Competitors />} />
           <Route path="/voices" element={<VoiceClones />} />
+          <Route path="/trends" element={<TrendRadar />} />
         </Route>
       </Routes>
     </BrowserRouter>
