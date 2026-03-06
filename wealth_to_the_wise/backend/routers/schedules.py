@@ -398,19 +398,32 @@ async def trigger_schedule_now(
     await db.flush()
 
     # Trigger video generation via the videos router
-    from backend.routers.videos import generate_video
-    from types import SimpleNamespace
-
-    # Build a minimal request-like object for the rate limiter
-    # We'll call the internal generation logic directly instead
     from backend.routers.videos import (
-        GenerateRequest,
         _enforce_plan_limit,
         _run_pipeline_background,
+        _cleanup_stale_jobs,
+        user_has_inflight_video,
+        _user_inflight,
+        _user_inflight_lock,
     )
     from backend.models import OAuthToken, UserApiKeys
     from backend.encryption import decrypt_or_raise
     import asyncio
+
+    # ── Per-user in-flight guard (mirrors generate_video) ────────────
+    async with _user_inflight_lock:
+        if current_user.id in _user_inflight:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have a video generating. Please wait for it to finish before starting another.",
+            )
+    if await user_has_inflight_video(current_user.id, db):
+        await _cleanup_stale_jobs(current_user.id, db)
+        if await user_has_inflight_video(current_user.id, db):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have a video generating. Please wait for it to finish before starting another.",
+            )
 
     # Enforce plan limits
     await _enforce_plan_limit(current_user, db)

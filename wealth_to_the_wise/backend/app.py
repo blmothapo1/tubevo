@@ -62,13 +62,17 @@ async def _sweep_stale_jobs_on_startup() -> None:
     tasks are dead — the asyncio tasks they ran in no longer exist.
     Rather than waiting for a per-user status poll to discover this, we
     sweep them immediately so the dashboard shows the correct state.
+
+    Also sweeps TrendAlerts stuck in ``generating`` status — without this
+    they would block the user's in-flight guard indefinitely.
     """
     from datetime import datetime, timezone
     from sqlalchemy import update
-    from backend.models import VideoRecord
+    from backend.models import VideoRecord, TrendAlert
 
     try:
         async with async_session_factory() as db:
+            # ── Sweep stale VideoRecords ─────────────────────────────
             stmt = (
                 update(VideoRecord)
                 .where(VideoRecord.status == "generating")
@@ -83,12 +87,26 @@ async def _sweep_stale_jobs_on_startup() -> None:
                 )
             )
             result = await db.execute(stmt)
+            video_affected = getattr(result, "rowcount", 0)
+
+            # ── Sweep stale TrendAlerts stuck in "generating" ────────
+            alert_stmt = (
+                update(TrendAlert)
+                .where(TrendAlert.status == "generating")
+                .values(
+                    status="failed",
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            alert_result = await db.execute(alert_stmt)
+            alert_affected = getattr(alert_result, "rowcount", 0)
+
             await db.commit()
-            affected = getattr(result, "rowcount", 0)
-            if affected:
+
+            if video_affected or alert_affected:
                 logger.warning(
-                    "🧹 Startup sweep: marked %d stale 'generating' jobs as failed",
-                    affected,
+                    "🧹 Startup sweep: marked %d stale videos + %d stale trend alerts as failed",
+                    video_affected, alert_affected,
                 )
             else:
                 logger.info("🧹 Startup sweep: no stale jobs found")
