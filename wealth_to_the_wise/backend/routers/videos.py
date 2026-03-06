@@ -35,7 +35,7 @@ from backend.auth import get_current_user
 from backend.database import async_session_factory, get_db
 from backend.encryption import decrypt, decrypt_or_raise, DecryptionFailedError
 from backend.events import emit_event
-from backend.models import ContentMemory, ContentPerformance, OAuthToken, User, UserApiKeys, UserPreferences, VideoRecord
+from backend.models import Channel, ContentMemory, ContentPerformance, OAuthToken, User, UserApiKeys, UserPreferences, VideoRecord
 from backend.rate_limit import limiter
 from backend.utils import PLAN_MONTHLY_LIMITS
 
@@ -678,6 +678,35 @@ async def _run_pipeline_inner(
                                 record_id, cp_entry.title_style_used, cp_entry.thumbnail_concept_used, cp_entry.hook_mode_used)
                 except Exception as cp_err:
                     logger.warning("Adaptive: ContentPerformance save failed (non-fatal): %s", cp_err)
+
+                # ── Thumbnail A/B: auto-create experiment if 2+ variants ─
+                try:
+                    _thumb_variants = result.get("thumbnail_variants", [])
+                    if len(_thumb_variants) >= 2 and row.status == "posted":
+                        from backend.feature_flags import FF_THUMB_AB, is_globally_enabled
+                        if is_globally_enabled(FF_THUMB_AB):
+                            # Look up the user's channel
+                            _ch_stmt = select(Channel).where(
+                                Channel.user_id == user_id
+                            ).order_by(Channel.created_at.asc()).limit(1)
+                            _ch_row = (await db.execute(_ch_stmt)).scalar_one_or_none()
+                            if _ch_row:
+                                from backend.services.thumb_ab_service import create_experiment as _create_thumb_exp
+                                _exp, _exp_variants = await _create_thumb_exp(
+                                    channel_id=_ch_row.id,
+                                    video_record_id=record_id,
+                                    variants=_thumb_variants,
+                                    db=db,
+                                )
+                                await db.commit()
+                                logger.info(
+                                    "Thumbnail A/B: auto-created experiment %s with %d variants for video %s",
+                                    _exp.id, len(_exp_variants), record_id,
+                                )
+                            else:
+                                logger.debug("Thumbnail A/B: no channel found for user %s — skipping experiment", user_id)
+                except Exception as _tab_err:
+                    logger.warning("Thumbnail A/B: auto-create failed (non-fatal): %s", _tab_err)
     except Exception:
         logger.exception("Failed to update VideoRecord %s after pipeline", record_id)
     finally:
