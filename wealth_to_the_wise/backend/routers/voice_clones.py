@@ -6,18 +6,22 @@ All endpoints are gated behind ``FF_VOICE_CLONE``.
 
 Endpoints
 ---------
-GET    /voice-clones              — List all voice clones
-POST   /voice-clones              — Create a voice clone
-GET    /voice-clones/{id}         — Get clone details
-DELETE /voice-clones/{id}         — Soft-delete a clone
-POST   /voice-clones/{id}/retry   — Retry a failed clone
+GET    /voice-clones                  — List all voice clones
+POST   /voice-clones                  — Create a voice clone
+POST   /voice-clones/upload-sample    — Upload audio sample file
+GET    /voice-clones/{id}             — Get clone details
+DELETE /voice-clones/{id}             — Soft-delete a clone
+POST   /voice-clones/{id}/retry       — Retry a failed clone
 """
 
 from __future__ import annotations
 
 import logging
+import tempfile
+import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
@@ -68,6 +72,87 @@ async def list_clones_endpoint(
         voice_clones=[VoiceCloneResponse.model_validate(c) for c in clones],
         count=len(clones),
     )
+
+
+# ── UPLOAD audio sample ─────────────────────────────────────────────
+
+# Max 25 MB audio upload
+_MAX_AUDIO_SIZE = 25 * 1024 * 1024
+_ALLOWED_MIMETYPES = {
+    "audio/webm", "audio/ogg", "audio/mpeg", "audio/mp3", "audio/mp4",
+    "audio/wav", "audio/x-wav", "audio/flac", "audio/aac",
+    "video/webm",  # Chrome records webm with video mimetype sometimes
+}
+_VOICE_SAMPLES_DIR = Path(tempfile.gettempdir()) / "tubevo_voice_samples"
+
+
+@router.post(
+    "/upload-sample",
+    summary="Upload an audio sample for voice cloning",
+)
+async def upload_sample(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Accept an audio file upload and save it to a local temp path.
+
+    Returns ``{ file_key, duration_secs }`` so the caller can pass them
+    to ``POST /voice-clones`` to create the clone record.
+
+    The worker reads the file from ``file_key`` when it processes the
+    clone via ElevenLabs.
+    """
+    # Validate content type
+    ct = (file.content_type or "").split(";")[0].strip().lower()
+    if ct not in _ALLOWED_MIMETYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported audio format: {ct}. Upload WebM, MP3, WAV, FLAC, or OGG.",
+        )
+
+    # Read and check size
+    contents = await file.read()
+    if len(contents) > _MAX_AUDIO_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Audio file too large ({len(contents) / (1024*1024):.1f} MB). Maximum is 25 MB.",
+        )
+    if len(contents) < 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Audio file appears empty or too small.",
+        )
+
+    # Determine extension from content type
+    ext_map = {
+        "audio/webm": ".webm", "video/webm": ".webm", "audio/ogg": ".ogg",
+        "audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/mp4": ".m4a",
+        "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/flac": ".flac",
+        "audio/aac": ".aac",
+    }
+    ext = ext_map.get(ct, ".webm")
+
+    # Save to temp dir keyed by user
+    _VOICE_SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
+    file_key = f"voice_samples/{current_user.id}/{uuid.uuid4().hex}{ext}"
+    dest = _VOICE_SAMPLES_DIR / file_key
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(contents)
+
+    # Estimate duration (rough: assume ~16 kbps for webm/opus, adjust for others)
+    bitrate_map = {".webm": 16_000, ".ogg": 16_000, ".mp3": 128_000, ".wav": 1_411_200, ".flac": 700_000, ".m4a": 128_000, ".aac": 128_000}
+    bps = bitrate_map.get(ext, 32_000)
+    estimated_secs = max(1, int((len(contents) * 8) / bps))
+
+    logger.info(
+        "Voice sample uploaded: user=%s size=%d ext=%s est_secs=%d key=%s",
+        current_user.id, len(contents), ext, estimated_secs, file_key,
+    )
+
+    return {
+        "file_key": str(dest),  # absolute path — worker reads from here
+        "duration_secs": estimated_secs,
+    }
 
 
 # ── CREATE voice clone ──────────────────────────────────────────────
