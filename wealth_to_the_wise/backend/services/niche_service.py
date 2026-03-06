@@ -156,26 +156,54 @@ async def save_niche_snapshot(
 ) -> tuple:
     """Persist a NicheSnapshot + NicheTopics to the database.
 
+    If a snapshot already exists for this channel+niche+date (unique constraint
+    ``uq_niche_snap``), update it in-place instead of inserting a duplicate.
+
     Returns ``(snapshot, topics_list)`` ORM objects.
     """
     from backend.models import NicheSnapshot, NicheTopic, _new_uuid, _utcnow
+    from sqlalchemy import select, delete
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    snapshot = NicheSnapshot(
-        id=_new_uuid(),
-        channel_id=channel_id,
-        niche=niche,
-        snapshot_date=today,
-        saturation_score=int(analysis.get("saturation_score", 0)),
-        trending_score=int(analysis.get("trending_score", 0)),
-        search_volume_est=int(analysis.get("search_volume_est", 0)),
-        competitor_count=int(analysis.get("competitor_count", 0)),
-        data_json=json.dumps(analysis),
-        created_at=_utcnow(),
+    # Check for existing snapshot for this channel+niche+date
+    existing_stmt = select(NicheSnapshot).where(
+        NicheSnapshot.channel_id == channel_id,
+        NicheSnapshot.niche == niche,
+        NicheSnapshot.snapshot_date == today,
     )
-    db_session.add(snapshot)
-    await db_session.flush()  # get snapshot.id for FK
+    existing = (await db_session.execute(existing_stmt)).scalar_one_or_none()
+
+    if existing:
+        # Update existing snapshot in-place
+        existing.saturation_score = int(analysis.get("saturation_score", 0))
+        existing.trending_score = int(analysis.get("trending_score", 0))
+        existing.search_volume_est = int(analysis.get("search_volume_est", 0))
+        existing.competitor_count = int(analysis.get("competitor_count", 0))
+        existing.data_json = json.dumps(analysis)
+
+        # Delete old topics and re-create
+        await db_session.execute(
+            delete(NicheTopic).where(NicheTopic.snapshot_id == existing.id)
+        )
+        await db_session.flush()
+
+        snapshot = existing
+    else:
+        snapshot = NicheSnapshot(
+            id=_new_uuid(),
+            channel_id=channel_id,
+            niche=niche,
+            snapshot_date=today,
+            saturation_score=int(analysis.get("saturation_score", 0)),
+            trending_score=int(analysis.get("trending_score", 0)),
+            search_volume_est=int(analysis.get("search_volume_est", 0)),
+            competitor_count=int(analysis.get("competitor_count", 0)),
+            data_json=json.dumps(analysis),
+            created_at=_utcnow(),
+        )
+        db_session.add(snapshot)
+        await db_session.flush()  # get snapshot.id for FK
 
     topics = []
     for t in analysis.get("topics", []):

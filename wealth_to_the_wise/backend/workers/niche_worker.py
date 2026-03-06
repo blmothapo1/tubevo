@@ -107,6 +107,12 @@ async def _run_niche_scan_cycle() -> int:
                         "Worker: niche scan failed for channel=%s niche=%s",
                         channel.id, niche,
                     )
+                    # Rollback to clear a potentially poisoned session
+                    # (e.g. IntegrityError leaves a PendingRollbackError).
+                    try:
+                        await db.rollback()
+                    except Exception:
+                        pass
 
         if created:
             await db.commit()

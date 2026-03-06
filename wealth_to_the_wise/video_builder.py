@@ -65,10 +65,17 @@ OUTRO_CARD_DURATION = 4.0
 # Number of stock clips to download (legacy mode — scene planner may override)
 NUM_STOCK_CLIPS = 10
 
-# Encoding
-ENCODING_PRESET = "fast"       # fast for Railway CPU limits
-VIDEO_BITRATE = "4000k"        # 720p needs less bitrate
+# Encoding — tuned for Railway's 512 MB–1 GB RAM containers.
+# "ultrafast" uses dramatically less memory than "fast" because it skips
+# expensive motion-estimation reference frames that balloon RAM.
+# CRF 20 produces quality comparable to 4000k CBR at 720p.
+ENCODING_PRESET = "ultrafast"
+ENCODING_CRF = "20"            # constant-quality (lower = better, 18-23 is good)
+VIDEO_BITRATE = "3500k"        # only used as fallback / maxrate cap
 AUDIO_BITRATE = "128k"
+# Limit FFmpeg thread pool so it doesn't spawn as many threads as CPU
+# cores (Railway shares vCPUs).  2 threads keeps peak RSS well under 512 MB.
+FFMPEG_THREADS = "2"
 
 # Cross-platform font detection
 # Phase 5: last generated SRT path (set by _build_video_inner, read by pipeline)
@@ -111,7 +118,8 @@ FONT_FAMILY = _font_family()
 
 def _run_ffmpeg(args: list[str], description: str = "ffmpeg") -> None:
     """Run an FFmpeg command, raise on failure."""
-    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning"] + args
+    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning",
+           "-threads", FFMPEG_THREADS] + args
     logger.info("Running %s …", description)
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     if result.returncode != 0:
@@ -596,7 +604,8 @@ def _composite_main_section(
         "-i", audio_path,
         "-vf", vf,
         "-t", f"{narration_duration:.2f}",
-        "-c:v", "libx264", "-preset", ENCODING_PRESET, "-b:v", VIDEO_BITRATE,
+        "-c:v", "libx264", "-preset", ENCODING_PRESET,
+        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "7000k",
         "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
         "-pix_fmt", "yuv420p",
         "-shortest",
@@ -648,7 +657,8 @@ def _assemble_final(
     # concat segment boundaries (different encoder settings, frame padding).
     _run_ffmpeg([
         "-f", "concat", "-safe", "0", "-i", concat_list,
-        "-c:v", "libx264", "-preset", ENCODING_PRESET, "-b:v", VIDEO_BITRATE,
+        "-c:v", "libx264", "-preset", ENCODING_PRESET,
+        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "7000k",
         "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
@@ -686,7 +696,7 @@ def _enforce_size_limit(video_path: str) -> str:
 
     _run_ffmpeg([
         "-i", video_path,
-        "-c:v", "libx264", "-preset", "slow", "-b:v", target_bitrate,
+        "-c:v", "libx264", "-preset", ENCODING_PRESET, "-b:v", target_bitrate,
         "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
         "-pix_fmt", "yuv420p",
         compressed_path,
