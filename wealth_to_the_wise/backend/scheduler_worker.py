@@ -23,6 +23,7 @@ from sqlalchemy import select
 
 from backend.database import async_session_factory
 from backend.encryption import decrypt, decrypt_or_raise
+from backend.feature_flags import FF_SCHEDULER, is_globally_enabled
 from backend.models import OAuthToken, PostingSchedule, User, UserApiKeys, VideoRecord
 from backend.routers.schedules import FREQUENCY_DELTAS
 from backend.routers.videos import _run_pipeline_background
@@ -40,7 +41,13 @@ async def scheduler_loop() -> None:
 
     while True:
         try:
+            if not is_globally_enabled(FF_SCHEDULER):
+                await asyncio.sleep(POLL_INTERVAL)
+                continue
             await _process_due_schedules()
+        except asyncio.CancelledError:
+            logger.info("Scheduler worker shutting down")
+            break
         except Exception:
             logger.exception("Scheduler worker iteration failed")
 
