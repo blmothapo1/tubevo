@@ -1045,6 +1045,11 @@ class TrendRadarSettings(Base):
         Integer, nullable=False, default=40,
     )
 
+    # Timestamp of the last completed scan — used to enforce scan_interval_minutes
+    last_scanned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow,
     )

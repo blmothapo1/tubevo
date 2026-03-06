@@ -303,6 +303,10 @@ async def force_scan(
         except Exception as e:
             logger.exception("Manual trend scan failed for niche=%s", niche)
 
+    # Stamp last_scanned_at so the background worker respects the cooldown
+    settings.last_scanned_at = datetime.now(timezone.utc)
+    settings.updated_at = settings.last_scanned_at
+
     await db.commit()
 
     return {

@@ -40,6 +40,8 @@ _POLL_INTERVAL = 5 * 60
 _MAX_AUTO_GENERATE_PER_CYCLE = 1
 # Min confidence to auto-trigger video generation
 _AUTO_GENERATE_MIN_CONFIDENCE = 65
+# Max pending (detected + generating) alerts per user before we stop scanning
+_MAX_PENDING_ALERTS = 10
 
 
 async def _get_or_create_settings(db, user_id: str) -> TrendRadarSettings:
@@ -193,6 +195,23 @@ async def _trigger_video_generation(
 async def _scan_user_trends(db, user: User, channel: Channel | None) -> int:
     """Scan for trending topics for a single user. Returns count of new alerts."""
     from backend.services.trend_service import detect_trending_topics, save_trend_alerts
+
+    # ── Guard: don't flood the queue — if user already has ≥10 pending alerts, skip scan
+    pending_count_stmt = (
+        select(func.count())
+        .select_from(TrendAlert)
+        .where(
+            TrendAlert.user_id == user.id,
+            TrendAlert.status.in_(["detected", "generating"]),
+        )
+    )
+    pending_count = (await db.execute(pending_count_stmt)).scalar() or 0
+    if pending_count >= _MAX_PENDING_ALERTS:
+        logger.info(
+            "Trend Radar: user %s already has %d pending alerts — skipping scan",
+            user.email, pending_count,
+        )
+        return 0
 
     # Get user preferences
     prefs_result = await db.execute(
@@ -348,6 +367,7 @@ async def _check_ready_alerts(db) -> int:
     """Check 'generating' alerts whose videos are now complete.
 
     Moves them to 'ready' (or auto-publishes if autopilot is on).
+    Also fails alerts stuck in 'generating' for over 30 minutes.
     Returns count of alerts moved to 'ready'.
     """
     stmt = (
@@ -360,9 +380,24 @@ async def _check_ready_alerts(db) -> int:
         return 0
 
     ready_count = 0
+    changed = False
     now = datetime.now(timezone.utc)
 
     for alert in alerts:
+        # ── Fail alerts stuck generating for >30 min ─────────────
+        if alert.generation_started_at:
+            stuck_seconds = (now - alert.generation_started_at).total_seconds()
+            if stuck_seconds > 1800:  # 30 minutes
+                alert.status = "failed"
+                alert.error_message = "Video generation timed out (>30 min)"
+                alert.updated_at = now
+                changed = True
+                logger.warning(
+                    "Trend Radar: timed out stuck alert=%s (%.0fs)",
+                    alert.id, stuck_seconds,
+                )
+                continue
+
         if not alert.video_record_id:
             continue
 
@@ -382,6 +417,7 @@ async def _check_ready_alerts(db) -> int:
             alert.thumbnail_path = video.thumbnail_path
             alert.updated_at = now
             ready_count += 1
+            changed = True
 
             # Check if autopilot should auto-publish
             settings = await _get_or_create_settings(db, alert.user_id)
@@ -409,17 +445,24 @@ async def _check_ready_alerts(db) -> int:
             alert.status = "failed"
             alert.error_message = video.error_message or "Video generation failed"
             alert.updated_at = now
+            changed = True
 
-    if ready_count:
+    if changed:
         await db.commit()
 
     return ready_count
 
 
 async def _run_trend_cycle() -> None:
-    """Run one complete trend radar cycle across all users."""
+    """Run one complete trend radar cycle across all users.
+
+    Respects each user's ``scan_interval_minutes`` so we don't hammer GPT
+    every 5 minutes and flood the queue with "detected" alerts.
+    """
+    now = datetime.now(timezone.utc)
+
     async with async_session_factory() as db:
-        # 1. Scan for new trends per user
+        # 1. Scan for new trends — only for users whose cooldown has elapsed
         users_result = await db.execute(
             select(User).where(User.is_active == True)  # noqa: E712
         )
@@ -428,6 +471,17 @@ async def _run_trend_cycle() -> None:
         total_alerts = 0
         for user in users:
             try:
+                settings = await _get_or_create_settings(db, user.id)
+                if not settings.is_enabled:
+                    continue
+
+                # ── Enforce scan_interval_minutes cooldown ───────────
+                interval_secs = (settings.scan_interval_minutes or 360) * 60
+                if settings.last_scanned_at:
+                    elapsed = (now - settings.last_scanned_at).total_seconds()
+                    if elapsed < interval_secs:
+                        continue  # Not due yet
+
                 # Get user's default channel
                 channel_result = await db.execute(
                     select(Channel).where(
@@ -439,12 +493,19 @@ async def _run_trend_cycle() -> None:
 
                 new_alerts = await _scan_user_trends(db, user, channel)
                 total_alerts += new_alerts
+
+                # Stamp the scan time so we don't re-scan too soon
+                settings.last_scanned_at = now
+                settings.updated_at = now
             except Exception:
                 logger.exception("Trend Radar: scan cycle failed for user=%s", user.email)
 
         if total_alerts:
             await db.commit()
             logger.info("📡 Trend Radar: detected %d new trends across %d users", total_alerts, len(users))
+        else:
+            # Still need to commit `last_scanned_at` updates
+            await db.commit()
 
     # 2. Process detected alerts → trigger video generation
     async with async_session_factory() as db:

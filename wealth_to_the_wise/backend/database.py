@@ -248,6 +248,13 @@ async def _apply_column_migrations() -> None:
                         f"REFERENCES channels(id)"
                     ))
                     logger.info("Applied migration: %s.channel_id", table)
+
+            # trend_radar_settings.last_scanned_at
+            if not await _col_exists_sqlite("trend_radar_settings", "last_scanned_at"):
+                await conn.execute(text(
+                    "ALTER TABLE trend_radar_settings ADD COLUMN last_scanned_at TIMESTAMP"
+                ))
+                logger.info("Applied migration: trend_radar_settings.last_scanned_at")
         else:
             # PostgreSQL path — use information_schema
             async def _col_exists_pg(table: str, column: str) -> bool:
@@ -299,6 +306,14 @@ async def _apply_column_migrations() -> None:
                         f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} (channel_id)"
                     ))
                     logger.info("Applied migration: index %s", idx_name)
+
+            # trend_radar_settings.last_scanned_at
+            if not await _col_exists_pg("trend_radar_settings", "last_scanned_at"):
+                await conn.execute(text(
+                    "ALTER TABLE trend_radar_settings "
+                    "ADD COLUMN last_scanned_at TIMESTAMP WITH TIME ZONE"
+                ))
+                logger.info("Applied migration: trend_radar_settings.last_scanned_at")
 
     logger.info("Column migrations complete.")
 

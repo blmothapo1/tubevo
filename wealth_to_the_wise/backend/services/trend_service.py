@@ -158,18 +158,29 @@ async def save_trend_alerts(
 ) -> list:
     """Persist detected trends as TrendAlert rows.
 
-    Deduplicates against existing non-dismissed/non-failed alerts for the same user+topic.
+    Deduplicates against ALL recent alerts for the same user+topic
+    (published within the last 30 days, plus anything still active).
     Returns the list of newly created TrendAlert ORM objects.
     """
-    from backend.models import TrendAlert, _new_uuid, _utcnow
-    from sqlalchemy import select
+    from datetime import datetime, timedelta, timezone
 
-    # Fetch existing active alerts to dedup
+    from backend.models import TrendAlert, _new_uuid, _utcnow
+    from sqlalchemy import or_, select
+
+    now = datetime.now(timezone.utc)
+    thirty_days_ago = now - timedelta(days=30)
+
+    # Fetch topics from: (a) active alerts (detected/generating/ready), and
+    # (b) alerts published/dismissed within the last 30 days — to prevent
+    #     the same topic recycling right after it was published.
     existing_stmt = (
         select(TrendAlert.trend_topic)
         .where(
             TrendAlert.user_id == user_id,
-            TrendAlert.status.notin_(["dismissed", "failed", "published"]),
+            or_(
+                TrendAlert.status.in_(["detected", "generating", "ready"]),
+                TrendAlert.created_at >= thirty_days_ago,
+            ),
         )
     )
     existing_rows = (await db_session.execute(existing_stmt)).scalars().all()
