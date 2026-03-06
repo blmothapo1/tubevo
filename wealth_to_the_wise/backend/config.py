@@ -96,6 +96,9 @@ class Settings(BaseSettings):
     # ── Kit (formerly ConvertKit) — waitlist email capture ───────────
     kit_api_key: str = Field(default="", repr=False)
 
+    # ── SerpAPI — live web trends for Trend Radar & topic suggestions ─
+    serpapi_api_key: str = Field(default="", repr=False)
+
     # ── Admin ────────────────────────────────────────────────────────
     # Comma-separated list of emails that should be auto-promoted to admin on login.
     admin_emails: str = ""

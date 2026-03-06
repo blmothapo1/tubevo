@@ -25,34 +25,39 @@ logger = logging.getLogger("tubevo.backend.niche_service")
 
 _SYSTEM_PROMPT = """\
 You are a YouTube market-research analyst specialising in niche evaluation.
-Given a niche name, you MUST return a JSON object (no markdown, no code fences) with:
+Today's date is {today}. All analysis MUST reflect current {today} market conditions — \
+never reference outdated data from previous years.
 
-{
+Given a niche name and LIVE MARKET DATA, you MUST return a JSON object \
+(no markdown, no code fences) with:
+
+{{
   "saturation_score": <int 1-100, higher = more saturated>,
   "trending_score": <int 1-100, higher = more trending right now>,
   "search_volume_est": <int, rough monthly YouTube search volume estimate>,
   "competitor_count": <int, estimated number of active channels in this niche>,
   "topics": [
-    {
+    {{
       "topic": "<specific video title idea>",
       "estimated_demand": <int 1-10, higher = more demand>,
       "competition_level": "<low|medium|high>",
       "source": "gpt_analysis"
-    }
+    }}
   ]
-}
+}}
 
 Return EXACTLY 8-12 topic suggestions. Be specific with titles — not generic.
-Base your estimates on real YouTube trends as of 2026.
+Ground your analysis in the live market data provided.
 Return ONLY the JSON object, nothing else.
 """
 
 
-def _build_user_prompt(niche: str, tone_style: str, target_audience: str) -> str:
+def _build_user_prompt(niche: str, tone_style: str, target_audience: str, live_context: str = "") -> str:
     return (
         f"Niche: {niche}\n"
         f"Channel tone: {tone_style}\n"
-        f"Target audience: {target_audience}\n\n"
+        f"Target audience: {target_audience}\n"
+        f"{live_context}\n\n"
         f"Analyse this niche and return the JSON object."
     )
 
@@ -66,8 +71,12 @@ def analyse_niche(
     tone_style: str = "confident, direct, no-fluff educator",
     target_audience: str = "general audience",
     model: str = "gpt-4o-mini",
+    serpapi_key: str = "",
 ) -> dict:
     """Call OpenAI to produce a niche analysis.
+
+    When ``serpapi_key`` is provided, fetches live data from Google Trends,
+    YouTube, and Google News to ground the analysis in current reality.
 
     Returns a dict with keys:
       saturation_score, trending_score, search_volume_est,
@@ -75,7 +84,17 @@ def analyse_niche(
 
     Raises ``ValueError`` if the response cannot be parsed.
     """
-    user_prompt = _build_user_prompt(niche, tone_style, target_audience)
+    from backend.services.web_trends_service import fetch_live_trend_context
+
+    today = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
+    # Fetch live web data for grounding
+    live_context = fetch_live_trend_context(niche=niche, serpapi_key=serpapi_key)
+
+    user_prompt = _build_user_prompt(niche, tone_style, target_audience, live_context)
+
+    # Format system prompt with today's date
+    system_prompt = _SYSTEM_PROMPT.format(today=today)
 
     resp = httpx.post(
         "https://api.openai.com/v1/chat/completions",
@@ -88,7 +107,7 @@ def analyse_niche(
             "temperature": 0.7,
             "max_tokens": 2000,
             "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
         },

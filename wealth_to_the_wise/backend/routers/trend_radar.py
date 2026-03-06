@@ -278,6 +278,10 @@ async def force_scan(
 
     settings = await _get_or_create_settings(db, current_user.id)
 
+    # Get SerpAPI key for live web trends
+    from backend.config import get_settings as _get_app_settings
+    serpapi_key = _get_app_settings().serpapi_api_key
+
     # Scan all niches
     all_alerts = []
     for niche in niches[:3]:
@@ -289,6 +293,7 @@ async def force_scan(
                 tone_style=prefs.tone_style or "confident, direct, no-fluff educator",
                 target_audience=prefs.target_audience or "general audience",
                 already_covered=covered,
+                serpapi_key=serpapi_key,
             )
 
             alerts = await save_trend_alerts(

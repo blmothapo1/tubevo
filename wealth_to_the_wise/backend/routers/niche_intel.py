@@ -223,6 +223,8 @@ async def trigger_niche_scan(
 
     # ── Run the analysis (sync → thread) ─────────────────────────────
     from backend.services.niche_service import analyse_niche, save_niche_snapshot
+    from backend.config import get_settings
+    serpapi_key = get_settings().serpapi_api_key
 
     try:
         analysis = await asyncio.to_thread(
@@ -231,6 +233,7 @@ async def trigger_niche_scan(
             openai_api_key=openai_key,
             tone_style=tone_style,
             target_audience=target_audience,
+            serpapi_key=serpapi_key,
         )
     except ValueError as exc:
         logger.warning("Niche scan failed for user %s: %s", current_user.email, exc)

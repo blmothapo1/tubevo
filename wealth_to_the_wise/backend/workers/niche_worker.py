@@ -76,6 +76,10 @@ async def _run_niche_scan_cycle() -> int:
             tone_style = prefs.tone_style or "confident, direct, no-fluff educator"
             target_audience = prefs.target_audience or "general audience"
 
+            # Get SerpAPI key for live web trends
+            from backend.config import get_settings
+            serpapi_key = get_settings().serpapi_api_key
+
             # Scan each niche (max 3 per channel per cycle to limit cost)
             for niche in niches[:3]:
                 try:
@@ -85,6 +89,7 @@ async def _run_niche_scan_cycle() -> int:
                         openai_api_key=openai_key,
                         tone_style=tone_style,
                         target_audience=target_audience,
+                        serpapi_key=serpapi_key,
                     )
                     await save_niche_snapshot(
                         channel_id=channel.id,

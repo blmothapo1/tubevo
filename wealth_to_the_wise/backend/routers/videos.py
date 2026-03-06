@@ -1888,14 +1888,45 @@ async def topic_suggestions(
     )
     user_prefs = prefs_result.scalar_one_or_none()
     niche_context = ""
+    primary_niche = ""
     if user_prefs and user_prefs.niches_json:
         import json as _prefs_json
         try:
             user_niches = _prefs_json.loads(user_prefs.niches_json)
             if user_niches:
                 niche_context = f"This channel covers: {', '.join(user_niches[:3])}. Suggest topics within these niches.\n"
+                primary_niche = user_niches[0]
         except Exception:
             pass
+
+    # Fetch live web trends for grounding
+    from datetime import datetime as _dt_cls
+    from backend.config import get_settings as _get_app_settings
+    _serpapi_key = _get_app_settings().serpapi_api_key
+    _today = _dt_cls.now(timezone.utc).strftime("%B %d, %Y")
+
+    live_data_block = ""
+    if _serpapi_key and primary_niche:
+        try:
+            from backend.services.web_trends_service import fetch_live_trend_context
+            live_data_block = await asyncio.to_thread(
+                fetch_live_trend_context,
+                niche=primary_niche,
+                serpapi_key=_serpapi_key,
+            )
+        except Exception as _web_err:
+            logger.warning("Live trends fetch failed for topic suggestions (non-fatal): %s", _web_err)
+            live_data_block = (
+                f"\n\nIMPORTANT: Today's date is {_today}. "
+                f"All topics MUST be relevant to {_today}. "
+                f"Do NOT suggest outdated topics from 2023 or 2024."
+            )
+    else:
+        live_data_block = (
+            f"\n\nIMPORTANT: Today's date is {_today}. "
+            f"All topics MUST be relevant to {_today}. "
+            f"Do NOT suggest outdated topics from 2023 or 2024."
+        )
 
     # Generate suggestions via OpenAI
     import json as _json
@@ -1908,19 +1939,22 @@ async def topic_suggestions(
             avoidance += f"  - {t}\n"
 
     system = (
-        f"You suggest YouTube video topics. {niche_context}\n"
+        f"You suggest YouTube video topics. Today's date is {_today}. {niche_context}\n"
         "Return ONLY a JSON array of exactly 5 objects. Each object has:\n"
         '  "topic" — a specific, ready-to-use video topic (not generic)\n'
         '  "score" — demand score 1-10 (10=highest search demand + low competition)\n'
         '  "angle" — the narrative angle: one of "myth-bust", "story", "how-to", "contrarian", "case-study"\n'
-        '  "why"   — one sentence: why this topic has high potential right now\n\n'
+        '  "why"   — one sentence: why this topic has high potential right now (reference real current events/trends)\n\n'
         "RULES:\n"
         "- Mix angles — never suggest 5 of the same type.\n"
         "- Topics must be SPECIFIC (not 'how to save money' — too broad).\n"
         "- Favor timely, emotionally engaging, or contrarian topics.\n"
         "- Score honestly — not everything is a 10.\n"
+        f"- All topics MUST be relevant to {_today} — never suggest outdated content.\n"
+        "- Ground your suggestions in the live market data provided below.\n"
         "Do NOT include markdown fences. Return raw JSON only."
         f"{avoidance}"
+        f"{live_data_block}"
     )
 
     try:

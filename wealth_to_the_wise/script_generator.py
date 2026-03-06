@@ -331,7 +331,12 @@ def generate_script(
     if performance_profile and performance_profile.get("adaptation_active"):
         hook_mode = performance_profile.get("hook_mode", "balanced")
 
+    from datetime import datetime, timezone as _tz
+    _today = datetime.now(_tz.utc).strftime("%B %d, %Y")
+
     system_prompt = (
+        f"Today's date is {_today}. All references, examples, and statistics "
+        f"MUST be relevant to {_today}. Never reference outdated events.\n\n"
         f"{_build_dynamic_tone(user_preferences)}\n\n"
         f"{_HOOK_MODES.get(hook_mode, _HOOK_MODES['balanced'])}\n"
         "SCRIPT STRUCTURE (follow this order exactly):\n\n"
@@ -427,8 +432,11 @@ def generate_metadata(
         if rec_style and rec_style in _TITLE_STYLE_INSTRUCTIONS:
             title_style_guidance = "\n" + _TITLE_STYLE_INSTRUCTIONS[rec_style] + "\n"
 
+    from datetime import datetime, timezone as _tz
+    _today_meta = datetime.now(_tz.utc).strftime("%B %d, %Y")
+
     system_prompt = (
-        f"You are an expert YouTube SEO strategist. {niche_context}\n"
+        f"You are an expert YouTube SEO strategist. Today's date is {_today_meta}. {niche_context}\n"
         "Given a video script and its topic, return ONLY valid JSON with these keys:\n"
         '  "title"            — catchy, < 70 chars, includes a power word\n'
         '  "title_alternatives" — array of 2 alternative title options (different angles/structures)\n'

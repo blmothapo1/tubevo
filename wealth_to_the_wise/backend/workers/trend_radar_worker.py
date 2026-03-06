@@ -250,6 +250,10 @@ async def _scan_user_trends(db, user: User, channel: Channel | None) -> int:
     target_audience = prefs.target_audience or "general audience"
     covered = await _get_user_covered_topics(db, user.id)
 
+    # Get SerpAPI key for live web trends
+    from backend.config import get_settings
+    serpapi_key = get_settings().serpapi_api_key
+
     total_created = 0
 
     # Scan each niche (max 3)
@@ -262,6 +266,7 @@ async def _scan_user_trends(db, user: User, channel: Channel | None) -> int:
                 tone_style=tone_style,
                 target_audience=target_audience,
                 already_covered=covered,
+                serpapi_key=serpapi_key,
             )
 
             alerts = await save_trend_alerts(

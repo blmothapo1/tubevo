@@ -27,33 +27,39 @@ logger = logging.getLogger("tubevo.backend.trend_service")
 
 _TREND_SYSTEM_PROMPT = """\
 You are a YouTube trend analyst specialising in detecting viral-worthy video topics.
-Given a niche, tone, audience, and a list of topics the creator has ALREADY covered,
+Today's date is {today}. All suggestions MUST be relevant to {today} — \
+never suggest outdated topics from previous years.
+
+Given a niche, tone, audience, a list of topics the creator has ALREADY covered,
+and LIVE MARKET DATA from Google Trends, YouTube, and news headlines,
 identify 5-8 FRESH trending topics that:
 
 1. Have HIGH current demand (people are actively searching for this NOW)
 2. Have LOW-to-MEDIUM competition (not every creator has covered it yet)
 3. Are SPECIFIC enough to be a single video (not a broad category)
 4. Would perform well on YouTube in the next 7 days
+5. Are GROUNDED in the live data provided — reference real trends, news, or gaps
 
 For each topic, return:
-{
+{{
   "topics": [
-    {
+    {{
       "topic": "<specific, click-worthy video title idea>",
       "confidence_score": <int 40-100, higher = more confident this will perform>,
       "estimated_demand": <int 1-10>,
       "competition_level": "<low|medium|high>",
       "source": "trend_analysis",
-      "reasoning": "<1-2 sentences explaining WHY this is trending right now>"
-    }
+      "reasoning": "<1-2 sentences explaining WHY this is trending right now, referencing specific data>"
+    }}
   ]
-}
+}}
 
 Rules:
 - Do NOT suggest topics that overlap with the "already covered" list.
 - Be SPECIFIC — "How To Budget" is too generic. "The 50/30/20 Budget Rule Is Dead — Here's What Replaced It" is specific.
 - Base confidence on a combination of search volume, social buzz, and timeliness.
 - Higher confidence = more actionable, more timely, higher chance of going viral.
+- Use the live market data to identify GAPS — topics that are trending but NOT yet covered well.
 - Return ONLY the JSON object, nothing else.
 """
 
@@ -66,14 +72,26 @@ def detect_trending_topics(
     target_audience: str = "general audience",
     already_covered: list[str] | None = None,
     model: str = "gpt-4o-mini",
+    serpapi_key: str = "",
 ) -> list[dict]:
     """Call OpenAI to detect trending topics in a niche.
+
+    When ``serpapi_key`` is provided, fetches LIVE data from Google Trends,
+    YouTube Search, and Google News to ground suggestions in current reality.
 
     Returns a list of dicts, each with:
       topic, confidence_score, estimated_demand, competition_level, source, reasoning
 
     Raises ``ValueError`` on parse failure.
     """
+    from datetime import datetime, timezone
+    from backend.services.web_trends_service import fetch_live_trend_context
+
+    today = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
+    # Fetch live web data to ground the AI in current reality
+    live_context = fetch_live_trend_context(niche=niche, serpapi_key=serpapi_key)
+
     covered_text = ""
     if already_covered:
         covered_list = "\n".join(f"- {t}" for t in already_covered[:20])
@@ -83,9 +101,13 @@ def detect_trending_topics(
         f"Niche: {niche}\n"
         f"Channel tone: {tone_style}\n"
         f"Target audience: {target_audience}"
-        f"{covered_text}\n\n"
+        f"{covered_text}"
+        f"{live_context}\n\n"
         f"Detect trending topics and return the JSON object."
     )
+
+    # Format the system prompt with today's date
+    system_prompt = _TREND_SYSTEM_PROMPT.format(today=today)
 
     resp = httpx.post(
         "https://api.openai.com/v1/chat/completions",
@@ -98,7 +120,7 @@ def detect_trending_topics(
             "temperature": 0.8,
             "max_tokens": 2000,
             "messages": [
-                {"role": "system", "content": _TREND_SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
         },
