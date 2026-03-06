@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Radar, Zap, Rocket, X, RefreshCw, Eye, Play, Bot,
+  Radar, Zap, Rocket, X, RefreshCw, Play, Bot,
   TrendingUp, AlertTriangle, CheckCircle, Clock, Flame,
   Settings as SettingsIcon, ChevronDown, ChevronUp,
-  BarChart3, Target, Shield, Loader2, Sparkles, Check
+  BarChart3, Target, Loader2, Sparkles, Check
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -16,6 +16,8 @@ const ALL_NICHES = [
   'History', 'Science & Space', 'Fitness & Health',
   'Luxury & Wealth', 'Geography & World Facts',
 ];
+
+const ease = [0.25, 0.1, 0.25, 1];
 
 /* ── Inline niche quick-setup ── */
 function NicheSetup({ onComplete }) {
@@ -50,19 +52,17 @@ function NicheSetup({ onComplete }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.97 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="bento-tile rounded-2xl border border-brand-500/20 bg-surface-800/80 p-8 max-w-2xl mx-auto"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease }}
+      className="card bento-tile p-8 max-w-2xl mx-auto"
     >
-      {/* Glow bar */}
-      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-brand-400 to-transparent rounded-t-2xl" />
-
       <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 mb-4">
-          <Sparkles className="w-7 h-7 text-brand-400" />
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl surface-inset mb-4">
+          <Sparkles className="w-7 h-7 text-[var(--color-brand-500)]" />
         </div>
-        <h2 className="text-lg font-bold text-primary">Pick Your Niches</h2>
-        <p className="text-sm text-muted mt-1 max-w-md mx-auto">
+        <h2 className="text-lg font-bold text-[var(--color-surface-900)]">Pick Your Niches</h2>
+        <p className="text-sm text-[var(--color-surface-600)] mt-1 max-w-md mx-auto">
           Choose up to 5 topics the Trend Radar should monitor for viral opportunities.
         </p>
       </div>
@@ -74,10 +74,10 @@ function NicheSetup({ onComplete }) {
             <button
               key={niche}
               onClick={() => toggle(niche)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border transition-all duration-150 ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-[var(--radius-md)] border transition-all duration-150 ${
                 active
-                  ? 'bg-brand-500/15 text-brand-400 border-brand-500/30 shadow-sm shadow-brand-500/10'
-                  : 'text-muted border-surface-700/50 bg-surface-700/30 hover:border-surface-600 hover:text-primary'
+                  ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_12%,transparent)] text-[var(--color-brand-500)] border-[color-mix(in_srgb,var(--color-brand-500)_25%,transparent)]'
+                  : 'text-[var(--color-surface-600)] border-[var(--border-subtle)] hover:border-[var(--border-hover)] hover:text-[var(--color-surface-800)]'
               }`}
             >
               {active && <Check className="w-3 h-3" />}
@@ -87,7 +87,7 @@ function NicheSetup({ onComplete }) {
         })}
       </div>
 
-      <p className="text-center text-xs text-muted mb-4">
+      <p className="text-center text-xs text-[var(--color-surface-600)] mb-4">
         {selected.length}/5 selected {selected.length === 0 && '— pick at least one'}
       </p>
 
@@ -99,9 +99,7 @@ function NicheSetup({ onComplete }) {
         <button
           onClick={handleSave}
           disabled={selected.length === 0 || saving}
-          className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold
-                     bg-brand-500 text-white rounded-xl hover:bg-brand-400
-                     transition-colors disabled:opacity-40 shadow-md shadow-brand-500/20"
+          className="btn-primary"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4" />}
           {saving ? 'Saving…' : 'Activate Trend Radar'}
@@ -114,11 +112,11 @@ function NicheSetup({ onComplete }) {
 /* ── Confidence badge ── */
 function ConfidenceBadge({ score }) {
   const color =
-    score >= 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' :
-    score >= 60 ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' :
-    'text-zinc-400 bg-zinc-500/10 border-zinc-500/20';
+    score >= 80 ? 'bg-emerald-500/10 text-emerald-500' :
+    score >= 60 ? 'bg-amber-500/10 text-amber-500' :
+    'surface-inset text-[var(--color-surface-600)]';
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full border ${color}`}>
+    <span className={`badge ${color}`}>
       <Target className="w-3 h-3" />
       {score}%
     </span>
@@ -128,13 +126,13 @@ function ConfidenceBadge({ score }) {
 /* ── Status pill ── */
 function StatusPill({ status }) {
   const styles = {
-    detected: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-    scanning: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
-    generating: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
-    ready: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    published: 'text-brand-400 bg-brand-500/10 border-brand-500/20',
-    dismissed: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20',
-    failed: 'text-red-400 bg-red-500/10 border-red-500/20',
+    detected:   'bg-blue-500/10 text-blue-500',
+    scanning:   'bg-cyan-500/10 text-cyan-500',
+    generating: 'bg-violet-500/10 text-violet-500',
+    ready:      'bg-emerald-500/10 text-emerald-500',
+    published:  'badge-posted',
+    dismissed:  'surface-inset text-[var(--color-surface-600)]',
+    failed:     'bg-red-500/10 text-red-400',
   };
   const icons = {
     detected: Radar,
@@ -149,7 +147,7 @@ function StatusPill({ status }) {
   const cls = styles[status] || styles.detected;
 
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full border ${cls}`}>
+    <span className={`badge ${cls}`}>
       <Icon className={`w-3 h-3 ${status === 'generating' ? 'animate-spin' : ''}`} />
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
@@ -164,12 +162,12 @@ function CompetitionDots({ level }) {
       {[1, 2, 3].map(i => (
         <span
           key={i}
-          className={`w-1.5 h-1.5 rounded-full ${
-            i <= n ? 'bg-brand-400' : 'bg-surface-700'
+          className={`w-1.5 h-1.5 rounded-full transition-colors ${
+            i <= n ? 'bg-[var(--color-brand-500)]' : 'bg-[var(--color-surface-300)]'
           }`}
         />
       ))}
-      <span className="ml-1 text-xs text-muted capitalize">{level}</span>
+      <span className="ml-1 text-xs text-[var(--color-surface-600)] capitalize">{level}</span>
     </span>
   );
 }
@@ -186,26 +184,20 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`bento-tile group relative overflow-hidden rounded-2xl border transition-all duration-200 ${
-        alert.status === 'ready'
-          ? 'border-emerald-500/30 bg-surface-800/80 shadow-lg shadow-emerald-500/5'
-          : 'border-surface-700/50 bg-surface-800/60'
+      transition={{ duration: 0.25, ease }}
+      className={`card bento-tile group overflow-hidden transition-all duration-200 ${
+        alert.status === 'ready' ? 'ring-1 ring-emerald-500/20' : ''
       }`}
     >
-      {/* Hot indicator for ready items */}
-      {alert.status === 'ready' && (
-        <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent" />
-      )}
-
-      <div className="p-5">
+      <div className="p-5 max-sm:p-4">
         {/* Header row */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-primary leading-snug line-clamp-2">
+            <h3 className="text-sm font-semibold text-[var(--color-surface-900)] leading-snug line-clamp-2">
               {alert.generated_title || alert.trend_topic}
             </h3>
             {alert.generated_title && alert.generated_title !== alert.trend_topic && (
-              <p className="text-xs text-muted mt-0.5 truncate">
+              <p className="text-xs text-[var(--color-surface-600)] mt-0.5 truncate">
                 Trend: {alert.trend_topic}
               </p>
             )}
@@ -214,9 +206,9 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
         </div>
 
         {/* Metrics row */}
-        <div className="flex items-center gap-4 mb-3 text-xs">
+        <div className="flex items-center gap-3 mb-3 flex-wrap">
           <ConfidenceBadge score={alert.confidence_score} />
-          <span className="inline-flex items-center gap-1 text-muted">
+          <span className="inline-flex items-center gap-1 text-xs text-[var(--color-surface-600)]">
             <TrendingUp className="w-3 h-3" />
             Demand: {alert.estimated_demand}/10
           </span>
@@ -224,15 +216,15 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
         </div>
 
         {/* Niche + source */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-muted bg-surface-700/50 px-2 py-0.5 rounded-md">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="text-[11px] font-medium text-[var(--color-surface-700)] surface-inset px-2 py-0.5 rounded-[var(--radius-sm)]">
             {alert.niche}
           </span>
-          <span className="text-xs text-muted/60">
+          <span className="text-[11px] text-[var(--color-surface-500)]">
             via {alert.trend_source.replace('_', ' ')}
           </span>
           {alert.auto_published && (
-            <span className="inline-flex items-center gap-1 text-xs text-violet-400">
+            <span className="inline-flex items-center gap-1 text-[11px] text-violet-500">
               <Bot className="w-3 h-3" />
               Auto
             </span>
@@ -243,7 +235,7 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
         {alert.reasoning && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-1 text-xs text-muted hover:text-primary transition-colors mb-2"
+            className="flex items-center gap-1 text-xs text-[var(--color-surface-600)] hover:text-[var(--color-surface-800)] transition-colors mb-2"
           >
             {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             {expanded ? 'Hide reasoning' : 'Why this is trending'}
@@ -255,7 +247,7 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="text-xs text-muted/80 leading-relaxed mb-3 overflow-hidden"
+              className="text-xs text-[var(--color-surface-600)] leading-relaxed mb-3 overflow-hidden"
             >
               {alert.reasoning}
             </motion.p>
@@ -264,19 +256,17 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
 
         {/* Error message */}
         {alert.status === 'failed' && alert.error_message && (
-          <p className="text-xs text-red-400/80 bg-red-500/5 rounded-lg px-3 py-2 mb-3">
+          <p className="text-xs text-red-400 bg-red-500/5 rounded-[var(--radius-md)] px-3 py-2 mb-3">
             {alert.error_message}
           </p>
         )}
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
           {(alert.status === 'detected') && (
             <button
               onClick={() => onPublish(alert.id)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
-                         bg-brand-500 text-white rounded-lg hover:bg-brand-400
-                         transition-colors shadow-sm"
+              className="btn-primary !px-3 !py-1.5 !text-xs !min-h-0 !rounded-[var(--radius-md)]"
             >
               <Play className="w-3 h-3" />
               Generate Video
@@ -286,8 +276,8 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
             <button
               onClick={() => onPublish(alert.id)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
-                         bg-emerald-500 text-white rounded-lg hover:bg-emerald-400
-                         transition-colors shadow-sm"
+                         bg-emerald-500 text-white rounded-[var(--radius-md)] hover:bg-emerald-600
+                         transition-colors"
             >
               <Rocket className="w-3.5 h-3.5" />
               Publish Now
@@ -297,8 +287,8 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
             <button
               onClick={() => onRegenerate(alert.id)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
-                         bg-violet-500 text-white rounded-lg hover:bg-violet-400
-                         transition-colors shadow-sm"
+                         bg-violet-500 text-white rounded-[var(--radius-md)] hover:bg-violet-600
+                         transition-colors"
             >
               <RefreshCw className="w-3 h-3" />
               Retry
@@ -307,16 +297,14 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
           {isActionable && (
             <button
               onClick={() => onDismiss(alert.id)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium
-                         text-muted hover:text-primary bg-surface-700/50 rounded-lg
-                         hover:bg-surface-600/50 transition-colors"
+              className="btn-secondary !px-3 !py-1.5 !text-xs !min-h-0 !rounded-[var(--radius-md)]"
             >
               <X className="w-3 h-3" />
               Dismiss
             </button>
           )}
           {isGenerating && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-violet-400">
+            <span className="inline-flex items-center gap-1.5 text-xs text-violet-500">
               <Loader2 className="w-3 h-3 animate-spin" />
               Generating video…
             </span>
@@ -328,15 +316,15 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
 }
 
 /* ── Stat card ── */
-function StatCard({ label, value, icon: Icon, color = 'text-brand-400' }) {
+function StatCard({ label, value, icon: Icon, color = 'text-[var(--color-brand-500)]' }) {
   return (
-    <div className="bento-tile rounded-2xl border border-surface-700/50 bg-surface-800/60 p-4 flex items-center gap-3">
-      <div className={`p-2 rounded-xl bg-surface-700/50 ${color}`}>
+    <div className="card bento-tile p-4 max-sm:p-3 flex items-center gap-3">
+      <div className={`p-2 rounded-[var(--radius-md)] surface-inset ${color}`}>
         <Icon className="w-5 h-5" />
       </div>
       <div>
-        <p className="text-2xl font-bold text-primary">{value}</p>
-        <p className="text-xs text-muted">{label}</p>
+        <p className="text-2xl font-bold text-[var(--color-surface-900)]">{value}</p>
+        <p className="text-xs text-[var(--color-surface-600)]">{label}</p>
       </div>
     </div>
   );
@@ -355,37 +343,38 @@ function SettingsPanel({ settings, onSave, saving }) {
       initial={{ height: 0, opacity: 0 }}
       animate={{ height: 'auto', opacity: 1 }}
       exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.25, ease }}
       className="overflow-hidden"
     >
-      <div className="bento-tile rounded-2xl border border-surface-700/50 bg-surface-800/60 p-6 mt-4">
-        <h3 className="text-sm font-semibold text-primary mb-4 flex items-center gap-2">
-          <SettingsIcon className="w-4 h-4 text-brand-400" />
+      <div className="card bento-tile p-6 max-sm:p-4 mt-4">
+        <h3 className="text-sm font-semibold text-[var(--color-surface-900)] mb-4 flex items-center gap-2">
+          <SettingsIcon className="w-4 h-4 text-[var(--color-brand-500)]" />
           Trend Radar Settings
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Radar enabled */}
-          <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-surface-700/30">
+          <label className="flex items-center justify-between gap-3 p-3 rounded-[var(--radius-md)] surface-inset cursor-pointer">
             <div>
-              <p className="text-xs font-medium text-primary">Radar Active</p>
-              <p className="text-[11px] text-muted">Scan for trends automatically</p>
+              <p className="text-xs font-medium text-[var(--color-surface-900)]">Radar Active</p>
+              <p className="text-[11px] text-[var(--color-surface-600)]">Scan for trends automatically</p>
             </div>
             <input
               type="checkbox"
               checked={local.is_enabled}
               onChange={e => update('is_enabled', e.target.checked)}
-              className="accent-brand-500 w-4 h-4"
+              className="accent-[var(--color-brand-500)] w-4 h-4"
             />
           </label>
 
           {/* Autopilot */}
-          <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-surface-700/30">
+          <label className="flex items-center justify-between gap-3 p-3 rounded-[var(--radius-md)] surface-inset cursor-pointer">
             <div>
-              <p className="text-xs font-medium text-primary flex items-center gap-1">
-                <Bot className="w-3 h-3 text-violet-400" />
+              <p className="text-xs font-medium text-[var(--color-surface-900)] flex items-center gap-1">
+                <Bot className="w-3 h-3 text-violet-500" />
                 Autopilot
               </p>
-              <p className="text-[11px] text-muted">Auto-publish high-confidence trends</p>
+              <p className="text-[11px] text-[var(--color-surface-600)]">Auto-publish high-confidence trends</p>
             </div>
             <input
               type="checkbox"
@@ -396,8 +385,8 @@ function SettingsPanel({ settings, onSave, saving }) {
           </label>
 
           {/* Min confidence for autopilot */}
-          <div className="p-3 rounded-xl bg-surface-700/30">
-            <p className="text-xs font-medium text-primary mb-2">
+          <div className="p-3 rounded-[var(--radius-md)] surface-inset">
+            <p className="text-xs font-medium text-[var(--color-surface-900)] mb-2">
               Autopilot Min Confidence: {local.autopilot_min_confidence}%
             </p>
             <input
@@ -405,13 +394,13 @@ function SettingsPanel({ settings, onSave, saving }) {
               min={40} max={100} step={5}
               value={local.autopilot_min_confidence}
               onChange={e => update('autopilot_min_confidence', +e.target.value)}
-              className="w-full accent-brand-500"
+              className="w-full accent-[var(--color-brand-500)]"
             />
           </div>
 
           {/* Daily cap */}
-          <div className="p-3 rounded-xl bg-surface-700/30">
-            <p className="text-xs font-medium text-primary mb-2">
+          <div className="p-3 rounded-[var(--radius-md)] surface-inset">
+            <p className="text-xs font-medium text-[var(--color-surface-900)] mb-2">
               Daily Auto-Publish Cap: {local.autopilot_daily_cap}
             </p>
             <input
@@ -419,13 +408,13 @@ function SettingsPanel({ settings, onSave, saving }) {
               min={1} max={5} step={1}
               value={local.autopilot_daily_cap}
               onChange={e => update('autopilot_daily_cap', +e.target.value)}
-              className="w-full accent-brand-500"
+              className="w-full accent-[var(--color-brand-500)]"
             />
           </div>
 
           {/* Min confidence threshold */}
-          <div className="p-3 rounded-xl bg-surface-700/30">
-            <p className="text-xs font-medium text-primary mb-2">
+          <div className="p-3 rounded-[var(--radius-md)] surface-inset">
+            <p className="text-xs font-medium text-[var(--color-surface-900)] mb-2">
               Min Display Confidence: {local.min_confidence_threshold}%
             </p>
             <input
@@ -433,19 +422,19 @@ function SettingsPanel({ settings, onSave, saving }) {
               min={20} max={90} step={5}
               value={local.min_confidence_threshold}
               onChange={e => update('min_confidence_threshold', +e.target.value)}
-              className="w-full accent-brand-500"
+              className="w-full accent-[var(--color-brand-500)]"
             />
           </div>
 
           {/* Scan interval */}
-          <div className="p-3 rounded-xl bg-surface-700/30">
-            <p className="text-xs font-medium text-primary mb-1">
+          <div className="p-3 rounded-[var(--radius-md)] surface-inset">
+            <p className="text-xs font-medium text-[var(--color-surface-900)] mb-1">
               Scan Interval
             </p>
             <select
               value={local.scan_interval_minutes}
               onChange={e => update('scan_interval_minutes', +e.target.value)}
-              className="w-full bg-surface-800 text-primary text-xs rounded-lg px-2 py-1.5 border border-surface-600"
+              className="input-field !text-xs !py-1.5"
             >
               <option value={60}>Every hour</option>
               <option value={180}>Every 3 hours</option>
@@ -460,9 +449,7 @@ function SettingsPanel({ settings, onSave, saving }) {
           <button
             onClick={() => onSave(local)}
             disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold
-                       bg-brand-500 text-white rounded-lg hover:bg-brand-400
-                       transition-colors disabled:opacity-50"
+            className="btn-primary !text-xs !px-4 !py-2 !min-h-0"
           >
             {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
             Save Settings
@@ -567,7 +554,7 @@ export default function TrendRadar() {
   const handleScan = async () => {
     setScanning(true);
     try {
-      const { data } = await api.post('/api/trends/scan');
+      await api.post('/api/trends/scan');
       await Promise.all([fetchAlerts(), fetchStats()]);
     } catch (err) {
       const detail = err.response?.data?.detail || 'Scan failed';
@@ -586,7 +573,6 @@ export default function TrendRadar() {
     setLoading(true);
     await Promise.all([fetchAlerts(), fetchStats(), fetchSettings()]);
     setLoading(false);
-    // Auto-trigger first scan after setup
     handleScan();
   };
 
@@ -636,13 +622,12 @@ export default function TrendRadar() {
   if (!loading && needsNiches) {
     return (
       <div className="space-y-6">
-        {/* Header */}
         <div>
-          <h1 className="text-xl font-bold text-primary flex items-center gap-2">
-            <Radar className="w-6 h-6 text-brand-400" />
+          <h1 className="text-xl font-bold text-[var(--color-surface-900)] flex items-center gap-2">
+            <Radar className="w-6 h-6 text-[var(--color-brand-500)]" />
             Trend Radar
           </h1>
-          <p className="text-sm text-muted mt-0.5">
+          <p className="text-sm text-[var(--color-surface-600)] mt-0.5">
             Autonomous trend detection → video generation → one-tap publish
           </p>
         </div>
@@ -657,8 +642,8 @@ export default function TrendRadar() {
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-primary flex items-center gap-2">
-            <Radar className="w-6 h-6 text-brand-400" />
+          <h1 className="text-xl font-bold text-[var(--color-surface-900)] flex items-center gap-2">
+            <Radar className="w-6 h-6 text-[var(--color-brand-500)]" />
             Trend Radar
             {readyCount > 0 && (
               <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold
@@ -667,7 +652,7 @@ export default function TrendRadar() {
               </span>
             )}
           </h1>
-          <p className="text-sm text-muted mt-0.5">
+          <p className="text-sm text-[var(--color-surface-600)] mt-0.5">
             Autonomous trend detection → video generation → one-tap publish
           </p>
         </div>
@@ -675,9 +660,7 @@ export default function TrendRadar() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium
-                       text-muted hover:text-primary bg-surface-700/50 rounded-lg
-                       hover:bg-surface-600/50 transition-colors"
+            className="btn-secondary !text-xs !px-3 !py-2 !min-h-0"
           >
             <SettingsIcon className="w-3.5 h-3.5" />
             Settings
@@ -685,9 +668,7 @@ export default function TrendRadar() {
           <button
             onClick={handleScan}
             disabled={scanning}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold
-                       bg-brand-500 text-white rounded-lg hover:bg-brand-400
-                       transition-colors disabled:opacity-50 shadow-sm"
+            className="btn-primary !text-xs !px-4 !py-2 !min-h-0"
           >
             {scanning ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -706,11 +687,11 @@ export default function TrendRadar() {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="flex items-center justify-between gap-3 p-3 rounded-xl
-                       bg-red-500/10 border border-red-500/20 text-red-400 text-xs"
+            className="flex items-center justify-between gap-3 p-3 rounded-[var(--radius-md)]
+                       bg-red-500/8 text-red-400 text-xs"
           >
             <span>{error}</span>
-            <button onClick={() => setError('')}>
+            <button onClick={() => setError('')} className="hover:text-red-300 transition-colors">
               <X className="w-3.5 h-3.5" />
             </button>
           </motion.div>
@@ -727,15 +708,15 @@ export default function TrendRadar() {
       {/* ── Stats row ── */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Ready to Fire" value={stats.total_ready} icon={Flame} color="text-emerald-400" />
-          <StatCard label="Generating" value={stats.total_generating} icon={Zap} color="text-violet-400" />
-          <StatCard label="Detected" value={stats.total_detected} icon={Radar} color="text-blue-400" />
-          <StatCard label="Published" value={stats.total_published} icon={Rocket} color="text-brand-400" />
+          <StatCard label="Ready to Fire" value={stats.total_ready} icon={Flame} color="text-emerald-500" />
+          <StatCard label="Generating" value={stats.total_generating} icon={Zap} color="text-violet-500" />
+          <StatCard label="Detected" value={stats.total_detected} icon={Radar} color="text-blue-500" />
+          <StatCard label="Published" value={stats.total_published} icon={Rocket} color="text-[var(--color-brand-500)]" />
         </div>
       )}
 
       {/* ── Filter tabs ── */}
-      <div className="flex items-center gap-1 p-1 bg-surface-800/60 rounded-xl border border-surface-700/50 w-fit">
+      <div className="flex items-center gap-1 p-1 surface-s2 rounded-[var(--radius-lg)] w-fit">
         {[
           { key: 'active', label: 'Active', icon: Zap },
           { key: 'ready', label: 'Ready', icon: Flame },
@@ -745,10 +726,10 @@ export default function TrendRadar() {
           <button
             key={key}
             onClick={() => setFilter(key)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-[var(--radius-md)] transition-all duration-150 ${
               filter === key
-                ? 'bg-brand-500/15 text-brand-400'
-                : 'text-muted hover:text-primary'
+                ? 'bg-[color-mix(in_srgb,var(--color-brand-500)_12%,transparent)] text-[var(--color-brand-500)]'
+                : 'text-[var(--color-surface-600)] hover:text-[var(--color-surface-800)]'
             }`}
           >
             <Icon className="w-3 h-3" />
@@ -760,13 +741,15 @@ export default function TrendRadar() {
       {/* ── Alerts grid ── */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 text-brand-400 animate-spin" />
+          <Loader2 className="w-6 h-6 text-[var(--color-brand-500)] animate-spin" />
         </div>
       ) : alerts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Radar className="w-12 h-12 text-surface-600 mb-4" />
-          <p className="text-sm font-medium text-muted mb-1">No trends found yet</p>
-          <p className="text-xs text-muted/60 max-w-xs">
+        <div className="card bento-tile flex flex-col items-center justify-center py-16 text-center">
+          <div className="p-4 rounded-2xl surface-inset mb-4">
+            <Radar className="w-10 h-10 text-[var(--color-surface-500)]" />
+          </div>
+          <p className="text-sm font-medium text-[var(--color-surface-700)] mb-1">No trends found yet</p>
+          <p className="text-xs text-[var(--color-surface-500)] max-w-xs">
             Hit "Scan Now" to detect trending topics in your niche, or wait for the
             automatic scan to kick in.
           </p>
