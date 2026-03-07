@@ -98,7 +98,7 @@ export default function CreatorControls({
                   <Users size={11} />
                   Audience Level
                 </label>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1">
                   {AUDIENCE_LEVELS.map((level) => {
                     const isActive = audienceLevel === level.key;
                     return (
@@ -107,7 +107,7 @@ export default function CreatorControls({
                         type="button"
                         onClick={() => onAudienceChange(level.key)}
                         className={`
-                          flex-1 py-2 px-2.5 rounded-lg text-center transition-all duration-200
+                          flex-1 py-1.5 px-2 rounded-md text-center transition-all duration-150
                           ${isActive
                             ? 'bg-brand-500/10 ring-1 ring-brand-500/30 text-brand-400'
                             : 'bg-surface-200/40 text-surface-600 hover:bg-surface-200/70'

@@ -75,7 +75,7 @@ export default function HookVariations({ hooks, currentHook, loading, onSelect, 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.25, ease }}
-            className="space-y-2"
+            className="space-y-1.5"
           >
             {hooks.map((hook, idx) => {
               const isSelected = selectedIdx === idx;
@@ -88,25 +88,25 @@ export default function HookVariations({ hooks, currentHook, loading, onSelect, 
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.08, duration: 0.2 }}
                   className={`
-                    w-full text-left px-3.5 py-3 rounded-xl transition-all duration-200
+                    w-full text-left px-3 py-2.5 rounded-lg transition-all duration-150 overflow-hidden
                     ${isSelected
                       ? 'bg-brand-500/8 ring-1 ring-brand-500/30'
                       : 'bg-surface-200/40 hover:bg-surface-200/70 ring-1 ring-transparent'
                     }
                   `}
                 >
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-2">
                     <div className={`
-                      w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5
+                      w-4.5 h-4.5 rounded-full flex items-center justify-center shrink-0 mt-0.5
                       ${isSelected ? 'bg-brand-500' : 'bg-surface-300/60'}
                     `}>
                       {isSelected ? (
-                        <Check size={10} className="text-white" />
+                        <Check size={9} className="text-white" />
                       ) : (
-                        <span className="text-[9px] text-surface-600 font-semibold">{idx + 1}</span>
+                        <span className="text-[8px] text-surface-600 font-semibold">{idx + 1}</span>
                       )}
                     </div>
-                    <p className={`text-[11px] leading-relaxed ${isSelected ? 'text-white' : 'text-surface-800'}`}>
+                    <p className={`text-[11px] leading-relaxed break-words ${isSelected ? 'text-white' : 'text-surface-800'}`}>
                       {hook}
                     </p>
                   </div>

@@ -722,3 +722,12 @@ body::before {
     margin: 0;
   }
 }
+
+/* ── Utility: hide scrollbar but keep scroll ──── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

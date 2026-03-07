@@ -221,11 +221,11 @@ export default function ScriptRefiner({ script: initialScript, metadata: initial
       </div>
 
       {/* ── Two-column layout ───────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
         {/* ── Left: Script Editor ────────────────────────────────────── */}
-        <div className="space-y-4">
+        <div className="space-y-3 min-w-0">
           {/* Title preview */}
-          <div className="card px-5 py-4">
+          <div className="card px-4 py-3.5">
             <label className="text-[10px] text-surface-500 uppercase tracking-wider font-medium mb-1.5 block">
               Video Title
             </label>
@@ -233,17 +233,17 @@ export default function ScriptRefiner({ script: initialScript, metadata: initial
               type="text"
               value={metadata.title || ''}
               onChange={(e) => setMetadata({ ...metadata, title: e.target.value })}
-              className="input-premium w-full text-sm font-medium"
+              className="input-premium w-full text-[13px] font-medium"
             />
           </div>
 
           {/* Toolbar */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
             {/* Find & Replace */}
             <button
               type="button"
               onClick={() => setShowReplace(!showReplace)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all shrink-0
                 ${showReplace
                   ? 'bg-brand-500/10 text-brand-400 ring-1 ring-brand-500/20'
                   : 'bg-surface-200/40 text-surface-600 hover:bg-surface-200/70'
@@ -254,16 +254,19 @@ export default function ScriptRefiner({ script: initialScript, metadata: initial
               Find & Replace
             </button>
 
+            {/* Divider */}
+            <div className="w-px h-4 bg-surface-200/50 shrink-0" />
+
             {/* Tone selector pills */}
-            <div className="flex items-center gap-1">
-              <Type size={11} className="text-surface-500 mr-1" />
+            <div className="flex items-center gap-1 shrink-0">
+              <Type size={11} className="text-surface-500 mr-0.5 shrink-0" />
               {TONES.map((t) => (
                 <button
                   key={t.key}
                   type="button"
                   onClick={() => handleApplyTone(t.key)}
                   disabled={toneLoading}
-                  className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-all
+                  className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all shrink-0
                     ${activeTone === t.key
                       ? 'bg-brand-500/10 text-brand-400 ring-1 ring-brand-500/20'
                       : 'bg-surface-200/40 text-surface-600 hover:bg-surface-200/70'
@@ -272,7 +275,7 @@ export default function ScriptRefiner({ script: initialScript, metadata: initial
                   `}
                 >
                   {toneLoading && activeTone === t.key ? (
-                    <RefreshCw size={10} className="animate-spin inline mr-1" />
+                    <RefreshCw size={9} className="animate-spin inline mr-0.5" />
                   ) : null}
                   {t.label}
                 </button>
@@ -332,15 +335,16 @@ export default function ScriptRefiner({ script: initialScript, metadata: initial
           </AnimatePresence>
 
           {/* Script paragraphs with per-paragraph controls */}
-          <div className="card p-5 space-y-0.5">
-            <label className="text-[10px] text-surface-500 uppercase tracking-wider font-medium mb-3 block">
-              Script — click any paragraph to edit, or use the full editor below
+          <div className="card p-4 overflow-hidden">
+            <label className="text-[10px] text-surface-500 uppercase tracking-wider font-medium mb-2.5 block">
+              Script — hover any paragraph to rewrite
             </label>
 
+            <div className="space-y-px">
             {paragraphs.map((para, idx) => (
               <div key={idx} className="group relative">
                 <div className="py-2 px-3 rounded-lg hover:bg-surface-200/30 transition-colors">
-                  <p className="text-[13px] leading-relaxed text-surface-800 whitespace-pre-wrap">
+                  <p className="text-[12.5px] leading-relaxed text-surface-800 whitespace-pre-wrap pr-16 break-words">
                     {para}
                   </p>
                   {/* Paragraph-level regen button (visible on hover) */}
@@ -362,36 +366,37 @@ export default function ScriptRefiner({ script: initialScript, metadata: initial
                   </div>
                 </div>
                 {idx < paragraphs.length - 1 && (
-                  <div className="h-px bg-surface-200/30 mx-3" />
+                  <div className="h-px bg-surface-200/20 mx-3" />
                 )}
               </div>
             ))}
+            </div>
 
             {/* Full text editor */}
-            <div className="pt-4 mt-2 border-t border-surface-200/30">
-              <label className="text-[10px] text-surface-500 uppercase tracking-wider font-medium mb-2 block">
+            <div className="pt-3 mt-2 border-t border-surface-200/20">
+              <label className="text-[10px] text-surface-500 uppercase tracking-wider font-medium mb-1.5 block">
                 Full Editor
               </label>
               <textarea
                 ref={textareaRef}
                 value={script}
                 onChange={(e) => setScript(e.target.value)}
-                rows={12}
-                className="w-full bg-surface-100/50 text-[13px] leading-relaxed text-surface-800 rounded-xl px-4 py-3 border border-[var(--border-subtle)] focus:border-brand-500/30 focus:ring-1 focus:ring-brand-500/10 outline-none resize-y transition-all"
+                rows={10}
+                className="w-full bg-surface-100/50 text-[12.5px] leading-relaxed text-surface-800 rounded-lg px-3.5 py-2.5 border border-[var(--border-subtle)] focus:border-brand-500/30 focus:ring-1 focus:ring-brand-500/10 outline-none resize-y transition-all"
               />
             </div>
           </div>
         </div>
 
         {/* ── Right sidebar: Controls ────────────────────────────────── */}
-        <div className="space-y-5">
+        <div className="space-y-3">
           {/* Voice Style */}
-          <div className="card p-4">
+          <div className="card p-3.5 overflow-hidden">
             <VoiceStylePicker selected={voiceStyle} onChange={setVoiceStyle} />
           </div>
 
           {/* Hook Variations */}
-          <div className="card p-4">
+          <div className="card p-3.5 overflow-hidden">
             <HookVariations
               hooks={hooks}
               currentHook={paragraphs[0] || ''}
@@ -402,7 +407,7 @@ export default function ScriptRefiner({ script: initialScript, metadata: initial
           </div>
 
           {/* Advanced Controls */}
-          <div className="card p-4">
+          <div className="card p-3.5 overflow-hidden">
             <CreatorControls
               emphasisKeywords={emphasisKeywords}
               onEmphasisChange={setEmphasisKeywords}
@@ -437,11 +442,11 @@ export default function ScriptRefiner({ script: initialScript, metadata: initial
       </AnimatePresence>
 
       {/* ── Bottom CTA bar ──────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 pt-2">
+      <div className="flex items-center justify-between gap-4 pt-1">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium text-surface-600 hover:text-white bg-surface-200/40 hover:bg-surface-200/70 transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-surface-600 hover:text-white bg-surface-200/40 hover:bg-surface-200/70 transition-all"
         >
           <ArrowLeft size={13} />
           Back
@@ -453,7 +458,7 @@ export default function ScriptRefiner({ script: initialScript, metadata: initial
           disabled={producing || !script.trim()}
           whileHover={!producing ? { scale: 1.01 } : {}}
           whileTap={!producing ? { scale: 0.99 } : {}}
-          className="btn-primary flex items-center gap-2 px-6 py-2.5"
+          className="btn-primary flex items-center gap-2 px-5 py-2.5"
         >
           {producing ? (
             <>
