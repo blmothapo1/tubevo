@@ -1,8 +1,15 @@
 """
-stock_footage.py — Download royalty-free stock video clips from Pexels.
+stock_footage.py — Download royalty-free stock video clips from Pexels & Pixabay.
 
-Uses the Pexels API (free, no watermarks) to find cinematic B-roll clips
-that match a video's topic/keywords.
+Uses **two** free stock-video providers in a cascading-fallback pattern:
+
+  * **Pexels** (primary)  — searched first for every query.
+  * **Pixabay** (fallback) — searched only when Pexels returns fewer clips
+    than needed for a given scene (< requested count).
+
+Both APIs are free with no watermarks.  Users supply their own keys
+via the BYOK settings page.  If only one key is present, that provider
+is used exclusively — no errors are raised for the missing one.
 
 Supports two modes:
   1. **Legacy** — ``download_clips_for_topic(topic, num_clips)``
@@ -15,6 +22,8 @@ Supports two modes:
 Setup:
     1. Get a free API key at https://www.pexels.com/api/
     2. Add to your .env:  PEXELS_API_KEY=your-key-here
+    3. (Optional) Get a free key at https://pixabay.com/api/docs/#api_search_videos
+    4. Add to your .env:  PIXABAY_API_KEY=your-key-here
 """
 
 from __future__ import annotations
@@ -38,6 +47,9 @@ logger = logging.getLogger("tubevo.stock_footage")
 # ── Config ───────────────────────────────────────────────────────────
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "")
 PEXELS_VIDEO_SEARCH_URL = "https://api.pexels.com/videos/search"
+
+PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
+PIXABAY_VIDEO_SEARCH_URL = "https://pixabay.com/api/videos/"
 
 CLIPS_DIR = Path("output/clips")
 CLIPS_DIR.mkdir(parents=True, exist_ok=True)
@@ -218,6 +230,108 @@ def _search_pexels_videos(
     ) from last_exc
 
 
+# ── Pixabay provider ────────────────────────────────────────────────
+
+def _search_pixabay_videos(
+    query: str,
+    per_page: int = 5,
+    *,
+    page: int = 1,
+    api_key: str | None = None,
+) -> list[dict]:
+    """Search Pixabay for videos matching *query*.
+
+    Returns results **normalized to the Pexels schema** so the rest of the
+    pipeline (pick_best_video_file, dedup, etc.) works identically.
+
+    Pixabay's video API returns ``hits[]`` with a different shape than Pexels,
+    so we convert each hit into the same dict structure.
+    """
+    effective_key = api_key or PIXABAY_API_KEY
+    if not effective_key:
+        return []  # silently skip — Pixabay is optional
+
+    last_exc: Exception | None = None
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            resp = requests.get(
+                PIXABAY_VIDEO_SEARCH_URL,
+                params={
+                    "key": effective_key,
+                    "q": query,
+                    "video_type": "film",        # cinematic footage, not animation
+                    "per_page": per_page,
+                    "page": page,
+                    "safesearch": "true",
+                    "order": "popular",
+                },
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                hits = resp.json().get("hits", [])
+                return [_normalize_pixabay_hit(h) for h in hits]
+            if resp.status_code in _RETRIABLE_STATUS_CODES:
+                last_exc = RuntimeError(f"Pixabay API {resp.status_code}: {resp.text[:200]}")
+                delay = min(_BASE_DELAY * (2 ** (attempt - 1)), _MAX_DELAY)
+                logger.warning(
+                    "Pixabay API error %d for '%s' (attempt %d/%d) — retrying in %.1fs",
+                    resp.status_code, query, attempt, _MAX_RETRIES, delay,
+                )
+                import time as _time
+                _time.sleep(delay)
+                continue
+            if resp.status_code in (401, 403):
+                logger.warning("Pixabay API auth error %d — key may be invalid", resp.status_code)
+                return []  # don't crash the pipeline, just skip fallback
+            resp.raise_for_status()
+        except (requests.exceptions.RequestException, ApiAuthError) as exc:
+            last_exc = exc
+            if attempt >= _MAX_RETRIES:
+                break
+            delay = min(_BASE_DELAY * (2 ** (attempt - 1)), _MAX_DELAY)
+            logger.warning(
+                "Pixabay network error for '%s' (attempt %d/%d): %s — retrying in %.1fs",
+                query, attempt, _MAX_RETRIES, type(exc).__name__, delay,
+            )
+            import time as _time
+            _time.sleep(delay)
+
+    logger.warning("Pixabay search failed after %d retries: %s", _MAX_RETRIES, last_exc)
+    return []  # never crash the pipeline for a fallback failure
+
+
+def _normalize_pixabay_hit(hit: dict) -> dict:
+    """Convert a Pixabay video hit into a Pexels-compatible dict.
+
+    Pixabay returns::
+
+        { "id": 1234, "duration": 15,
+          "videos": { "large": {"url": ..., "width": 1920, "height": 1080}, ... } }
+
+    We normalise to the Pexels shape::
+
+        { "id": -1234, "duration": 15,
+          "video_files": [{"link": ..., "width": 1920, "height": 1080}], ... }
+
+    IDs are negated so they can never collide with Pexels IDs during dedup.
+    """
+    video_files: list[dict] = []
+    for _quality, vdata in (hit.get("videos") or {}).items():
+        if isinstance(vdata, dict) and vdata.get("url"):
+            video_files.append({
+                "link": vdata["url"],
+                "width": vdata.get("width", 0),
+                "height": vdata.get("height", 0),
+            })
+
+    return {
+        "id": -(hit.get("id", 0)),          # negative → unique namespace
+        "duration": hit.get("duration", 0),
+        "video_files": video_files,
+        "_provider": "pixabay",
+    }
+
+
 def _pick_best_video_file(video: dict, target_height: int = 720) -> str | None:
     """From a Pexels video object, pick the best download URL.
 
@@ -250,6 +364,27 @@ def _download_video(url: str, output_path: str) -> str:
     return output_path
 
 
+def _count_usable(
+    videos: list[dict],
+    seen_ids: set[int],
+    min_duration: int,
+) -> int:
+    """Count how many videos in a result set pass the dedup + quality filters."""
+    count = 0
+    for v in videos:
+        vid_id = v.get("id", 0)
+        if vid_id in seen_ids:
+            continue
+        if v.get("duration", 0) < min_duration:
+            continue
+        if not _validate_resolution(v):
+            continue
+        if not _pick_best_video_file(v):
+            continue
+        count += 1
+    return count
+
+
 def _download_clips_for_queries(
     queries: list[str],
     num_clips: int,
@@ -260,11 +395,17 @@ def _download_clips_for_queries(
     use_random_page: bool = True,
     clips_dir: Path | None = None,
     api_key: str | None = None,
+    pixabay_api_key: str | None = None,
 ) -> tuple[list[str], set[int]]:
     """Download clips for a list of queries, deduplicating by video ID.
 
     Returns (list_of_clip_paths, updated_seen_video_ids).
     Shared helper used by both legacy and scene-aware download functions.
+
+    **Cascading fallback**: For each query, Pexels is searched first.
+    If Pexels returns zero usable clips for that query *and* a Pixabay
+    key is available, Pixabay is searched as a fallback.  This maximises
+    footage coverage without doubling API calls.
     """
     if seen_video_ids is None:
         seen_video_ids = set()
@@ -280,18 +421,35 @@ def _download_clips_for_queries(
         # Random page offset (1-3) for variety across generations
         page = random.randint(1, 3) if use_random_page else 1
 
-        try:
-            videos = _search_pexels_videos(query, per_page=5, page=page, api_key=api_key)
-        except Exception as e:
-            logger.warning("Pexels search failed for '%s' (page %d): %s", query, page, e)
-            # Retry on page 1 if random page failed
-            if page > 1:
-                try:
-                    videos = _search_pexels_videos(query, per_page=5, page=1, api_key=api_key)
-                except Exception:
-                    continue
-            else:
-                continue
+        # ── Primary: Pexels ──────────────────────────────────────────
+        pexels_key = api_key or PEXELS_API_KEY
+        videos: list[dict] = []
+        if pexels_key:
+            try:
+                videos = _search_pexels_videos(query, per_page=5, page=page, api_key=pexels_key)
+            except Exception as e:
+                logger.warning("Pexels search failed for '%s' (page %d): %s", query, page, e)
+                # Retry on page 1 if random page failed
+                if page > 1:
+                    try:
+                        videos = _search_pexels_videos(query, per_page=5, page=1, api_key=pexels_key)
+                    except Exception:
+                        pass
+
+        # ── Fallback: Pixabay (only if Pexels gave us nothing usable) ─
+        _effective_pixabay_key = pixabay_api_key or PIXABAY_API_KEY
+        pexels_usable = _count_usable(videos, seen_video_ids, min_clip_duration)
+        if pexels_usable == 0 and _effective_pixabay_key:
+            logger.info(
+                "Pexels returned 0 usable clips for '%s' — falling back to Pixabay", query,
+            )
+            try:
+                pixabay_videos = _search_pixabay_videos(
+                    query, per_page=5, page=1, api_key=_effective_pixabay_key,
+                )
+                videos.extend(pixabay_videos)
+            except Exception as e:
+                logger.warning("Pixabay fallback also failed for '%s': %s", query, e)
 
         # Shuffle results so we don't always pick the first hit
         random.shuffle(videos)
@@ -340,6 +498,7 @@ def download_clips_for_scenes(
     min_clip_duration: int = 5,
     clips_dir: Path | None = None,
     api_key: str | None = None,
+    pixabay_api_key: str | None = None,
 ) -> list[dict]:
     """Download stock clips matched to each scene in the plan.
 
@@ -348,9 +507,10 @@ def download_clips_for_scenes(
 
     This ensures:
       • Each scene gets clips semantically related to its content
-      • No duplicate Pexels video IDs across the entire video
+      • No duplicate video IDs across the entire video (Pexels + Pixabay)
       • Resolution consistency (all clips validated at ≥1280×720)
       • Randomised page offsets for generation-to-generation variety
+      • Cascading fallback: Pexels → Pixabay when primary yields nothing
     """
     _effective_clips_dir = clips_dir or CLIPS_DIR
     _effective_clips_dir.mkdir(parents=True, exist_ok=True)
@@ -395,6 +555,7 @@ def download_clips_for_scenes(
             clip_index_start=global_clip_index,
             clips_dir=_effective_clips_dir,
             api_key=api_key,
+            pixabay_api_key=pixabay_api_key,
         )
 
         global_clip_index += len(clips_downloaded)
@@ -413,9 +574,9 @@ def download_clips_for_scenes(
     total_downloaded = sum(len(sc["clips"]) for sc in scene_clips)
     if total_downloaded == 0:
         raise ExternalServiceError(
-            "Could not download any stock clips. "
-            "Check your PEXELS_API_KEY and internet connection.",
-            user_hint="Stock footage download failed. Please check your Pexels API key and try again.",
+            "Could not download any stock clips from Pexels or Pixabay. "
+            "Check your API keys and internet connection.",
+            user_hint="Stock footage download failed. Please check your API keys in Settings and try again.",
         )
 
     logger.info(

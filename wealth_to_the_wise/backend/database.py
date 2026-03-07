@@ -255,6 +255,13 @@ async def _apply_column_migrations() -> None:
                     "ALTER TABLE trend_radar_settings ADD COLUMN last_scanned_at TIMESTAMP"
                 ))
                 logger.info("Applied migration: trend_radar_settings.last_scanned_at")
+
+            # pixabay_api_key on user_api_keys
+            if not await _col_exists_sqlite("user_api_keys", "pixabay_api_key"):
+                await conn.execute(text(
+                    "ALTER TABLE user_api_keys ADD COLUMN pixabay_api_key TEXT"
+                ))
+                logger.info("Applied migration: user_api_keys.pixabay_api_key")
         else:
             # PostgreSQL path — use information_schema
             async def _col_exists_pg(table: str, column: str) -> bool:
@@ -314,6 +321,13 @@ async def _apply_column_migrations() -> None:
                     "ADD COLUMN last_scanned_at TIMESTAMP WITH TIME ZONE"
                 ))
                 logger.info("Applied migration: trend_radar_settings.last_scanned_at")
+
+            # pixabay_api_key on user_api_keys
+            if not await _col_exists_pg("user_api_keys", "pixabay_api_key"):
+                await conn.execute(text(
+                    "ALTER TABLE user_api_keys ADD COLUMN pixabay_api_key TEXT"
+                ))
+                logger.info("Applied migration: user_api_keys.pixabay_api_key")
 
     logger.info("Column migrations complete.")
 

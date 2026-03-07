@@ -145,11 +145,13 @@ class UserApiKeysResponse(BaseModel):
     has_openai_key: bool
     has_elevenlabs_key: bool
     has_pexels_key: bool
+    has_pixabay_key: bool = False
     elevenlabs_voice_id: str | None = None
     # Show last 4 chars so user knows which key is saved
     openai_key_hint: str | None = None
     elevenlabs_key_hint: str | None = None
     pexels_key_hint: str | None = None
+    pixabay_key_hint: str | None = None
 
 
 class UpdateApiKeysRequest(BaseModel):
@@ -162,6 +164,7 @@ class UpdateApiKeysRequest(BaseModel):
     elevenlabs_api_key: str | None = Field(None, max_length=200)
     elevenlabs_voice_id: str | None = Field(None, max_length=100)
     pexels_api_key: str | None = Field(None, max_length=200)
+    pixabay_api_key: str | None = Field(None, max_length=200)
 
     @field_validator("openai_api_key")
     @classmethod
@@ -193,6 +196,17 @@ class UpdateApiKeysRequest(BaseModel):
             if len(v) < 20:
                 raise ValueError(
                     "Pexels API key should be at least 20 characters."
+                )
+        return v
+
+    @field_validator("pixabay_api_key")
+    @classmethod
+    def validate_pixabay_key(cls, v: str | None) -> str | None:
+        if v is not None and v != "":
+            # Pixabay keys are alphanumeric, typically 30+ chars
+            if len(v) < 10:
+                raise ValueError(
+                    "Pixabay API key should be at least 10 characters."
                 )
         return v
 

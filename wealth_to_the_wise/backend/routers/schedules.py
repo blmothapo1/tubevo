@@ -437,6 +437,7 @@ async def trigger_schedule_now(
     openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
     elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
     pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+    pixabay_key = decrypt_or_raise(user_keys.pixabay_api_key, field="pixabay_api_key") if user_keys and getattr(user_keys, "pixabay_api_key", None) else ""
 
     if not openai_key:
         raise HTTPException(status_code=400, detail="Please add your OpenAI API key in Settings first.")
@@ -448,6 +449,7 @@ async def trigger_schedule_now(
         "elevenlabs_api_key": elevenlabs_key,
         "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
         "pexels_api_key": pexels_key,
+        "pixabay_api_key": pixabay_key,
         # Video production preferences (match scheduler_worker / generate_video)
         "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
         "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,

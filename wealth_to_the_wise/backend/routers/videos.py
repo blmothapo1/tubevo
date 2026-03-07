@@ -208,6 +208,7 @@ async def generate_video(
         openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
         elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
         pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+        pixabay_key = decrypt_or_raise(user_keys.pixabay_api_key, field="pixabay_api_key") if user_keys and getattr(user_keys, "pixabay_api_key", None) else ""
     except DecryptionFailedError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -234,6 +235,7 @@ async def generate_video(
         "elevenlabs_api_key": elevenlabs_key,
         "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
         "pexels_api_key": pexels_key,
+        "pixabay_api_key": pixabay_key,
         # Phase 4 & 5 video production preferences
         "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
         "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
@@ -1007,6 +1009,7 @@ def _run_pipeline_locked(
     _openai_key = user_api_keys["openai_api_key"]
     _elevenlabs_key = user_api_keys["elevenlabs_api_key"]
     _pexels_key = user_api_keys.get("pexels_api_key") or ""
+    _pixabay_key = user_api_keys.get("pixabay_api_key") or ""
 
     import script_generator
 
@@ -1131,7 +1134,7 @@ def _run_pipeline_locked(
             _report("Downloading stock footage…", 48)
             logger.info("Pipeline step 4b/6: Downloading scene-aware stock footage")
             from stock_footage import download_clips_for_scenes
-            scene_clip_data = download_clips_for_scenes(scene_plans, clips_dir=run_clips_dir, api_key=_pexels_key)
+            scene_clip_data = download_clips_for_scenes(scene_plans, clips_dir=run_clips_dir, api_key=_pexels_key, pixabay_api_key=_pixabay_key)
             total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
             logger.info("Pipeline step 4b/6: Downloaded %d clips across %d scenes", total_clips, len(scene_clip_data))
             _report("Stock footage ready", 60)
@@ -1737,10 +1740,12 @@ async def regenerate_video(
     openai_key = ""
     elevenlabs_key = ""
     pexels_key = ""
+    pixabay_key = ""
     try:
         openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
         elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
         pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+        pixabay_key = decrypt_or_raise(user_keys.pixabay_api_key, field="pixabay_api_key") if user_keys and getattr(user_keys, "pixabay_api_key", None) else ""
     except DecryptionFailedError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1766,6 +1771,7 @@ async def regenerate_video(
         "elevenlabs_api_key": elevenlabs_key,
         "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
         "pexels_api_key": pexels_key,
+        "pixabay_api_key": pixabay_key,
         # Phase 4 & 5 video production preferences
         "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
         "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,

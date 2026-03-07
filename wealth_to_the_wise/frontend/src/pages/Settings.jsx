@@ -304,6 +304,7 @@ const PROVIDER_URLS = {
   openai: 'https://platform.openai.com/api-keys',
   elevenlabs: 'https://elevenlabs.io/app/settings/api-keys',
   pexels: 'https://www.pexels.com/api/',
+  pixabay: 'https://pixabay.com/api/docs/',
 };
 
 const KEY_PREFIXES = {
@@ -322,6 +323,7 @@ function ApiKeysTab() {
     elevenlabs_api_key: '',
     elevenlabs_voice_id: '',
     pexels_api_key: '',
+    pixabay_api_key: '',
   });
   const [fieldErrors, setFieldErrors] = useState({});
 
@@ -362,6 +364,7 @@ function ApiKeysTab() {
       if (form.elevenlabs_api_key) payload.elevenlabs_api_key = form.elevenlabs_api_key;
       if (form.elevenlabs_voice_id) payload.elevenlabs_voice_id = form.elevenlabs_voice_id;
       if (form.pexels_api_key) payload.pexels_api_key = form.pexels_api_key;
+      if (form.pixabay_api_key) payload.pixabay_api_key = form.pixabay_api_key;
 
       if (Object.keys(payload).length === 0) {
         setError('Enter at least one key to save.');
@@ -371,7 +374,7 @@ function ApiKeysTab() {
 
       const { data } = await api.put('/api/keys', payload);
       setKeyStatus(data);
-      setForm({ openai_api_key: '', elevenlabs_api_key: '', elevenlabs_voice_id: '', pexels_api_key: '' });
+      setForm({ openai_api_key: '', elevenlabs_api_key: '', elevenlabs_voice_id: '', pexels_api_key: '', pixabay_api_key: '' });
       setFieldErrors({});
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -397,6 +400,7 @@ function ApiKeysTab() {
     { label: 'Add OpenAI key', done: !!keyStatus?.has_openai_key, field: 'openai' },
     { label: 'Add ElevenLabs key', done: !!keyStatus?.has_elevenlabs_key, field: 'elevenlabs' },
     { label: 'Add Pexels key', done: !!keyStatus?.has_pexels_key, field: 'pexels', optional: true },
+    { label: 'Add Pixabay key', done: !!keyStatus?.has_pixabay_key, field: 'pixabay', optional: true },
   ];
 
   return (
@@ -532,6 +536,22 @@ function ApiKeysTab() {
             'Go to pexels.com/api and click "Your API Key"',
             'Sign up (free) or log in, then copy the key',
             'Paste it below — Pexels provides free stock footage for your videos',
+          ]}
+        />
+        <KeyInput
+          label="Pixabay API Key"
+          value={form.pixabay_api_key}
+          onChange={(v) => setForm({ ...form, pixabay_api_key: v })}
+          placeholder={keyStatus?.has_pixabay_key ? `Current: ${keyStatus.pixabay_key_hint || '••••'}` : 'Free at pixabay.com/api/docs'}
+          providerUrl={PROVIDER_URLS.pixabay}
+          providerName="Pixabay"
+          isSet={keyStatus?.has_pixabay_key}
+          hint={keyStatus?.pixabay_key_hint}
+          optional
+          helpSteps={[
+            'Go to pixabay.com/api/docs and sign up (free)',
+            'Your API key is shown at the top of the docs page',
+            'Paste it below — Pixabay is used as a fallback when Pexels has no results',
           ]}
         />
       </div>

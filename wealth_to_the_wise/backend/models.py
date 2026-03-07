@@ -229,6 +229,7 @@ class UserApiKeys(Base):
     elevenlabs_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     elevenlabs_voice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     pexels_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pixabay_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Phase 4 & 5 — Video production preferences ──────────────────
     subtitle_style: Mapped[str] = mapped_column(String(30), nullable=False, default="bold_pop")

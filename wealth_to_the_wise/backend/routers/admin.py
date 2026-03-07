@@ -841,6 +841,7 @@ async def retry_video(
     openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
     elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
     pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+    pixabay_key = decrypt_or_raise(user_keys.pixabay_api_key, field="pixabay_api_key") if user_keys and getattr(user_keys, "pixabay_api_key", None) else ""
 
     if not openai_key or not elevenlabs_key:
         raise HTTPException(status_code=400, detail="User has missing API keys (OpenAI or ElevenLabs). Cannot retry.")
@@ -858,6 +859,7 @@ async def retry_video(
         "elevenlabs_api_key": elevenlabs_key,
         "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
         "pexels_api_key": pexels_key,
+        "pixabay_api_key": pixabay_key,
         "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
         "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
         "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,

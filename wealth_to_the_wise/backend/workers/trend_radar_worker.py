@@ -133,12 +133,15 @@ async def _trigger_video_generation(
     openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key")
     elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key")
     pexels_key = decrypt(user_keys.pexels_api_key) if user_keys.pexels_api_key else ""
+    _pixabay_raw = getattr(user_keys, "pixabay_api_key", None)
+    pixabay_key = decrypt(_pixabay_raw) if _pixabay_raw else ""
 
     user_api_keys = {
         "openai_api_key": openai_key,
         "elevenlabs_api_key": elevenlabs_key,
         "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "",
         "pexels_api_key": pexels_key or "",
+        "pixabay_api_key": pixabay_key or "",
         "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop"),
         "burn_captions": getattr(user_keys, "burn_captions", True),
         "speech_speed": getattr(user_keys, "speech_speed", None),

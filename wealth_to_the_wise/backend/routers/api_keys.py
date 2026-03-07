@@ -74,16 +74,19 @@ async def get_api_keys(
             has_openai_key=False,
             has_elevenlabs_key=False,
             has_pexels_key=False,
+            has_pixabay_key=False,
         )
 
     return UserApiKeysResponse(
         has_openai_key=_has_key(keys.openai_api_key),
         has_elevenlabs_key=_has_key(keys.elevenlabs_api_key),
         has_pexels_key=_has_key(keys.pexels_api_key),
+        has_pixabay_key=_has_key(keys.pixabay_api_key),
         elevenlabs_voice_id=keys.elevenlabs_voice_id,
         openai_key_hint=_mask_key(keys.openai_api_key),
         elevenlabs_key_hint=_mask_key(keys.elevenlabs_api_key),
         pexels_key_hint=_mask_key(keys.pexels_api_key),
+        pixabay_key_hint=_mask_key(keys.pixabay_api_key),
     )
 
 
@@ -121,6 +124,8 @@ async def update_api_keys(
         keys.elevenlabs_voice_id = body.elevenlabs_voice_id or None  # voice_id is not secret
     if body.pexels_api_key is not None:
         keys.pexels_api_key = encrypt(body.pexels_api_key) if body.pexels_api_key else None
+    if body.pixabay_api_key is not None:
+        keys.pixabay_api_key = encrypt(body.pixabay_api_key) if body.pixabay_api_key else None
 
     await db.flush()
     await db.refresh(keys)
@@ -131,10 +136,12 @@ async def update_api_keys(
         has_openai_key=_has_key(keys.openai_api_key),
         has_elevenlabs_key=_has_key(keys.elevenlabs_api_key),
         has_pexels_key=_has_key(keys.pexels_api_key),
+        has_pixabay_key=_has_key(keys.pixabay_api_key),
         elevenlabs_voice_id=keys.elevenlabs_voice_id,
         openai_key_hint=_mask_key(keys.openai_api_key),
         elevenlabs_key_hint=_mask_key(keys.elevenlabs_api_key),
         pexels_key_hint=_mask_key(keys.pexels_api_key),
+        pixabay_key_hint=_mask_key(keys.pixabay_api_key),
     )
 
 
