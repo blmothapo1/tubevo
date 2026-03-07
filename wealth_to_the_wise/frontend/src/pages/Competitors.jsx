@@ -164,7 +164,7 @@ export default function Competitors() {
                       className="overflow-hidden border-t border-white/[0.04]">
                       <div className="p-5 space-y-3">
                         {!snapshots[c.id] || snapshots[c.id].length === 0 ? (
-                          <p className="text-surface-600 text-[13px] text-center py-4">No snapshots yet. The competitor worker will collect data automatically.</p>
+                          <p className="text-surface-600 text-[13px] text-center py-4">No snapshots yet. The competitor worker will collect data on a regular schedule.</p>
                         ) : (
                           snapshots[c.id].slice(0, 5).map((s) => (
                             <div key={s.id} className="bg-white/[0.02] rounded-xl p-4 grid grid-cols-2 sm:grid-cols-5 gap-3">

@@ -413,7 +413,7 @@ function ApiKeysTab() {
         <div>
           <h3 className="text-[15px] font-semibold text-white">Your API Keys</h3>
           <p className="text-[12px] text-surface-600 mt-0.5">
-            A private password that lets Tubevo use AI services on your behalf.
+            A private password that lets Tubevo work on your behalf.
           </p>
         </div>
       </div>
@@ -571,7 +571,7 @@ function ApiKeysTab() {
         <Shield size={14} className="text-brand-400 shrink-0 mt-0.5" />
         <p className="text-[12px] text-surface-600 leading-[1.7]">
           <strong className="text-surface-700">Keys are encrypted</strong> and stored securely.
-          Only used to generate videos on your behalf. You pay each provider directly.
+          Only used to produce videos on your behalf. You pay each provider directly.
         </p>
       </div>
     </div>
@@ -1278,7 +1278,7 @@ function UsageTab() {
         </div>
         <div>
           <h3 className="text-[15px] font-semibold text-white">Usage & Stats</h3>
-          <p className="text-[12px] text-surface-600">Your video generation activity</p>
+          <p className="text-[12px] text-surface-600">Your video production activity</p>
         </div>
       </div>
 
@@ -1312,11 +1312,11 @@ function UsageTab() {
       </div>
 
       <div className="card p-5 space-y-3">
-        <Row label="Total videos generated" value={String(total)} />
+        <Row label="Total videos produced" value={String(total)} />
         <div className="h-px bg-white/4" />
         <Row label="Successfully posted" value={String(posted)} />
         <div className="h-px bg-white/4" />
-        <Row label="Currently generating" value={String(pending)} />
+        <Row label="Currently in production" value={String(pending)} />
         <div className="h-px bg-white/4" />
         <Row label="Failed" value={String(failed)} />
       </div>
@@ -1325,7 +1325,7 @@ function UsageTab() {
         <Zap size={16} className="text-amber-400 shrink-0 mt-0.5" />
         <p className="text-[12px] text-surface-600 leading-[1.7]">
           <strong className="text-surface-700">Bring Your Own Keys:</strong> Since you provide your own
-          API keys, video generation costs are billed directly to your OpenAI, ElevenLabs, and Pexels
+          API keys, video production costs are billed directly to your OpenAI, ElevenLabs, and Pexels
           accounts. A typical video costs roughly $0.05–$0.15 in total API credits.
         </p>
       </div>

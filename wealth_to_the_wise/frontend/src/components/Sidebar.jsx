@@ -15,7 +15,7 @@ const LS_KEY = 'tubevo-sidebar-collapsed';
 const mainLinks = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/videos', label: 'Videos', icon: Film },
-  { to: '/schedule', label: 'Automation', icon: CalendarClock },
+  { to: '/schedule', label: 'Schedule', icon: CalendarClock },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

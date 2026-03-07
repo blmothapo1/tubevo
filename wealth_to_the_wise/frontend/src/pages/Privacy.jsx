@@ -16,7 +16,7 @@ export default function Privacy() {
             <h2 className="text-[18px] font-semibold text-white mb-4">1. Introduction</h2>
             <p>
               Tubevo ("we", "our", or "us") operates the website tubevo.us and provides
-              automated YouTube content creation and publishing services. This Privacy Policy
+              YouTube content creation and publishing services. This Privacy Policy
               explains how we collect, use, disclose, and safeguard your information when you
               use our service.
             </p>
@@ -66,7 +66,7 @@ export default function Privacy() {
             <h2 className="text-[18px] font-semibold text-white mb-4">5. Data Sharing</h2>
             <p>We do not sell your personal information. We may share data with:</p>
             <ul className="list-disc list-inside space-y-2 ml-2">
-              <li><strong>Service Providers:</strong> Stripe (payments), Google/YouTube (video uploads), OpenAI (content generation), ElevenLabs (voiceovers), Pexels (stock footage).</li>
+              <li><strong>Service Providers:</strong> Stripe (payments), Google/YouTube (video uploads), OpenAI (content production), ElevenLabs (voiceovers), Pexels (stock footage).</li>
               <li><strong>Legal Requirements:</strong> When required by law or to protect our rights.</li>
             </ul>
           </section>

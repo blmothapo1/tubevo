@@ -32,7 +32,7 @@ const ease = [0.25, 0.1, 0.25, 1];
 
 const statusConfig = {
   pending:    { label: 'Pending',      badge: 'badge-pending',     icon: Clock },
-  generating: { label: 'Generating…',  badge: 'badge-generating',  icon: Film },
+  generating: { label: 'Creating…',   badge: 'badge-generating',  icon: Film },
   completed:  { label: 'Completed',    badge: 'badge-completed',   icon: CheckCircle },
   posted:     { label: 'Posted',       badge: 'badge-posted',      icon: Upload },
   failed:     { label: 'Failed',       badge: 'badge-failed',      icon: AlertTriangle },
@@ -40,13 +40,13 @@ const statusConfig = {
 
 // ── Pipeline step labels for ETA estimation ──
 const PIPELINE_STEPS = [
-  { label: 'Generating script', pctStart: 0, pctEnd: 15 },
-  { label: 'Generating metadata', pctStart: 15, pctEnd: 22 },
-  { label: 'Generating voiceover', pctStart: 22, pctEnd: 38 },
+  { label: 'Writing script', pctStart: 0, pctEnd: 15 },
+  { label: 'Crafting metadata', pctStart: 15, pctEnd: 22 },
+  { label: 'Producing voiceover', pctStart: 22, pctEnd: 38 },
   { label: 'Planning scenes', pctStart: 38, pctEnd: 45 },
   { label: 'Downloading footage', pctStart: 45, pctEnd: 60 },
   { label: 'Building video', pctStart: 60, pctEnd: 78 },
-  { label: 'Generating thumbnail', pctStart: 78, pctEnd: 85 },
+  { label: 'Designing thumbnail', pctStart: 78, pctEnd: 85 },
   { label: 'Uploading to YouTube', pctStart: 85, pctEnd: 100 },
 ];
 
@@ -215,12 +215,12 @@ export default function Videos() {
         setPipelineStartedAt(null);
 
         if (data.status === 'failed') {
-          setMessage({ type: 'error', text: data.error_message || 'Video generation failed.' });
+          setMessage({ type: 'error', text: data.error_message || 'Video creation failed.' });
         } else if (data.status === 'posted') {
-          setMessage({ type: 'success', text: `Video "${data.title}" generated and posted to YouTube!` });
+          setMessage({ type: 'success', text: `Video "${data.title}" created and posted to YouTube!` });
           triggerFirstVideoConfetti();
         } else {
-          setMessage({ type: 'success', text: `Video "${data.title}" generated successfully!` });
+          setMessage({ type: 'success', text: `Video "${data.title}" created successfully!` });
           triggerFirstVideoConfetti();
         }
         fetchVideos();
@@ -261,7 +261,7 @@ export default function Videos() {
 
     // Phase 6: Block duplicate topic submission
     if (isTopicAlreadyGenerating(topic.trim())) {
-      setMessage({ type: 'error', text: 'This topic is already being generated. Please wait for it to finish.' });
+      setMessage({ type: 'error', text: 'This topic is already being created. Please wait for it to finish.' });
       return;
     }
 
@@ -297,9 +297,9 @@ export default function Videos() {
       } else if (err.response?.status === 403) {
         setMessage({ type: 'error', text: detail || 'You have reached your plan limit this month.' });
       } else if (err.response?.status === 409) {
-        setMessage({ type: 'error', text: detail || 'A video is already generating. Please wait for it to finish.' });
+        setMessage({ type: 'error', text: detail || 'A video is already in production. Please wait for it to finish.' });
       } else {
-        setMessage({ type: 'error', text: detail || 'Generation failed.' });
+        setMessage({ type: 'error', text: detail || 'Video creation failed.' });
       }
       setGenerating(false);
       setProgressStep('');
@@ -338,9 +338,9 @@ export default function Videos() {
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (err.response?.status === 409) {
-        setMessage({ type: 'error', text: detail || 'A video is already generating. Please wait for it to finish.' });
+        setMessage({ type: 'error', text: detail || 'A video is already in production. Please wait for it to finish.' });
       } else {
-        setMessage({ type: 'error', text: detail || 'Regeneration failed.' });
+        setMessage({ type: 'error', text: detail || 'Retry failed.' });
       }
     } finally {
       setRegeneratingId(null);
@@ -374,7 +374,7 @@ export default function Videos() {
         <div>
           <h1 className="text-[20px] sm:text-[24px] font-semibold text-white tracking-tight">Videos</h1>
           <p className="text-[12px] text-surface-600 mt-2 uppercase tracking-[0.08em] font-medium">
-            Generate & track AI-powered videos
+            Create & manage your videos
           </p>
         </div>
 
@@ -410,8 +410,8 @@ export default function Videos() {
             <Wand2 size={16} className="text-white" />
           </div>
           <div>
-            <h3 className="text-[15px] font-semibold text-white">Generate a New Video</h3>
-            <p className="text-[12px] text-surface-600">Enter a topic and we'll create a full video with AI</p>
+            <h3 className="text-[15px] font-semibold text-white">Create a New Video</h3>
+            <p className="text-[12px] text-surface-600">Enter a topic and Tubevo handles the rest</p>
           </div>
         </div>
 
@@ -436,12 +436,12 @@ export default function Videos() {
             {generating ? (
               <>
                 <RefreshCw size={14} className="animate-spin" />
-                Generating…
+                Creating…
               </>
             ) : (
               <>
                 <Send size={14} />
-                Generate
+                Create
               </>
             )}
           </motion.button>
@@ -579,7 +579,7 @@ export default function Videos() {
         <EmptyState
           icon={Sparkles}
           title="No videos yet"
-          description="Use the form above to generate your first AI-powered video. It takes about 2–3 minutes."
+          description="Use the form above to create your first video. It takes about 2–3 minutes."
         />
       ) : (
         <StaggerContainer className="card" staggerDelay={0.03} data-tour="video-list">
@@ -662,7 +662,7 @@ export default function Videos() {
                           onClick={() => handleRegenerate(video.id)}
                           disabled={generating || regeneratingId === video.id}
                           className="p-2 rounded text-amber-400 hover:bg-amber-500/10 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
-                          title="Regenerate"
+                          title="Retry"
                         >
                           <RotateCcw size={14} className={regeneratingId === video.id ? 'animate-spin' : ''} />
                         </button>

@@ -55,11 +55,11 @@ function formatDuration(secs) {
 }
 
 const STATUS_CONFIG = {
-  pending:    { label: 'Pending',    color: 'text-surface-600', bg: 'bg-surface-300',      icon: Clock },
-  generating: { label: 'Generating', color: 'text-brand-400',   bg: 'bg-brand-500/10',     icon: Loader2 },
-  completed:  { label: 'Completed',  color: 'text-emerald-400', bg: 'bg-emerald-500/10',   icon: CheckCircle2 },
-  posted:     { label: 'Posted',     color: 'text-emerald-400', bg: 'bg-emerald-500/10',   icon: Upload },
-  failed:     { label: 'Failed',     color: 'text-red-400',     bg: 'bg-red-500/10',       icon: AlertTriangle },
+  pending:    { label: 'Pending',      color: 'text-surface-600', bg: 'bg-surface-300',      icon: Clock },
+  generating: { label: 'Creating',    color: 'text-brand-400',   bg: 'bg-brand-500/10',     icon: Loader2 },
+  completed:  { label: 'Completed',    color: 'text-emerald-400', bg: 'bg-emerald-500/10',   icon: CheckCircle2 },
+  posted:     { label: 'Posted',       color: 'text-emerald-400', bg: 'bg-emerald-500/10',   icon: Upload },
+  failed:     { label: 'Failed',       color: 'text-red-400',     bg: 'bg-red-500/10',       icon: AlertTriangle },
 };
 
 const ALL_STATUSES = ['pending', 'generating', 'completed', 'posted', 'failed'];

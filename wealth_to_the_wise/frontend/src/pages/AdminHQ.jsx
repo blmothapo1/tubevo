@@ -84,7 +84,7 @@ export default function AdminHQ() {
     { label: 'Videos (24h)',       value: kpis.videos_24h,         icon: Zap,            gradient: 'from-amber-500/15 to-amber-500/5',   iconColor: 'text-amber-400' },
     { label: 'Failed (24h)',       value: kpis.videos_failed_24h,  icon: AlertTriangle,  gradient: 'from-red-500/15 to-red-500/5',       iconColor: 'text-red-400' },
     { label: 'Success Rate',       value: `${kpis.success_rate}%`, icon: TrendingUp,     gradient: 'from-emerald-500/15 to-emerald-500/5', iconColor: 'text-emerald-400' },
-    { label: 'Avg Gen Time',       value: formatDuration(kpis.avg_generation_secs), icon: Clock, gradient: 'from-surface-400/15 to-surface-400/5', iconColor: 'text-surface-700' },
+    { label: 'Avg Build Time',     value: formatDuration(kpis.avg_generation_secs), icon: Clock, gradient: 'from-surface-400/15 to-surface-400/5', iconColor: 'text-surface-700' },
   ] : [];
 
   return (

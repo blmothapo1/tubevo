@@ -59,8 +59,8 @@ export default function Schedule() {
     <FadeIn className="max-w-4xl mx-auto space-y-7">
       {/* Header */}
       <PageHeader
-        title="Automation"
-        subtitle="Schedule recurring video generation"
+        title="Schedule"
+        subtitle="Set up recurring video creation"
         action={
           <motion.button
             onClick={() => setShowCreate(true)}
@@ -112,7 +112,7 @@ export default function Schedule() {
         <EmptyState
           icon={CalendarClock}
           title="No schedules yet"
-          description="Create your first automation schedule to generate and post videos on autopilot."
+          description="Create your first schedule to have Tubevo produce and post videos on a recurring cadence."
           action={
             <motion.button
               onClick={() => setShowCreate(true)}

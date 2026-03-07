@@ -57,7 +57,7 @@ export default function Thumbnails() {
       <PageHeader title="Thumbnail A/B Testing" subtitle="Test thumbnail variants to maximize click-through rate" />
 
       {experiments.length === 0 ? (
-        <EmptyState icon={Image} title="No experiments yet" description="Thumbnail experiments are automatically created when you generate videos with multiple thumbnail concepts." />
+        <EmptyState icon={Image} title="No experiments yet" description="Thumbnail experiments are automatically created when you produce videos with multiple thumbnail concepts." />
       ) : (
         <StaggerContainer className="space-y-4">
           {experiments.map((exp) => {

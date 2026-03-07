@@ -64,9 +64,9 @@ const STEPS = [
     id: 'welcome',
     title: 'Welcome to Tubevo! 🎬',
     description:
-      'Let\'s take a quick tour to get you set up. We\'ll walk through adding your API keys, generating your first video, and more.',
+      'Let\'s take a quick tour to get you set up. We\'ll walk through adding your API keys, creating your first video, and more.',
     mobileDescription:
-      'Quick tour! We\'ll help you add API keys and generate your first video.',
+      'Quick tour! We\'ll help you add API keys and create your first video.',
     icon: Sparkles,
     target: null, // No element — centered modal
     route: '/dashboard',
@@ -90,7 +90,7 @@ const STEPS = [
     id: 'api-keys',
     title: 'Add Your API Keys',
     description:
-      'Head to Settings → API Keys to paste your OpenAI, ElevenLabs, and Pexels keys. These power the script, voice, and footage.',
+      'Head to Settings → API Keys to paste your OpenAI, ElevenLabs, and Pexels keys. These power your scripts, voiceovers, and footage.',
     mobileDescription:
       'Go to Settings → API Keys to paste your OpenAI, ElevenLabs, and Pexels keys.',
     icon: Key,
@@ -103,7 +103,7 @@ const STEPS = [
     id: 'topic-input',
     title: 'Enter Your Topic',
     description:
-      'Type any topic you want a video about — e.g. "5 Habits of Wealthy People". The AI writes the script for you.',
+      'Type any topic you want a video about — e.g. "5 Habits of Wealthy People". Tubevo writes the script for you.',
     icon: Wand2,
     target: '[data-tour="topic-input"]',
     route: '/videos',
@@ -112,11 +112,11 @@ const STEPS = [
   },
   {
     id: 'generate-button',
-    title: 'Click Generate',
+    title: 'Click Create',
     description:
-      'Hit the Generate button to kick off the full pipeline: script → voiceover → stock footage → video. It takes about 2–3 minutes.',
+      'Hit the Create button to kick off the full pipeline: script → voiceover → stock footage → video. It takes about 2–3 minutes.',
     mobileDescription:
-      'Tap Generate to start the pipeline: script → voice → footage → video (~2–3 min).',
+      'Tap Create to start the pipeline: script → voice → footage → video (~2–3 min).',
     icon: null,
     target: '[data-tour="generate-button"]',
     route: '/videos',

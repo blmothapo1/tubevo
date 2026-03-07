@@ -13,7 +13,7 @@ const LG_BREAKPOINT = 1024;
 const PAGE_TITLES = {
   '/dashboard': 'Dashboard',
   '/videos': 'Videos',
-  '/schedule': 'Automation',
+  '/schedule': 'Schedule',
   '/settings': 'Settings',
   '/channels': 'Channels',
   '/niche': 'Niche Intel',

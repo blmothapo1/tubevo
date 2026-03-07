@@ -11,7 +11,7 @@ import api from '../lib/api';
 /* ── Available niches (matches Onboarding) ── */
 const ALL_NICHES = [
   'Personal Finance', 'Investing / Stocks', 'Business & Entrepreneurship',
-  'Self-Improvement', 'Psychology', 'Productivity', 'Tech & AI',
+  'Self-Improvement', 'Psychology', 'Productivity', 'Tech & Innovation',
   'True Crime', 'Horror Stories', 'Mystery & Conspiracy',
   'History', 'Science & Space', 'Fitness & Health',
   'Luxury & Wealth', 'Geography & World Facts',
@@ -269,7 +269,7 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
               className="btn-primary !px-3 !py-1.5 !text-xs !min-h-0 !rounded-[var(--radius-md)]"
             >
               <Play className="w-3 h-3" />
-              Generate Video
+              Create Video
             </button>
           )}
           {alert.status === 'ready' && (
@@ -306,7 +306,7 @@ function TrendCard({ alert, onPublish, onDismiss, onRegenerate }) {
           {isGenerating && (
             <span className="inline-flex items-center gap-1.5 text-xs text-violet-500">
               <Loader2 className="w-3 h-3 animate-spin" />
-              Generating video…
+              Creating video…
             </span>
           )}
         </div>
@@ -599,7 +599,7 @@ export default function TrendRadar() {
       await api.post(`/api/trends/${id}/regenerate`);
       await Promise.all([fetchAlerts(), fetchStats()]);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Regeneration failed');
+      setError(err.response?.data?.detail || 'Retry failed');
     }
   };
 
@@ -628,7 +628,7 @@ export default function TrendRadar() {
             Trend Radar
           </h1>
           <p className="text-sm text-[var(--color-surface-600)] mt-0.5">
-            Autonomous trend detection → video generation → one-tap publish
+            Trend detection → video creation → one-tap publish
           </p>
         </div>
 
@@ -653,7 +653,7 @@ export default function TrendRadar() {
             )}
           </h1>
           <p className="text-sm text-[var(--color-surface-600)] mt-0.5">
-            Autonomous trend detection → video generation → one-tap publish
+            Trend detection → video creation → one-tap publish
           </p>
         </div>
 
@@ -709,7 +709,7 @@ export default function TrendRadar() {
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard label="Ready to Fire" value={stats.total_ready} icon={Flame} color="text-emerald-500" />
-          <StatCard label="Generating" value={stats.total_generating} icon={Zap} color="text-violet-500" />
+          <StatCard label="Creating" value={stats.total_generating} icon={Zap} color="text-violet-500" />
           <StatCard label="Detected" value={stats.total_detected} icon={Radar} color="text-blue-500" />
           <StatCard label="Published" value={stats.total_published} icon={Rocket} color="text-[var(--color-brand-500)]" />
         </div>

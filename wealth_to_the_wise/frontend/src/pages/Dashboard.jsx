@@ -135,7 +135,7 @@ export default function Dashboard() {
         <BentoTile
           to="/videos" icon={Film} iconColor="text-indigo-400"
           gradient="from-indigo-500/15 to-indigo-500/5"
-          label="Total Generated" value={stats?.total_generated ?? 0}
+          label="Total Created" value={stats?.total_generated ?? 0}
           desc="All time" delay={0.05}
         />
         <BentoTile
@@ -148,7 +148,7 @@ export default function Dashboard() {
           to="/schedule" icon={CalendarClock} iconColor="text-amber-400"
           gradient="from-amber-500/15 to-amber-500/5"
           label="In Progress" value={stats?.total_pending ?? 0}
-          desc="Generating now" delay={0.15}
+          desc="In production" delay={0.15}
         />
 
         {/* Row 2: Quota (wide) + Quick links */}
@@ -216,7 +216,7 @@ export default function Dashboard() {
               <EmptyState
                 icon={Sparkles}
                 title="No videos yet"
-                description="Head to the Videos page to generate your first one."
+                description="Head to the Videos page to create your first one."
                 action={
                   <Link to="/videos" className="btn-primary text-[13px]">
                     Create First Video <ArrowRight size={14} />

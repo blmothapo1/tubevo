@@ -13,7 +13,7 @@ const niches = [
   'Self-Improvement',
   'Psychology',
   'Productivity',
-  'Tech & AI',
+  'Tech & Innovation',
   'True Crime',
   'Horror Stories',
   'Mystery & Conspiracy',
@@ -141,7 +141,7 @@ export default function Onboarding() {
       <p className="text-surface-600 text-xs mb-7 max-w-sm mx-auto leading-relaxed">
         {ytConnected
           ? `Connected to ${ytChannel}. You're all set to upload videos!`
-          : 'Link your YouTube channel so Tubevo can upload videos on your behalf.'}
+          : 'Link your YouTube channel so Tubevo can publish videos for you.'}
       </p>
       {ytConnected ? (
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/8 text-emerald-400 text-xs font-medium">
@@ -253,7 +253,7 @@ export default function Onboarding() {
       </motion.div>
       <h2 className="text-lg sm:text-xl font-semibold text-white mb-2">You're all set!</h2>
       <p className="text-surface-600 text-xs mb-6 max-w-sm mx-auto leading-relaxed">
-        Tubevo will start generating and posting content based on your preferences.
+        Tubevo will start creating and posting content based on your preferences.
       </p>
       <div className="card p-5 max-w-xs mx-auto text-left space-y-3 mb-7">
         <div className="flex justify-between text-xs">

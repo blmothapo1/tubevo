@@ -479,7 +479,7 @@ export default function VoiceClones() {
     <div className="max-w-4xl mx-auto space-y-6">
       <PageHeader
         title="Voice Clones"
-        subtitle="Create and manage AI voice clones for your videos"
+        subtitle="Create and manage custom voices for your videos"
         action={
           <button onClick={() => setShowCreate(true)}
             className="btn-primary flex items-center gap-2 text-[13px]">
@@ -501,7 +501,7 @@ export default function VoiceClones() {
       {/* Clone list */}
       {clones.length === 0 ? (
         <EmptyState icon={Mic} title="No voice clones yet"
-          description="Record a voice sample and create your first AI voice clone."
+          description="Record a voice sample and create your first custom voice."
           action={
             <button onClick={() => setShowCreate(true)} className="btn-primary text-[13px] flex items-center gap-2">
               <Mic size={14} /> New Voice

@@ -7,16 +7,16 @@ import {
 
 const ALL_COMMANDS = [
   { id: 'dashboard', label: 'Dashboard', desc: 'Pipeline overview', icon: LayoutDashboard, path: '/dashboard', keywords: ['home', 'overview', 'stats'] },
-  { id: 'videos', label: 'Videos', desc: 'Manage generated videos', icon: Film, path: '/videos', keywords: ['content', 'generate', 'list'] },
-  { id: 'schedule', label: 'Automation', desc: 'Recurring schedules', icon: CalendarClock, path: '/schedule', keywords: ['cron', 'recurring', 'auto'] },
+  { id: 'videos', label: 'Videos', desc: 'Manage your videos', icon: Film, path: '/videos', keywords: ['content', 'create', 'list'] },
+  { id: 'schedule', label: 'Schedule', desc: 'Recurring schedules', icon: CalendarClock, path: '/schedule', keywords: ['cron', 'recurring', 'auto'] },
   { id: 'settings', label: 'Settings', desc: 'Account & preferences', icon: Settings, path: '/settings', keywords: ['account', 'profile', 'api', 'keys'] },
-  { id: 'trends', label: 'Trend Radar', desc: 'Auto-detect & publish trends', icon: Radar, path: '/trends', keywords: ['trend', 'radar', 'autopilot', 'viral', 'detect', 'hot'] },
+  { id: 'trends', label: 'Trend Radar', desc: 'Detect & publish trends', icon: Radar, path: '/trends', keywords: ['trend', 'radar', 'autopilot', 'viral', 'detect', 'hot'] },
   { id: 'channels', label: 'Channels', desc: 'YouTube channels', icon: Tv2, path: '/channels', keywords: ['youtube', 'connect'] },
   { id: 'niche', label: 'Niche Intel', desc: 'Analyze niches & topics', icon: Search, path: '/niche', keywords: ['research', 'topic', 'trending', 'scan'] },
   { id: 'revenue', label: 'Revenue', desc: 'Track income', icon: DollarSign, path: '/revenue', keywords: ['money', 'earnings', 'adsense', 'income'] },
   { id: 'thumbnails', label: 'Thumbnails', desc: 'A/B testing', icon: Image, path: '/thumbnails', keywords: ['ab', 'test', 'ctr', 'click'] },
   { id: 'competitors', label: 'Competitors', desc: 'Monitor rivals', icon: Eye, path: '/competitors', keywords: ['spy', 'rival', 'monitor', 'track'] },
-  { id: 'voices', label: 'Voice Clones', desc: 'AI voice management', icon: Mic, path: '/voices', keywords: ['voice', 'clone', 'tts', 'elevenlabs'] },
+  { id: 'voices', label: 'Voice Clones', desc: 'Custom voice studio', icon: Mic, path: '/voices', keywords: ['voice', 'clone', 'tts', 'elevenlabs'] },
 ];
 
 function fuzzyMatch(query, command) {
