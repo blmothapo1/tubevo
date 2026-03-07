@@ -828,7 +828,7 @@ function VideoPreferencesTab() {
           <button
             onClick={() => setBurnCaptions(!burnCaptions)}
             className={`relative w-[44px] h-[24px] rounded-full transition-colors duration-200 ${
-              burnCaptions ? 'bg-brand-500' : 'bg-surface-300/50'
+              burnCaptions ? 'bg-brand-500' : 'bg-zinc-600'
             }`}
           >
             <motion.div
@@ -1086,7 +1086,7 @@ function Toggle({ label, description, checked, onChange }) {
         onClick={() => onChange(!checked)}
         whileTap={{ scale: 0.9 }}
         className={`relative w-[44px] h-[24px] rounded-full transition-colors duration-150 shrink-0 ${
-          checked ? 'bg-brand-500' : 'bg-surface-400'
+          checked ? 'bg-brand-500' : 'bg-zinc-600'
         }`}
       >
         <motion.span

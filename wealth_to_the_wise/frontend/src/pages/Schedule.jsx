@@ -456,7 +456,7 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
               className={`relative w-[44px] h-[24px] rounded-full transition-colors duration-150 ${
                 schedule.is_active
                   ? 'bg-brand-500'
-                  : 'bg-surface-400'
+                  : 'bg-zinc-600'
               }`}
               title={schedule.is_active ? 'Pause schedule' : 'Activate schedule'}
             >

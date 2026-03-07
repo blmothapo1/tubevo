@@ -81,7 +81,7 @@ export default function CreatorControls({
                   onClick={() => onHumorChange(!humor)}
                   className={`
                     relative w-9 h-5 rounded-full transition-colors duration-200
-                    ${humor ? 'bg-brand-500' : 'bg-surface-300/60'}
+                    ${humor ? 'bg-brand-500' : 'bg-zinc-600'}
                   `}
                 >
                   <motion.div
