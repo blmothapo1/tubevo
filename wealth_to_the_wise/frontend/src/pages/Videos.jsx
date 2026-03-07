@@ -28,6 +28,7 @@ import {
   ChevronUp,
   Trash2,
   FileText,
+  PenLine,
 } from 'lucide-react';
 
 const ease = [0.25, 0.1, 0.25, 1];
@@ -346,6 +347,27 @@ export default function Videos() {
       }
       setGenerating(false);
       setProgressStep('');
+    }
+  }
+
+  // ── Resume editing a pending video with saved script ──────────────
+  async function handleResumeEditing(videoId) {
+    setScriptLoading(true);
+    setMessage({ type: '', text: '' });
+    try {
+      const { data } = await api.get(`/api/videos/${videoId}/script`);
+      setScriptData({
+        script: data.script,
+        metadata: data.metadata,
+        readTime: data.read_time,
+        topic: data.topic,
+        videoId: data.video_id,
+      });
+      setCreationPhase('refine');
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'Could not load script. Try again.' });
+    } finally {
+      setScriptLoading(false);
     }
   }
 
@@ -682,6 +704,7 @@ export default function Videos() {
             const isActiveJob = video.id === activeJobId;
             const canDownload = video.file_path && (video.status === 'completed' || video.status === 'posted');
             const canRegenerate = video.status === 'failed' || video.status === 'completed' || video.status === 'posted';
+            const canResume = video.status === 'pending' && video.has_script;
 
             return (
               <StaggerItem key={video.id}>
@@ -746,6 +769,19 @@ export default function Videos() {
                           title="Download MP4"
                         >
                           <Download size={14} />
+                        </button>
+                      )}
+
+                      {/* Resume editing — pending videos with saved scripts */}
+                      {canResume && (
+                        <button
+                          onClick={() => handleResumeEditing(video.id)}
+                          disabled={scriptLoading}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium text-brand-400 bg-brand-500/8 hover:bg-brand-500/15 transition-colors duration-150 disabled:opacity-50"
+                          title="Continue editing script"
+                        >
+                          <PenLine size={12} />
+                          Continue Editing
                         </button>
                       )}
 

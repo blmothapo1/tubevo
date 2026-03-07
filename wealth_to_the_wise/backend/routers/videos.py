@@ -162,6 +162,7 @@ class VideoHistoryItem(BaseModel):
     error_category: str | None = None
     progress_step: str | None = None
     progress_pct: int = 0
+    has_script: bool = False
     created_at: str
     updated_at: str
 
@@ -2060,11 +2061,58 @@ async def video_history(
             error_message=r.error_message,
             progress_step=_progress_store.get(r.id, {}).get("step") or r.progress_step,
             progress_pct=_progress_store.get(r.id, {}).get("pct", r.progress_pct or 0),
+            has_script=bool(r.script_text),
             created_at=r.created_at.isoformat() if r.created_at else "",
             updated_at=r.updated_at.isoformat() if r.updated_at else "",
         )
         for r in records
     ]
+
+
+# ── GET /api/videos/{video_id}/script — Resume editing a pending video ──
+
+@router.get("/{video_id}/script")
+async def get_video_script(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the saved script + metadata for a pending video so the user can resume editing."""
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+    if not record.script_text:
+        raise HTTPException(status_code=404, detail="No script saved for this video.")
+
+    # Parse stored metadata JSON
+    metadata = {}
+    if record.metadata_json:
+        import json as _json
+        try:
+            metadata = _json.loads(record.metadata_json)
+        except Exception:
+            metadata = {"title": record.title or record.topic}
+
+    # Compute read time
+    project_root = str(Path(__file__).resolve().parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    import script_generator
+    read_time = script_generator.estimate_read_time(record.script_text)
+
+    return {
+        "script": record.script_text,
+        "metadata": metadata,
+        "read_time": read_time,
+        "topic": record.topic,
+        "video_id": record.id,
+    }
 
 
 # ── GET /api/videos/stats ───────────────────────────────────────────
