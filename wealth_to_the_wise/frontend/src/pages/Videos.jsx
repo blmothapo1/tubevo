@@ -5,6 +5,7 @@ import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonVideoList } from '../components/Skeleton';
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import EmptyState from '../components/EmptyState';
+import ScriptRefiner from '../components/ScriptRefiner';
 import {
   CheckCircle,
   XCircle,
@@ -26,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  FileText,
 } from 'lucide-react';
 
 const ease = [0.25, 0.1, 0.25, 1];
@@ -39,6 +41,8 @@ const statusConfig = {
 };
 
 // ── Pipeline step labels for ETA estimation ──
+// When using the two-phase flow (generate-script → refine → render),
+// the render phase skips script/metadata since those are already done.
 const PIPELINE_STEPS = [
   { label: 'Writing script', pctStart: 0, pctEnd: 15 },
   { label: 'Crafting metadata', pctStart: 15, pctEnd: 22 },
@@ -130,6 +134,12 @@ export default function Videos() {
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // ── Script Refinement: two-phase creation state ──
+  // Phase: 'topic' (default) → 'refine' → 'render'
+  const [creationPhase, setCreationPhase] = useState('topic');
+  const [scriptData, setScriptData] = useState(null); // { script, metadata, readTime, topic, videoId }
+  const [scriptLoading, setScriptLoading] = useState(false);
 
   async function fetchSuggestions() {
     setSuggestionsLoading(true);
@@ -265,41 +275,74 @@ export default function Videos() {
       return;
     }
 
-    setGenerating(true);
+    // ── Phase 1: Generate script only (fast ~15s) ───────────────────
+    setScriptLoading(true);
     setMessage({ type: '', text: '' });
-    setProgressPct(0);
-    setProgressStep('Starting…');
 
     try {
-      const { data } = await api.post('/api/videos/generate', { topic: topic.trim() });
+      const { data } = await api.post('/api/videos/generate-script', { topic: topic.trim() });
 
-      if (data.status === 'generating' && data.video_id) {
-        setActiveJobId(data.video_id);
-        setPipelineStartedAt(Date.now() / 1000);
-        setMessage({ type: 'info', text: data.message });
-        setTopic('');
-        fetchVideos();
-      } else if (data.status === 'failed') {
-        setMessage({ type: 'error', text: data.message });
-        setGenerating(false);
-        setProgressStep('');
-      } else {
-        setMessage({ type: 'success', text: data.message });
-        setTopic('');
-        setGenerating(false);
-        setProgressStep('');
-        fetchVideos();
-      }
+      // Transition to the Script Refiner
+      setScriptData({
+        script: data.script,
+        metadata: data.metadata,
+        readTime: data.read_time,
+        topic: data.topic,
+        videoId: data.video_id,
+      });
+      setCreationPhase('refine');
+      setTopic('');
+      setMessage({ type: '', text: '' });
+      fetchVideos(); // Refresh list to show the new pending record
+
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (err.response?.status === 429) {
         setMessage({ type: 'error', text: 'Rate limit reached. Try again later.' });
       } else if (err.response?.status === 403) {
         setMessage({ type: 'error', text: detail || 'You have reached your plan limit this month.' });
-      } else if (err.response?.status === 409) {
+      } else {
+        setMessage({ type: 'error', text: detail || 'Script generation failed. Please try again.' });
+      }
+    } finally {
+      setScriptLoading(false);
+    }
+  }
+
+  // ── Script Refiner: handle "Produce Video" ────────────────────────
+  async function handleProduceVideo({ videoId, script, topic: videoTopic, voiceStyle, metadata }) {
+    setCreationPhase('topic'); // Go back to the main view
+    setScriptData(null);
+    setGenerating(true);
+    setMessage({ type: '', text: '' });
+    setProgressPct(0);
+    setProgressStep('Starting render…');
+
+    try {
+      const { data } = await api.post('/api/videos/render', {
+        video_id: videoId,
+        script,
+        topic: videoTopic,
+        voice_style: voiceStyle,
+        metadata,
+      });
+
+      if (data.status === 'generating' && data.video_id) {
+        setActiveJobId(data.video_id);
+        setPipelineStartedAt(Date.now() / 1000);
+        setMessage({ type: 'info', text: data.message });
+        fetchVideos();
+      } else if (data.status === 'failed') {
+        setMessage({ type: 'error', text: data.message });
+        setGenerating(false);
+        setProgressStep('');
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (err.response?.status === 409) {
         setMessage({ type: 'error', text: detail || 'A video is already in production. Please wait for it to finish.' });
       } else {
-        setMessage({ type: 'error', text: detail || 'Video creation failed.' });
+        setMessage({ type: 'error', text: detail || 'Video render failed.' });
       }
       setGenerating(false);
       setProgressStep('');
@@ -397,6 +440,56 @@ export default function Videos() {
         </AnimatePresence>
       </div>
 
+      {/* ── Script Loading Overlay ── */}
+      <AnimatePresence>
+        {scriptLoading && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.3, ease }}
+            className="card p-10 flex flex-col items-center justify-center text-center space-y-4"
+          >
+            <div className="w-12 h-12 rounded-full bg-brand-500/10 flex items-center justify-center">
+              <FileText size={20} className="text-brand-400 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-[15px] font-semibold text-white">Crafting your script…</h3>
+              <p className="text-[12px] text-surface-600 mt-1">
+                Generating script, metadata & thumbnails — about 15 seconds
+              </p>
+            </div>
+            <div className="w-32 h-[3px] rounded-full bg-surface-200 overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-brand-500"
+                initial={{ width: '0%' }}
+                animate={{ width: '90%' }}
+                transition={{ duration: 14, ease: 'linear' }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Phase: Script Refiner ── */}
+      {creationPhase === 'refine' && scriptData && !scriptLoading && (
+        <ScriptRefiner
+          script={scriptData.script}
+          metadata={scriptData.metadata}
+          readTime={scriptData.readTime}
+          topic={scriptData.topic}
+          videoId={scriptData.videoId}
+          onBack={() => {
+            setCreationPhase('topic');
+            setScriptData(null);
+          }}
+          onProduce={handleProduceVideo}
+        />
+      )}
+
+      {/* ── Phase: Topic Input + Video List (default) ── */}
+      {creationPhase === 'topic' && !scriptLoading && (
+      <>
       {/* Generate Form */}
       <motion.form
         onSubmit={handleGenerate}
@@ -706,6 +799,8 @@ export default function Videos() {
             );
           })}
         </StaggerContainer>
+      )}
+      </>
       )}
     </FadeIn>
   );

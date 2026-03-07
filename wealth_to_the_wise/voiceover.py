@@ -1,11 +1,17 @@
 """
 voiceover.py — Generate voiceover audio from a script using ElevenLabs TTS.
 
+Includes voice style presets for creator control over narration feel.
+
 Usage:
-    from voiceover import generate_voiceover
+    from voiceover import generate_voiceover, VOICE_STYLE_PRESETS
 
     audio_path = generate_voiceover("Your script text here...")
     # → "output/voiceover.mp3"
+
+    # With a voice style:
+    style = VOICE_STYLE_PRESETS["storyteller"]
+    audio_path = generate_voiceover(script, **style)
 
 Setup:
     1. Get an API key from https://elevenlabs.io
@@ -37,6 +43,74 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
 OUTPUT_DIR = Path("output")
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+# ── Voice Style Presets (Script Refinement — creator control) ────────
+# Each preset maps to ElevenLabs voice_settings parameters that produce
+# a meaningfully different narration feel. Creators pick a style in the
+# Script Refiner UI; the backend resolves it to these params.
+#
+# Parameters:
+#   stability        — higher = more consistent, lower = more expressive
+#   similarity_boost — how closely to match the base voice
+#   style            — style exaggeration (0 = neutral, 1 = maximum)
+#   speed            — speech rate multiplier (0.7–1.2)
+
+VOICE_STYLE_PRESETS: dict[str, dict] = {
+    "storyteller": {
+        "stability": 0.45,
+        "similarity_boost": 0.80,
+        "style": 0.50,
+        "speed": 0.95,
+        "label": "Storyteller",
+        "description": "Warm and engaging, like a great podcast host pulling you into a story",
+    },
+    "documentary": {
+        "stability": 0.60,
+        "similarity_boost": 0.85,
+        "style": 0.30,
+        "speed": 0.90,
+        "label": "Documentary Narrator",
+        "description": "Measured and authoritative, like a premium documentary voiceover",
+    },
+    "energetic": {
+        "stability": 0.35,
+        "similarity_boost": 0.70,
+        "style": 0.65,
+        "speed": 1.05,
+        "label": "Energetic Creator",
+        "description": "High energy and punchy, like a top-tier YouTube creator",
+    },
+    "calm": {
+        "stability": 0.65,
+        "similarity_boost": 0.80,
+        "style": 0.25,
+        "speed": 0.88,
+        "label": "Calm Explainer",
+        "description": "Relaxed and clear, like an expert calmly breaking things down",
+    },
+    "dramatic": {
+        "stability": 0.30,
+        "similarity_boost": 0.75,
+        "style": 0.70,
+        "speed": 0.85,
+        "label": "Dramatic Trailer",
+        "description": "Intense and cinematic, like a blockbuster movie trailer voice",
+    },
+}
+
+# Quick lookup: style key → only the voice_settings params (no label/desc)
+def get_voice_style_params(style_key: str) -> dict:
+    """Return ElevenLabs voice_settings dict for a named style.
+
+    Falls back to 'storyteller' if the key is unknown.
+    """
+    preset = VOICE_STYLE_PRESETS.get(style_key, VOICE_STYLE_PRESETS["storyteller"])
+    return {
+        "stability": preset["stability"],
+        "similarity_boost": preset["similarity_boost"],
+        "style": preset["style"],
+        "speed": preset["speed"],
+    }
 
 # ── Phase 8: Retry configuration ────────────────────────────────────
 _MAX_RETRIES = 5

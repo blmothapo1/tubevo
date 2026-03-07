@@ -2,6 +2,14 @@
 script_generator.py — Generate tight, punchy 3-minute video scripts
 using the OpenAI Chat Completions API.
 
+Includes:
+  - generate_script()           — full script from a topic
+  - generate_metadata()         — YouTube title/desc/tags from a script
+  - generate_hook_variations()  — 3 alternate opening hooks for a script
+  - regenerate_paragraph()      — rewrite one paragraph in context
+  - apply_tone_rewrite()        — rewrite a full script in a different tone
+  - estimate_read_time()        — spoken-word time estimate
+
 Usage:
     from script_generator import generate_script, generate_metadata
 
@@ -263,6 +271,95 @@ _TITLE_STYLE_INSTRUCTIONS: dict[str, str] = {
 }
 
 
+# ── Tone presets (Script Refinement — creator control) ───────────────
+
+TONE_PRESETS: dict[str, str] = {
+    "educational": (
+        "TONE: EDUCATIONAL\n"
+        "- Teach clearly with analogies and simple language.\n"
+        "- Use the 'explain like I'm smart but uninformed' approach.\n"
+        "- Structure information logically — build concept on concept.\n"
+        "- Include 'here's what this means for you' bridges after technical points.\n"
+        "- Pace: measured and deliberate. Let ideas breathe.\n"
+    ),
+    "energetic": (
+        "TONE: ENERGETIC\n"
+        "- High energy, fast-paced delivery. Punchy sentences.\n"
+        "- Use exclamation and emphasis naturally — not forced.\n"
+        "- Short paragraphs, rapid-fire insights.\n"
+        "- Create momentum — each point should feel like it's building to something bigger.\n"
+        "- Include verbal 'speed bumps' to prevent fatigue (brief pauses via shorter sentences).\n"
+    ),
+    "dramatic": (
+        "TONE: DRAMATIC\n"
+        "- Build tension and stakes. Make the viewer feel the weight of each point.\n"
+        "- Use contrast and juxtaposition ('most people do X… but the top 1% do Y').\n"
+        "- Longer, more cinematic sentences mixed with sharp one-liners.\n"
+        "- Create a sense of revelation — each section should feel like a curtain being pulled back.\n"
+        "- Pace: slow builds to powerful payoffs.\n"
+    ),
+    "humorous": (
+        "TONE: HUMOROUS\n"
+        "- Weave dry wit and relatable observations naturally into the content.\n"
+        "- Use unexpected analogies and self-aware commentary.\n"
+        "- Never sacrifice substance for a joke — humour reinforces the point.\n"
+        "- Include at least one callback or running gag that ties the script together.\n"
+        "- Pace: conversational, like talking to a clever friend over coffee.\n"
+    ),
+    "documentary": (
+        "TONE: DOCUMENTARY\n"
+        "- Authoritative, measured, and observational.\n"
+        "- Use third-person perspective where appropriate ('researchers found…').\n"
+        "- Layer facts with narrative context — 'why this matters' framing.\n"
+        "- Evoke imagery and setting ('Picture this…', 'In 2008, as markets collapsed…').\n"
+        "- Pace: deliberate and cinematic. Let silence do work between major points.\n"
+    ),
+}
+
+
+# ── Audience level modifiers ─────────────────────────────────────────
+
+AUDIENCE_LEVEL_MODIFIERS: dict[str, str] = {
+    "beginner": (
+        "AUDIENCE: BEGINNER\n"
+        "- Define every technical term when first used.\n"
+        "- Use everyday analogies to explain concepts.\n"
+        "- Assume no prior knowledge of the subject.\n"
+        "- Repeat key takeaways in slightly different words.\n"
+    ),
+    "general": (
+        "AUDIENCE: GENERAL\n"
+        "- Assume basic familiarity with the topic area.\n"
+        "- Define niche terms but skip obvious ones.\n"
+        "- Balance depth with accessibility.\n"
+    ),
+    "expert": (
+        "AUDIENCE: EXPERT\n"
+        "- Skip basic definitions — the viewer knows the fundamentals.\n"
+        "- Go deeper into nuance, edge cases, and advanced strategies.\n"
+        "- Reference specific frameworks, tools, or research by name.\n"
+        "- Challenge conventional wisdom with data-backed contrarian takes.\n"
+    ),
+}
+
+
+# ── Content uniqueness enhancement prompt fragment ───────────────────
+
+_UNIQUENESS_PROMPT = (
+    "\nCONTENT UNIQUENESS RULES:\n"
+    "- Write conversationally — as if explaining to one person, not a crowd.\n"
+    "- Use natural storytelling: setup → tension → resolution micro-arcs within each point.\n"
+    "- Vary sentence length deliberately: short punchy line. Then a longer, more flowing "
+    "sentence that draws the listener in and builds a rhythm they want to follow.\n"
+    "- Insert a pattern interrupt every ~20 seconds of spoken content (~50 words):\n"
+    "  a surprising stat, a rhetorical question, a perspective shift, or a 'but here's the thing' pivot.\n"
+    "- Avoid generic YouTube filler phrases: 'without further ado', 'in this video', 'let's dive in',\n"
+    "  'so without wasting any time', 'make sure to like and subscribe' (except at the very end).\n"
+    "- Every point must include at least ONE of: a specific number, a named example, a brief story,\n"
+    "  or a counterintuitive claim. No abstract advice.\n"
+)
+
+
 def _build_dynamic_tone(user_preferences: dict | None) -> str:
     """Build a dynamic system prompt tone based on user preferences.
 
@@ -308,6 +405,11 @@ def generate_script(
     user_preferences: dict | None = None,
     performance_profile: dict | None = None,
     api_key: str | None = None,
+    # ── Script Refinement: creator controls ──
+    tone: str | None = None,
+    audience_level: str | None = None,
+    emphasis_keywords: list[str] | None = None,
+    humor: bool = False,
 ) -> str:
     """Return a ~3-minute video script for the given *topic*.
 
@@ -325,6 +427,12 @@ def generate_script(
     Adaptive additions:
     - *performance_profile*: Dict from adaptive_engine with hook_mode,
       recommended_title_style, etc.
+
+    Script Refinement additions:
+    - *tone*: One of educational, energetic, dramatic, humorous, documentary.
+    - *audience_level*: One of beginner, general, expert.
+    - *emphasis_keywords*: List of keywords to weave prominently into the script.
+    - *humor*: If True, adds humorous elements even if tone is not 'humorous'.
     """
     # Determine hook mode from adaptive profile
     hook_mode = "balanced"
@@ -370,6 +478,35 @@ def generate_script(
         "- Avoid cliché YouTube opener patterns. Earn attention in the first 3 seconds.\n"
         "- If this topic has been covered by 100 other creators, find the angle they ALL missed.\n"
     )
+
+    # ── Content uniqueness enhancement ───────────────────────────────
+    system_prompt += _UNIQUENESS_PROMPT
+
+    # ── Creator controls: tone preset ────────────────────────────────
+    if tone and tone in TONE_PRESETS:
+        system_prompt += "\n" + TONE_PRESETS[tone]
+
+    # ── Creator controls: audience level ─────────────────────────────
+    if audience_level and audience_level in AUDIENCE_LEVEL_MODIFIERS:
+        system_prompt += "\n" + AUDIENCE_LEVEL_MODIFIERS[audience_level]
+
+    # ── Creator controls: emphasis keywords ──────────────────────────
+    if emphasis_keywords:
+        kw_list = ", ".join(emphasis_keywords[:10])
+        system_prompt += (
+            f"\nKEYWORD EMPHASIS:\n"
+            f"Naturally weave these keywords/concepts prominently throughout the script: {kw_list}.\n"
+            f"They should appear organically — never forced or stuffed.\n"
+        )
+
+    # ── Creator controls: humor toggle ───────────────────────────────
+    if humor and tone != "humorous":
+        system_prompt += (
+            "\nHUMOR INJECTION:\n"
+            "- Add light wit and relatable humor throughout the script.\n"
+            "- Include at least one unexpected analogy or playful observation.\n"
+            "- Keep it natural — the humor should serve the content, not distract.\n"
+        )
 
     # Phase 7: inject content-memory avoidance if present
     if avoidance_prompt:
@@ -490,6 +627,175 @@ def generate_metadata(
     metadata["tags"] = metadata.get("tags", []) + extra_tags
 
     return metadata
+
+
+# ── Hook variation generator ─────────────────────────────────────────
+
+def generate_hook_variations(
+    script: str,
+    topic: str,
+    *,
+    count: int = 3,
+    api_key: str | None = None,
+) -> list[str]:
+    """Generate *count* alternate opening hooks for the given script.
+
+    Each hook replaces the first paragraph (~10-15 seconds of spoken content).
+    Returns a list of hook strings (plain text, no headers).
+    """
+    # Extract the current hook (first paragraph)
+    paragraphs = [p.strip() for p in script.split("\n\n") if p.strip()]
+    current_hook = paragraphs[0] if paragraphs else script[:200]
+
+    system_prompt = (
+        "You are an expert YouTube scriptwriter specialising in hooks that stop the scroll.\n"
+        "Given a video script and its topic, generate exactly {count} ALTERNATIVE opening hooks.\n\n"
+        "RULES:\n"
+        "- Each hook must be 2-4 sentences (~10-15 seconds spoken).\n"
+        "- Each hook must use a DIFFERENT technique:\n"
+        "  1. Bold contrarian claim or shocking statistic\n"
+        "  2. Personal story setup or 'picture this' scenario\n"
+        "  3. Identity-based callout or myth-busting opener\n"
+        "- Each hook must create an open loop that compels the viewer to keep watching.\n"
+        "- Do NOT repeat the same information — each should take a genuinely different angle.\n"
+        "- Match the tone and style of the existing script.\n"
+        "- Return ONLY the hooks, separated by |||. No numbering, no labels, no explanation.\n"
+    ).format(count=count)
+
+    user_prompt = (
+        f"TOPIC: {topic}\n\n"
+        f"CURRENT HOOK:\n{current_hook}\n\n"
+        f"REST OF SCRIPT:\n{script[len(current_hook):]}\n\n"
+        f"Generate {count} alternative hooks, separated by |||"
+    )
+
+    raw = _call_openai_with_retry(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        max_tokens=600,
+        temperature=0.9,
+        api_key=api_key,
+    ).strip()
+
+    hooks = [h.strip() for h in raw.split("|||") if h.strip()]
+    logger.info("Generated %d hook variations for topic '%s'", len(hooks), topic[:40])
+    return hooks[:count]
+
+
+def regenerate_paragraph(
+    script: str,
+    paragraph_index: int,
+    topic: str,
+    *,
+    api_key: str | None = None,
+) -> str:
+    """Regenerate a single paragraph of the script while maintaining context.
+
+    *paragraph_index* is 0-based. Returns the new paragraph text.
+    """
+    paragraphs = [p.strip() for p in script.split("\n\n") if p.strip()]
+
+    if paragraph_index < 0 or paragraph_index >= len(paragraphs):
+        raise ValueError(f"paragraph_index {paragraph_index} out of range (script has {len(paragraphs)} paragraphs)")
+
+    target_paragraph = paragraphs[paragraph_index]
+    context_before = "\n\n".join(paragraphs[:paragraph_index]) if paragraph_index > 0 else "(start of script)"
+    context_after = "\n\n".join(paragraphs[paragraph_index + 1:]) if paragraph_index < len(paragraphs) - 1 else "(end of script)"
+
+    system_prompt = (
+        "You are an expert video scriptwriter. Rewrite ONLY the target paragraph below.\n\n"
+        "RULES:\n"
+        "- Keep the same approximate length and purpose as the original paragraph.\n"
+        "- Maintain consistency with the surrounding context.\n"
+        "- Make it more engaging, specific, and punchy.\n"
+        "- Use a fresh angle, better examples, or stronger language.\n"
+        "- Return ONLY the new paragraph text. No labels, no explanation.\n"
+    )
+
+    user_prompt = (
+        f"TOPIC: {topic}\n\n"
+        f"CONTEXT BEFORE:\n{context_before}\n\n"
+        f"PARAGRAPH TO REWRITE:\n{target_paragraph}\n\n"
+        f"CONTEXT AFTER:\n{context_after}\n\n"
+        f"Write a better version of the paragraph:"
+    )
+
+    new_paragraph = _call_openai_with_retry(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        max_tokens=300,
+        temperature=0.85,
+        api_key=api_key,
+    ).strip()
+
+    logger.info("Regenerated paragraph %d for topic '%s'", paragraph_index, topic[:40])
+    return new_paragraph
+
+
+def apply_tone_rewrite(
+    script: str,
+    tone: str,
+    *,
+    api_key: str | None = None,
+) -> str:
+    """Rewrite the entire script in the specified tone while preserving information.
+
+    *tone* is one of: educational, energetic, dramatic, humorous, documentary.
+    Returns the full rewritten script.
+    """
+    tone_instructions = TONE_PRESETS.get(tone)
+    if not tone_instructions:
+        raise ValueError(f"Unknown tone: {tone}. Choose from: {', '.join(TONE_PRESETS.keys())}")
+
+    system_prompt = (
+        "You are an expert video scriptwriter. Rewrite the following script in a different tone.\n\n"
+        f"{tone_instructions}\n"
+        "RULES:\n"
+        "- Preserve ALL factual information, examples, and key points.\n"
+        "- Keep the same approximate length (~450 words).\n"
+        "- Adjust the pacing, word choice, sentence structure, and energy to match the new tone.\n"
+        "- The rewrite should feel like a completely different delivery, not a minor edit.\n"
+        "- Return ONLY the rewritten script. No labels, no explanation.\n"
+    )
+
+    rewritten = _call_openai_with_retry(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Rewrite this script:\n\n{script}"},
+        ],
+        max_tokens=1200,
+        temperature=0.85,
+        api_key=api_key,
+    ).strip()
+
+    logger.info("Applied tone rewrite: %s (%d chars → %d chars)", tone, len(script), len(rewritten))
+    return rewritten
+
+
+def estimate_read_time(script: str) -> dict:
+    """Estimate the spoken read-time of a script.
+
+    Returns a dict with:
+      - words: total word count
+      - minutes: estimated minutes (at ~150 words/min spoken pace)
+      - display: formatted string like '2:45'
+    """
+    words = len(script.split())
+    total_seconds = int((words / 150) * 60)
+    minutes = total_seconds // 60
+    seconds = total_seconds % 60
+    return {
+        "words": words,
+        "minutes": round(words / 150, 2),
+        "display": f"{minutes}:{seconds:02d}",
+    }
 
 
 # ── Quick CLI test ──────────────────────────────────────────────────

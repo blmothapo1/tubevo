@@ -176,6 +176,536 @@ class VideoStats(BaseModel):
     plan: str = "free"
 
 
+# ── Script Refinement Schemas ────────────────────────────────────────
+
+class GenerateScriptRequest(BaseModel):
+    """Phase 1: Generate script only (fast, ~15s). No render."""
+    topic: str = Field(..., min_length=3, max_length=300)
+    tone: str | None = Field(None, description="One of: educational, energetic, dramatic, humorous, documentary")
+    audience_level: str | None = Field(None, description="One of: beginner, general, expert")
+    emphasis_keywords: list[str] | None = Field(None, max_length=10, description="Keywords to emphasize")
+    humor: bool = False
+
+    @field_validator("topic")
+    @classmethod
+    def sanitize_topic(cls, v: str) -> str:
+        return GenerateRequest.sanitize_topic(v)
+
+    @field_validator("tone")
+    @classmethod
+    def validate_tone(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("educational", "energetic", "dramatic", "humorous", "documentary"):
+            raise ValueError("tone must be one of: educational, energetic, dramatic, humorous, documentary")
+        return v
+
+    @field_validator("audience_level")
+    @classmethod
+    def validate_audience(cls, v: str | None) -> str | None:
+        if v is not None and v not in ("beginner", "general", "expert"):
+            raise ValueError("audience_level must be one of: beginner, general, expert")
+        return v
+
+
+class GenerateScriptResponse(BaseModel):
+    script: str
+    metadata: dict
+    read_time: dict
+    topic: str
+    video_id: str
+
+
+class HookVariationsRequest(BaseModel):
+    script: str = Field(..., min_length=50)
+    topic: str = Field(..., min_length=3, max_length=300)
+
+
+class HookVariationsResponse(BaseModel):
+    hooks: list[str]
+    current_hook: str
+
+
+class RegenerateParagraphRequest(BaseModel):
+    script: str = Field(..., min_length=50)
+    topic: str = Field(..., min_length=3, max_length=300)
+    paragraph_index: int = Field(..., ge=0)
+
+
+class RegenerateParagraphResponse(BaseModel):
+    new_paragraph: str
+    paragraph_index: int
+
+
+class ApplyToneRequest(BaseModel):
+    script: str = Field(..., min_length=50)
+    tone: str
+
+    @field_validator("tone")
+    @classmethod
+    def validate_tone(cls, v: str) -> str:
+        if v not in ("educational", "energetic", "dramatic", "humorous", "documentary"):
+            raise ValueError("tone must be one of: educational, energetic, dramatic, humorous, documentary")
+        return v
+
+
+class ApplyToneResponse(BaseModel):
+    script: str
+    tone: str
+    read_time: dict
+
+
+class RenderVideoRequest(BaseModel):
+    """Phase 2: Take a finalized script and render the full video."""
+    video_id: str = Field(..., description="The video_id from generate-script")
+    script: str = Field(..., min_length=50)
+    topic: str = Field(..., min_length=3, max_length=300)
+    voice_style: str | None = Field("storyteller", description="Voice style preset key")
+    metadata: dict | None = Field(None, description="Override metadata (title/desc/tags)")
+
+    @field_validator("voice_style")
+    @classmethod
+    def validate_voice_style(cls, v: str | None) -> str | None:
+        valid = ("storyteller", "documentary", "energetic", "calm", "dramatic")
+        if v is not None and v not in valid:
+            raise ValueError(f"voice_style must be one of: {', '.join(valid)}")
+        return v
+
+
+class VoiceStylesResponse(BaseModel):
+    styles: list[dict]
+
+
+# ── GET /api/videos/voice-styles — List available voice styles ────────
+
+@router.get("/voice-styles", response_model=VoiceStylesResponse)
+async def list_voice_styles(
+    current_user: User = Depends(get_current_user),
+):
+    """Return available voice style presets for the Script Refiner."""
+    project_root = str(Path(__file__).resolve().parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    from voiceover import VOICE_STYLE_PRESETS
+    styles = [
+        {
+            "key": key,
+            "label": preset["label"],
+            "description": preset["description"],
+        }
+        for key, preset in VOICE_STYLE_PRESETS.items()
+    ]
+    return VoiceStylesResponse(styles=styles)
+
+
+# ── POST /api/videos/generate-script — Phase 1: script only ─────────
+
+@router.post("/generate-script", response_model=GenerateScriptResponse)
+@limiter.limit("10/hour")
+async def generate_script_only(
+    request: Request,
+    body: GenerateScriptRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a script and metadata without starting the render pipeline.
+
+    This is the fast Phase 1 of the two-phase creation flow.
+    Returns the script for editing in the Script Refiner UI.
+    """
+    logger.info("User %s requested script generation: '%s'", current_user.email, body.topic)
+
+    # ── Fetch the user's OpenAI key ──────────────────────────────────
+    keys_result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = keys_result.scalar_one_or_none()
+
+    try:
+        openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+    except DecryptionFailedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Your saved API keys could not be decrypted ({exc.field_label}). Please re-enter them in Settings → API Keys.",
+        )
+
+    if not openai_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please add your OpenAI API key in Settings → API Keys before creating videos.",
+        )
+
+    # ── Enforce plan limit ───────────────────────────────────────────
+    await _enforce_plan_limit(current_user, db)
+
+    # ── Fetch user preferences ───────────────────────────────────────
+    user_prefs_dict: dict = {}
+    try:
+        prefs_stmt = select(UserPreferences).where(UserPreferences.user_id == current_user.id)
+        prefs_row = (await db.execute(prefs_stmt)).scalar_one_or_none()
+        if prefs_row:
+            import json as _json
+            user_prefs_dict = {
+                "niches": _json.loads(prefs_row.niches_json) if prefs_row.niches_json else [],
+                "tone_style": prefs_row.tone_style,
+                "target_audience": prefs_row.target_audience,
+                "channel_goal": prefs_row.channel_goal,
+            }
+    except Exception:
+        pass
+
+    # ── Fetch performance profile ────────────────────────────────────
+    perf_profile_dict: dict = {}
+    try:
+        perf_stmt = (
+            select(ContentPerformance)
+            .where(ContentPerformance.user_id == current_user.id)
+            .order_by(ContentPerformance.created_at.desc())
+            .limit(50)
+        )
+        perf_rows = (await db.execute(perf_stmt)).scalars().all()
+        if perf_rows:
+            raw_rows = [
+                {
+                    "title_style_used": getattr(r, "title_style_used", None),
+                    "thumbnail_concept_used": r.thumbnail_concept_used,
+                    "engagement_score": r.engagement_score,
+                    "ctr_pct": r.ctr_pct,
+                    "avg_view_duration_pct": r.avg_view_duration_pct,
+                }
+                for r in perf_rows
+            ]
+            from backend.adaptive_engine import get_user_performance_profile, profile_to_dict
+            profile = get_user_performance_profile(raw_rows)
+            perf_profile_dict = profile_to_dict(profile)
+    except Exception:
+        pass
+
+    # ── Create a "pending" video record (will be updated on render) ──
+    record = VideoRecord(
+        user_id=current_user.id,
+        topic=body.topic,
+        title=body.topic,
+        status="pending",
+    )
+    db.add(record)
+    await db.commit()
+    record_id = record.id
+
+    # ── Generate script + metadata in a thread (sync OpenAI calls) ───
+    project_root = str(Path(__file__).resolve().parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+    import script_generator
+
+    try:
+        script_kwargs: dict = {
+            "api_key": openai_key,
+        }
+        if user_prefs_dict:
+            script_kwargs["user_preferences"] = user_prefs_dict
+        if perf_profile_dict:
+            script_kwargs["performance_profile"] = perf_profile_dict
+        if body.tone:
+            script_kwargs["tone"] = body.tone
+        if body.audience_level:
+            script_kwargs["audience_level"] = body.audience_level
+        if body.emphasis_keywords:
+            script_kwargs["emphasis_keywords"] = body.emphasis_keywords
+        if body.humor:
+            script_kwargs["humor"] = body.humor
+
+        script_text = await asyncio.to_thread(
+            script_generator.generate_script, body.topic, **script_kwargs
+        )
+
+        metadata = await asyncio.to_thread(
+            script_generator.generate_metadata, script_text, body.topic,
+            api_key=openai_key,
+            user_preferences=user_prefs_dict if user_prefs_dict else None,
+            performance_profile=perf_profile_dict if perf_profile_dict else None,
+        )
+
+        read_time = script_generator.estimate_read_time(script_text)
+
+    except Exception as e:
+        # Mark the record as failed
+        record.status = "failed"
+        record.error_message = str(e)[:2000]
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Script generation failed: {str(e)[:300]}",
+        )
+
+    # ── Save script to the record ────────────────────────────────────
+    record.script_text = script_text
+    record.title = metadata.get("title", body.topic)
+    import json as _json
+    try:
+        record.metadata_json = _json.dumps(metadata)
+    except Exception:
+        pass
+    await db.commit()
+
+    return GenerateScriptResponse(
+        script=script_text,
+        metadata=metadata,
+        read_time=read_time,
+        topic=body.topic,
+        video_id=record_id,
+    )
+
+
+# ── POST /api/videos/generate-hooks — Hook variation generator ──────
+
+@router.post("/generate-hooks", response_model=HookVariationsResponse)
+@limiter.limit("20/hour")
+async def generate_hooks(
+    request: Request,
+    body: HookVariationsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate 3 alternate opening hooks for a script."""
+    keys_result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = keys_result.scalar_one_or_none()
+    try:
+        openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+    except DecryptionFailedError:
+        raise HTTPException(status_code=400, detail="API key decryption failed. Re-enter in Settings.")
+    if not openai_key:
+        raise HTTPException(status_code=400, detail="OpenAI API key required.")
+
+    project_root = str(Path(__file__).resolve().parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    import script_generator
+
+    try:
+        hooks = await asyncio.to_thread(
+            script_generator.generate_hook_variations,
+            body.script, body.topic, api_key=openai_key,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Hook generation failed: {str(e)[:300]}")
+
+    # Extract current hook
+    paragraphs = [p.strip() for p in body.script.split("\n\n") if p.strip()]
+    current_hook = paragraphs[0] if paragraphs else body.script[:200]
+
+    return HookVariationsResponse(hooks=hooks, current_hook=current_hook)
+
+
+# ── POST /api/videos/regenerate-paragraph ────────────────────────────
+
+@router.post("/regenerate-paragraph", response_model=RegenerateParagraphResponse)
+@limiter.limit("30/hour")
+async def regenerate_paragraph_endpoint(
+    request: Request,
+    body: RegenerateParagraphRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Regenerate a single paragraph of a script."""
+    keys_result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = keys_result.scalar_one_or_none()
+    try:
+        openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+    except DecryptionFailedError:
+        raise HTTPException(status_code=400, detail="API key decryption failed. Re-enter in Settings.")
+    if not openai_key:
+        raise HTTPException(status_code=400, detail="OpenAI API key required.")
+
+    project_root = str(Path(__file__).resolve().parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    import script_generator
+
+    try:
+        new_para = await asyncio.to_thread(
+            script_generator.regenerate_paragraph,
+            body.script, body.paragraph_index, body.topic, api_key=openai_key,
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Paragraph regeneration failed: {str(e)[:300]}")
+
+    return RegenerateParagraphResponse(new_paragraph=new_para, paragraph_index=body.paragraph_index)
+
+
+# ── POST /api/videos/apply-tone — Rewrite script in a different tone ─
+
+@router.post("/apply-tone", response_model=ApplyToneResponse)
+@limiter.limit("15/hour")
+async def apply_tone_endpoint(
+    request: Request,
+    body: ApplyToneRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rewrite a script in a different tone (educational, energetic, etc.)."""
+    keys_result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = keys_result.scalar_one_or_none()
+    try:
+        openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+    except DecryptionFailedError:
+        raise HTTPException(status_code=400, detail="API key decryption failed. Re-enter in Settings.")
+    if not openai_key:
+        raise HTTPException(status_code=400, detail="OpenAI API key required.")
+
+    project_root = str(Path(__file__).resolve().parent.parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    import script_generator
+
+    try:
+        rewritten = await asyncio.to_thread(
+            script_generator.apply_tone_rewrite,
+            body.script, body.tone, api_key=openai_key,
+        )
+        read_time = script_generator.estimate_read_time(rewritten)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tone rewrite failed: {str(e)[:300]}")
+
+    return ApplyToneResponse(script=rewritten, tone=body.tone, read_time=read_time)
+
+
+# ── POST /api/videos/render — Phase 2: Render the video ─────────────
+
+@router.post("/render", response_model=GenerateResponse)
+@limiter.limit("5/hour")
+async def render_video(
+    request: Request,
+    body: RenderVideoRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Phase 2: Take a finalized script and kick off the full render pipeline.
+
+    Expects a video_id from the generate-script phase. The record must exist
+    and belong to the current user.
+    """
+    logger.info("User %s requested video render for record %s", current_user.email, body.video_id)
+
+    # ── Verify the record exists and belongs to the user ─────────────
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == body.video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video record not found.")
+    if record.status == "generating":
+        raise HTTPException(status_code=409, detail="This video is already being rendered.")
+    if record.status in ("completed", "posted"):
+        raise HTTPException(status_code=409, detail="This video has already been rendered.")
+
+    # ── Fetch user API keys ──────────────────────────────────────────
+    keys_result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = keys_result.scalar_one_or_none()
+    try:
+        openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+        elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
+        pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+        pixabay_key = decrypt_or_raise(user_keys.pixabay_api_key, field="pixabay_api_key") if user_keys and getattr(user_keys, "pixabay_api_key", None) else ""
+    except DecryptionFailedError as exc:
+        raise HTTPException(status_code=400, detail=f"API key decryption failed ({exc.field_label}). Re-enter in Settings.")
+
+    if not openai_key:
+        raise HTTPException(status_code=400, detail="OpenAI API key required.")
+    if not elevenlabs_key:
+        raise HTTPException(status_code=400, detail="ElevenLabs API key required.")
+
+    user_api_keys = {
+        "openai_api_key": openai_key,
+        "elevenlabs_api_key": elevenlabs_key,
+        "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
+        "pexels_api_key": pexels_key,
+        "pixabay_api_key": pixabay_key,
+        "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
+        "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
+        "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
+        # Pass the voice style for the render pipeline
+        "_voice_style": body.voice_style or "storyteller",
+        # Pass the refined script so the pipeline doesn't regenerate it
+        "_refined_script": body.script,
+        "_refined_metadata": body.metadata,
+    }
+
+    # ── Fetch YouTube OAuth tokens ───────────────────────────────────
+    oauth_result = await db.execute(
+        select(OAuthToken).where(
+            OAuthToken.user_id == current_user.id,
+            OAuthToken.provider == "google",
+        )
+    )
+    oauth_token = oauth_result.scalar_one_or_none()
+    yt_access_token: str | None = None
+    yt_refresh_token: str | None = None
+    if oauth_token:
+        try:
+            yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token")
+            yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token")
+        except DecryptionFailedError:
+            yt_access_token = None
+            yt_refresh_token = None
+
+    # ── Per-user in-flight guard ─────────────────────────────────────
+    async with _user_inflight_lock:
+        if current_user.id in _user_inflight:
+            raise HTTPException(status_code=409, detail="You already have a video rendering. Please wait.")
+
+    # ── Update the record to "generating" ────────────────────────────
+    record.status = "generating"
+    record.script_text = body.script
+    record.title = (body.metadata or {}).get("title", record.title)
+    if body.metadata:
+        import json as _json
+        try:
+            record.metadata_json = _json.dumps(body.metadata)
+        except Exception:
+            pass
+    record.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    # ── Admin event ──────────────────────────────────────────────────
+    async with async_session_factory() as ev_db:
+        await emit_event(ev_db, "video_started", user_id=current_user.id, video_id=record.id, meta={"topic": body.topic})
+        await ev_db.commit()
+
+    # ── Fire off the render pipeline ─────────────────────────────────
+    asyncio.create_task(
+        _run_pipeline_background(
+            record_id=record.id,
+            topic=body.topic,
+            user_id=current_user.id,
+            user_api_keys=user_api_keys,
+            yt_access_token=yt_access_token,
+            yt_refresh_token=yt_refresh_token,
+        )
+    )
+
+    return GenerateResponse(
+        status="generating",
+        topic=body.topic,
+        message="Video render started! This takes 2-4 minutes.",
+        video_id=record.id,
+    )
+
+
 # ── POST /api/videos/generate ────────────────────────────────────────
 
 @router.post("/generate", response_model=GenerateResponse)
@@ -1011,6 +1541,7 @@ def _run_pipeline_locked(
     _pexels_key = user_api_keys.get("pexels_api_key") or ""
     _pixabay_key = user_api_keys.get("pixabay_api_key") or ""
 
+    import config
     import script_generator
 
     result: dict = {"title": topic}
@@ -1031,59 +1562,97 @@ def _run_pipeline_locked(
             logger.warning("Phase 7: variation engine failed (non-fatal, using defaults): %s", var_err)
 
         # ── Step 1: Generate script ──────────────────────────────────
-        _report("Generating script…", 5)
-        logger.info("Pipeline step 1/5: Generating script for '%s'", topic)
-        script_kwargs: dict = {}
-        if variation_ctx:
-            script_kwargs["temperature"] = variation_ctx.script_temperature
-            script_kwargs["avoidance_prompt"] = variation_ctx.avoidance_prompt
-        # Inject user preferences for adaptive generation
+        # If a refined script was provided (from the Script Refiner),
+        # skip generation and use it directly.
+        _refined_script = user_api_keys.get("_refined_script")
+        _refined_metadata = user_api_keys.get("_refined_metadata")
+
+        # User preferences and performance profile (used in adaptive generation)
         _user_prefs = user_api_keys.get("_user_preferences", {})
         _perf_profile = user_api_keys.get("_performance_profile", {})
-        if _user_prefs:
-            script_kwargs["user_preferences"] = _user_prefs
-        if _perf_profile:
-            script_kwargs["performance_profile"] = _perf_profile
-        script = script_generator.generate_script(topic, api_key=_openai_key, **script_kwargs)
-        (run_dir / "latest_script.txt").write_text(script, encoding="utf-8")
-        result["_script_text"] = script
-        logger.info("Pipeline step 1/5: Script generated (%d chars)", len(script))
-        _report("Script ready", 15)
+
+        if _refined_script:
+            _report("Using your refined script…", 5)
+            script = _refined_script
+            (run_dir / "latest_script.txt").write_text(script, encoding="utf-8")
+            result["_script_text"] = script
+            logger.info("Pipeline step 1/5: Using refined script (%d chars)", len(script))
+            _report("Script ready", 15)
+        else:
+            _report("Generating script…", 5)
+            logger.info("Pipeline step 1/5: Generating script for '%s'", topic)
+            script_kwargs: dict = {}
+            if variation_ctx:
+                script_kwargs["temperature"] = variation_ctx.script_temperature
+                script_kwargs["avoidance_prompt"] = variation_ctx.avoidance_prompt
+            if _user_prefs:
+                script_kwargs["user_preferences"] = _user_prefs
+            if _perf_profile:
+                script_kwargs["performance_profile"] = _perf_profile
+            script = script_generator.generate_script(topic, api_key=_openai_key, **script_kwargs)
+            (run_dir / "latest_script.txt").write_text(script, encoding="utf-8")
+            result["_script_text"] = script
+            logger.info("Pipeline step 1/5: Script generated (%d chars)", len(script))
+            _report("Script ready", 15)
 
         # ── Step 2: Generate metadata ────────────────────────────────
-        _report("Generating metadata…", 18)
-        logger.info("Pipeline step 2/5: Generating metadata")
-        meta_kwargs: dict = {}
-        if variation_ctx:
-            meta_kwargs["temperature"] = variation_ctx.metadata_temperature
-            meta_kwargs["avoidance_prompt"] = variation_ctx.metadata_avoidance
-        if _user_prefs:
-            meta_kwargs["user_preferences"] = _user_prefs
-        if _perf_profile:
-            meta_kwargs["performance_profile"] = _perf_profile
-        metadata = script_generator.generate_metadata(script, topic, api_key=_openai_key, **meta_kwargs)
-        result["title"] = metadata.get("title", topic)
-        result["_metadata"] = metadata
-        logger.info("Pipeline step 2/5: Metadata ready — title: %s", result["title"])
-        _report("Metadata ready", 22)
+        if _refined_metadata:
+            _report("Using your metadata…", 18)
+            metadata = _refined_metadata
+            # Merge default tags
+            extra_tags = [t for t in config.DEFAULT_TAGS if t not in metadata.get("tags", [])]
+            metadata["tags"] = metadata.get("tags", []) + extra_tags
+            result["title"] = metadata.get("title", topic)
+            result["_metadata"] = metadata
+            logger.info("Pipeline step 2/5: Using refined metadata — title: %s", result["title"])
+            _report("Metadata ready", 22)
+        else:
+            _report("Generating metadata…", 18)
+            logger.info("Pipeline step 2/5: Generating metadata")
+            meta_kwargs: dict = {}
+            if variation_ctx:
+                meta_kwargs["temperature"] = variation_ctx.metadata_temperature
+                meta_kwargs["avoidance_prompt"] = variation_ctx.metadata_avoidance
+            if _user_prefs:
+                meta_kwargs["user_preferences"] = _user_prefs
+            if _perf_profile:
+                meta_kwargs["performance_profile"] = _perf_profile
+            metadata = script_generator.generate_metadata(script, topic, api_key=_openai_key, **meta_kwargs)
+            result["title"] = metadata.get("title", topic)
+            result["_metadata"] = metadata
+            logger.info("Pipeline step 2/5: Metadata ready — title: %s", result["title"])
+            _report("Metadata ready", 22)
 
         # ── Step 3: Generate voiceover ───────────────────────────────
         _report("Generating voiceover…", 25)
         logger.info("Pipeline step 3/5: Generating voiceover")
         import voiceover as voiceover_mod
 
-        # Phase 7: voice tone variation — pass jittered stability/similarity/style
+        # Voice style preset — from Script Refiner or variation engine
+        _voice_style_key = user_api_keys.get("_voice_style")
         voice_kwargs: dict = {
-            "speed": float(user_api_keys["speech_speed"]) if user_api_keys.get("speech_speed") else None,
             "output_path": str(run_dir / "voiceover.mp3"),
             "api_key": _elevenlabs_key,
         }
         if user_api_keys.get("elevenlabs_voice_id"):
             voice_kwargs["voice_id"] = user_api_keys["elevenlabs_voice_id"]
-        if variation_ctx:
+
+        # Apply voice style preset parameters
+        if _voice_style_key:
+            style_params = voiceover_mod.get_voice_style_params(_voice_style_key)
+            voice_kwargs["stability"] = style_params["stability"]
+            voice_kwargs["similarity_boost"] = style_params["similarity_boost"]
+            voice_kwargs["style"] = style_params["style"]
+            voice_kwargs["speed"] = style_params["speed"]
+            logger.info("Using voice style preset: %s", _voice_style_key)
+        elif variation_ctx:
             voice_kwargs["stability"] = variation_ctx.voice_params.stability
             voice_kwargs["similarity_boost"] = variation_ctx.voice_params.similarity_boost
             voice_kwargs["style"] = variation_ctx.voice_params.style
+
+        # Override speed from user settings if explicitly set
+        if user_api_keys.get("speech_speed"):
+            voice_kwargs["speed"] = float(user_api_keys["speech_speed"])
 
         audio_path = voiceover_mod.generate_voiceover(script, **voice_kwargs)
         result["_voice_id"] = voice_kwargs.get("voice_id") or voiceover_mod.DEFAULT_VOICE_ID
