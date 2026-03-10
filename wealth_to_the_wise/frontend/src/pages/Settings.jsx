@@ -1101,59 +1101,69 @@ function Toggle({ label, description, checked, onChange }) {
 
 /* ── Plan ────────────────────────────────────────────────────── */
 function PlanTab({ plan }) {
-  const [loading, setLoading] = useState(null);
+  const [portalLoading, setPortalLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const plans = [
-    { key: 'free', name: 'Free', price: '$0', period: '/mo', features: ['1 video/month', 'Basic templates', 'Community support'], color: 'from-surface-400 to-surface-500' },
-    { key: 'starter', name: 'Starter', price: '$29', period: '/mo', features: ['10 videos/month', 'All voices', 'Email support', 'Stock footage'], color: 'from-blue-500 to-blue-600' },
-    { key: 'pro', name: 'Pro', price: '$79', period: '/mo', features: ['50 videos/month', 'Custom branding', 'Priority support', 'Analytics', 'Auto-scheduling'], color: 'from-brand-500 to-brand-600', popular: true },
-    { key: 'agency', name: 'Agency', price: '$199', period: '/mo', features: ['Unlimited videos', 'Multi-channel', 'API access', 'Dedicated manager', 'White label'], color: 'from-amber-500 to-amber-600' },
-  ];
+  // Load Stripe Pricing Table script once
+  useEffect(() => {
+    if (document.querySelector('script[src*="pricing-table.js"]')) return;
+    const script = document.createElement('script');
+    script.src = 'https://js.stripe.com/v3/pricing-table.js';
+    script.async = true;
+    document.head.appendChild(script);
+  }, []);
 
-  async function handlePlanAction(planKey) {
+  async function handleManageSubscription() {
     setError('');
-    if (planKey === 'free') {
-      setLoading('free');
-      try {
-        const { data } = await api.get('/billing/portal');
-        window.location.href = data.portal_url;
-      } catch (err) {
-        const detail = err.response?.data?.detail;
-        if (err.response?.status === 503) setError('Billing is not configured yet.');
-        else if (err.response?.status === 404) setError('No billing account found.');
-        else setError(detail || 'Could not open billing portal.');
-      } finally {
-        setLoading(null);
-      }
-      return;
-    }
-
-    setLoading(planKey);
+    setPortalLoading(true);
     try {
-      const { data } = await api.post('/billing/create-checkout-session', { plan: planKey });
-      window.location.href = data.checkout_url;
+      const { data } = await api.get('/billing/portal');
+      window.location.href = data.portal_url;
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (err.response?.status === 503) setError('Billing is not configured yet.');
-      else setError(detail || 'Could not start checkout.');
+      else if (err.response?.status === 404) setError('No active subscription found.');
+      else setError(detail || 'Could not open billing portal.');
     } finally {
-      setLoading(null);
+      setPortalLoading(false);
     }
   }
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
-          <CreditCard size={16} className="text-brand-400" />
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-[10px] bg-brand-500/10 flex items-center justify-center">
+            <CreditCard size={16} className="text-brand-400" />
+          </div>
+          <div>
+            <h3 className="text-[15px] font-semibold text-white">Your Plan</h3>
+            <p className="text-[12px] text-surface-600">
+              Current plan: <span className="text-white font-medium capitalize">{plan}</span>
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-[15px] font-semibold text-white">Your Plan</h3>
-          <p className="text-[12px] text-surface-600">Upgrade or manage your subscription</p>
-        </div>
+
+        {/* Manage Subscription — only show if user has a paid plan */}
+        {plan !== 'free' && (
+          <motion.button
+            onClick={handleManageSubscription}
+            disabled={portalLoading}
+            whileTap={{ scale: 0.98 }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-surface-700 bg-surface-200/50 hover:bg-surface-200/80 transition-colors disabled:opacity-50"
+          >
+            {portalLoading ? (
+              <RefreshCw size={12} className="animate-spin" />
+            ) : (
+              <ExternalLink size={12} />
+            )}
+            Manage Subscription
+          </motion.button>
+        )}
       </div>
 
+      {/* Error message */}
       <AnimatePresence>
         {error && (
           <motion.div
@@ -1167,67 +1177,18 @@ function PlanTab({ plan }) {
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {plans.map((p, i) => (
-          <motion.div
-            key={p.key}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, delay: 0.04 * i, ease }}
-            className={`relative rounded-lg p-5 transition-all ${
-              plan === p.key
-                ? 'bg-brand-500/10 ring-1 ring-brand-500/30'
-                : 'bg-surface-200/30 hover:bg-surface-200/50'
-            }`}
-          >
-            {p.popular && (
-              <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[9px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded bg-brand-500 text-white">
-                Popular
-              </span>
-            )}
-            <div className={`w-7 h-7 rounded bg-gradient-to-br ${p.color} flex items-center justify-center mb-2`}>
-              <CreditCard size={12} className="text-white" />
-            </div>
-            <p className="text-sm font-semibold text-white">{p.name}</p>
-            <p className="mt-1">
-              <span className="text-2xl font-bold text-white">{p.price}</span>
-              <span className="text-xs text-surface-500">{p.period}</span>
-            </p>
-            <ul className="mt-5 space-y-3">
-              {p.features.map((f) => (
-                <li key={f} className="text-xs text-surface-600 flex items-center gap-2">
-                  <Check size={12} className="text-brand-400 shrink-0" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-            {plan === p.key ? (
-              <span className="inline-block mt-4 text-xs font-semibold text-brand-400">
-                ✓ Current Plan
-              </span>
-            ) : (
-              <motion.button
-                onClick={() => handlePlanAction(p.key)}
-                disabled={loading !== null}
-                whileTap={{ scale: 0.98 }}
-                className={`mt-3 w-full px-3 py-2 rounded text-xs font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
-                  p.key === 'free'
-                    ? 'bg-surface-300/60 text-surface-700 hover:bg-surface-400/60'
-                    : 'btn-primary'
-                }`}
-              >
-                {loading === p.key ? (
-                  <RefreshCw size={12} className="animate-spin" />
-                ) : p.key === 'free' ? (
-                  'Downgrade'
-                ) : (
-                  'Upgrade'
-                )}
-              </motion.button>
-            )}
-          </motion.div>
-        ))}
-      </div>
+      {/* Stripe Pricing Table */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease }}
+        className="rounded-xl overflow-hidden"
+      >
+        <stripe-pricing-table
+          pricing-table-id="prctbl_1T9WsoEi8DhCMyZZHVnqitjz"
+          publishable-key="pk_live_51T48CtEi8DhCMyZZJ1PGcAXXAkBSPeS8dDtwyIvDOA2rTZzWQ73jmWEVO4KYXzeAtzdAELvXhuTkvE3JRRH4339a00pLa3AUoH"
+        />
+      </motion.div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Mic, Upload, Target, CalendarClock, Zap, Check, ArrowRight, Loader2,
+  Sparkles, Mic, Upload, Target, CalendarClock, Zap, ArrowRight, Loader2,
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -15,33 +15,6 @@ const features = [
   { icon: Target, title: 'Smart Positioning', desc: 'Content aligned to your niche for stronger relevance and reach.', color: 'from-amber-500/20 to-amber-500/5', iconColor: 'text-amber-400' },
   { icon: CalendarClock, title: 'Strategic Scheduling', desc: 'Publish consistently with structured cadence and control.', color: 'from-cyan-500/20 to-cyan-500/5', iconColor: 'text-cyan-400' },
   { icon: Zap, title: 'Pure Focus', desc: 'Focus on ideas while Tubevo handles execution.', color: 'from-rose-500/20 to-rose-500/5', iconColor: 'text-rose-400' },
-];
-
-const tiers = [
-  {
-    name: 'Starter',
-    price: '$29',
-    period: '/mo',
-    features: ['10 videos/month', 'All voices', 'Email support', 'Stock footage'],
-    cta: 'Start with Starter',
-    popular: false,
-  },
-  {
-    name: 'Pro',
-    price: '$79',
-    period: '/mo',
-    features: ['50 videos/month', 'Custom branding', 'Priority support', 'Analytics', 'Auto-scheduling'],
-    cta: 'Start with Pro',
-    popular: true,
-  },
-  {
-    name: 'Agency',
-    price: '$199',
-    period: '/mo',
-    features: ['Unlimited videos', 'Multi-channel', 'API access', 'Dedicated manager', 'White label'],
-    cta: 'Start with Agency',
-    popular: false,
-  },
 ];
 
 const stagger = {
@@ -63,6 +36,16 @@ export default function Landing() {
     api.get('/api/waitlist/count')
       .then(res => setWaitlistCount(res.data.count))
       .catch(() => {});
+  }, []);
+
+  // Load Stripe Pricing Table script
+  useEffect(() => {
+    if (!document.querySelector('script[src="https://js.stripe.com/v3/pricing-table.js"]')) {
+      const script = document.createElement('script');
+      script.src = 'https://js.stripe.com/v3/pricing-table.js';
+      script.async = true;
+      document.head.appendChild(script);
+    }
   }, []);
 
   const handleWaitlistSubmit = async (e) => {
@@ -276,50 +259,16 @@ export default function Landing() {
           </motion.div>
 
           <motion.div
-            initial="hidden"
-            whileInView="visible"
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-60px' }}
-            variants={stagger}
-            className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8"
+            transition={{ duration: 0.5, ease }}
+            className="rounded-xl overflow-hidden"
           >
-            {tiers.map((tier) => (
-              <motion.div
-                key={tier.name}
-                variants={fadeUp}
-                className={`relative card p-7 flex flex-col ${
-                  tier.popular ? 'ring-1 ring-brand-500/30 border-brand-500/20' : ''
-                }`}
-              >
-                {tier.popular && (
-                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-[6px]">
-                    Most popular
-                  </span>
-                )}
-                <h3 className="text-[16px] font-semibold text-white">{tier.name}</h3>
-                <div className="mt-5 mb-7">
-                  <span className="text-[32px] font-bold text-white tracking-tight">{tier.price}</span>
-                  <span className="text-surface-600 text-[13px] ml-1">{tier.period}</span>
-                </div>
-                <ul className="space-y-4 flex-1">
-                  {tier.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-[13px] text-surface-700">
-                      <Check size={14} className="text-brand-400 mt-0.5 shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to="/signup"
-                  className={`mt-8 text-center text-[13px] font-semibold py-3 rounded-[10px] transition-all duration-150 block ${
-                    tier.popular
-                      ? 'btn-primary w-full'
-                      : 'btn-secondary w-full'
-                  }`}
-                >
-                  {tier.cta}
-                </Link>
-              </motion.div>
-            ))}
+            <stripe-pricing-table
+              pricing-table-id="prctbl_1T9WsoEi8DhCMyZZHVnqitjz"
+              publishable-key="pk_live_51T48CtEi8DhCMyZZJ1PGcAXXAkBSPeS8dDtwyIvDOA2rTZzWQ73jmWEVO4KYXzeAtzdAELvXhuTkvE3JRRH4339a00pLa3AUoH"
+            />
           </motion.div>
         </div>
       </section>
