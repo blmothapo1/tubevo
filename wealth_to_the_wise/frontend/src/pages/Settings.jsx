@@ -118,7 +118,7 @@ export default function Settings() {
           {activeTab === 'video' && <VideoPreferencesTab />}
           {activeTab === 'youtube' && <YouTubeTab />}
           {activeTab === 'notifications' && <NotificationsTab />}
-          {activeTab === 'plan' && <PlanTab plan={user?.plan || 'free'} />}
+          {activeTab === 'plan' && <PlanTab plan={user?.plan || 'free'} userId={user?.id} userEmail={user?.email} />}
           {activeTab === 'usage' && <UsageTab />}
         </motion.div>
       </AnimatePresence>
@@ -1100,7 +1100,7 @@ function Toggle({ label, description, checked, onChange }) {
 }
 
 /* ── Plan ────────────────────────────────────────────────────── */
-function PlanTab({ plan }) {
+function PlanTab({ plan, userId, userEmail }) {
   const [portalLoading, setPortalLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -1187,6 +1187,8 @@ function PlanTab({ plan }) {
         <stripe-pricing-table
           pricing-table-id="prctbl_1T9WsoEi8DhCMyZZHVnqitjz"
           publishable-key="pk_live_51T48CtEi8DhCMyZZJ1PGcAXXAkBSPeS8dDtwyIvDOA2rTZzWQ73jmWEVO4KYXzeAtzdAELvXhuTkvE3JRRH4339a00pLa3AUoH"
+          client-reference-id={userId || ''}
+          customer-email={userEmail || ''}
         />
       </motion.div>
     </div>

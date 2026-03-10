@@ -170,28 +170,53 @@ async def stripe_webhook(
 
     if event_type == "checkout.session.completed":
         user_id = data.get("client_reference_id") or data.get("metadata", {}).get("user_id")
-        plan = data.get("metadata", {}).get("plan", "pro")
+        plan = data.get("metadata", {}).get("plan")
         customer_id = data.get("customer")
+
+        # ── Resolve plan from subscription price ID if metadata is missing ──
+        # (Stripe Pricing Table doesn't pass custom metadata; we reverse-lookup
+        #  the plan name from the price ID on the subscription.)
+        if not plan:
+            sub_id = data.get("subscription")
+            if sub_id:
+                try:
+                    sub = stripe.Subscription.retrieve(sub_id)
+                    items = sub.get("items", {}).get("data", [])
+                    price_id = items[0]["price"]["id"] if items else None
+                    if price_id:
+                        for pname, pid in _get_price_map().items():
+                            if pid == price_id:
+                                plan = pname
+                                break
+                except Exception:
+                    logger.warning("Could not resolve plan from subscription %s", sub_id, exc_info=True)
+            if not plan:
+                plan = "pro"  # safe fallback
+
         if user_id:
             from sqlalchemy import select
             result = await db.execute(select(User).where(User.id == user_id))
             user = result.scalar_one_or_none()
-            if user:
-                user.plan = plan
-                # Store the Stripe customer ID for future webhook lookups
-                if customer_id:
-                    user.stripe_customer_id = customer_id
-                db.add(user)
-                await db.commit()
-                logger.info("User %s upgraded to %s plan (stripe_customer=%s).", user.email, plan, customer_id)
-                # Send plan upgrade email
-                try:
-                    from backend.services.email_service import send_plan_upgrade_email
-                    await send_plan_upgrade_email(to=user.email, plan=plan)
-                except Exception:
-                    logger.warning("Failed to send plan upgrade email to %s", user.email, exc_info=True)
-            else:
-                logger.warning("Webhook: user_id %s not found in DB.", user_id)
+        else:
+            # No client_reference_id — try to find user via Stripe customer email
+            user = await _find_user_by_customer_id(db, customer_id)
+
+        if user:
+            user.plan = plan
+            # Store the Stripe customer ID for future webhook lookups
+            if customer_id:
+                user.stripe_customer_id = customer_id
+            db.add(user)
+            await db.commit()
+            logger.info("User %s upgraded to %s plan (stripe_customer=%s).", user.email, plan, customer_id)
+            # Send plan upgrade email
+            try:
+                from backend.services.email_service import send_plan_upgrade_email
+                await send_plan_upgrade_email(to=user.email, plan=plan)
+            except Exception:
+                logger.warning("Failed to send plan upgrade email to %s", user.email, exc_info=True)
+        else:
+            logger.warning("Webhook checkout.session.completed: could not find user (user_id=%s, customer=%s).", user_id, customer_id)
 
     elif event_type == "customer.subscription.deleted":
         # Subscription cancelled — look up user via stored Stripe customer ID
