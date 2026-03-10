@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonVideoList } from '../components/Skeleton';
@@ -29,6 +30,10 @@ import {
   Trash2,
   FileText,
   PenLine,
+  CreditCard,
+  ArrowRight,
+  Zap,
+  X,
 } from 'lucide-react';
 
 const ease = [0.25, 0.1, 0.25, 1];
@@ -108,6 +113,7 @@ function RenderProgressBar({ pct, step, startedAt }) {
 }
 
 export default function Videos() {
+  const navigate = useNavigate();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [topic, setTopic] = useState('');
@@ -141,6 +147,20 @@ export default function Videos() {
   const [creationPhase, setCreationPhase] = useState('topic');
   const [scriptData, setScriptData] = useState(null); // { script, metadata, readTime, topic, videoId }
   const [scriptLoading, setScriptLoading] = useState(false);
+
+  // ── Plan quota state ──
+  const [quota, setQuota] = useState(null); // { monthly_used, monthly_limit, plan }
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // ── Fetch quota on mount and after video creation ──
+  const fetchQuota = useCallback(async () => {
+    try {
+      const { data } = await api.get('/api/videos/stats');
+      setQuota({ monthly_used: data.monthly_used, monthly_limit: data.monthly_limit, plan: data.plan });
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { fetchQuota(); }, [fetchQuota]);
 
   async function fetchSuggestions() {
     setSuggestionsLoading(true);
@@ -235,6 +255,7 @@ export default function Videos() {
           triggerFirstVideoConfetti();
         }
         fetchVideos();
+        fetchQuota();
       } catch (err) {
         pollFailCountRef.current += 1;
         // Stop polling after 10 consecutive failures (e.g. 401 auth expired)
@@ -295,13 +316,14 @@ export default function Videos() {
       setTopic('');
       setMessage({ type: '', text: '' });
       fetchVideos(); // Refresh list to show the new pending record
+      fetchQuota(); // Refresh quota after creating
 
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (err.response?.status === 429) {
         setMessage({ type: 'error', text: 'Rate limit reached. Try again later.' });
       } else if (err.response?.status === 403) {
-        setMessage({ type: 'error', text: detail || 'You have reached your plan limit this month.' });
+        setShowUpgradeModal(true);
       } else {
         setMessage({ type: 'error', text: detail || 'Script generation failed. Please try again.' });
       }
@@ -404,6 +426,8 @@ export default function Videos() {
       const detail = err.response?.data?.detail;
       if (err.response?.status === 409) {
         setMessage({ type: 'error', text: detail || 'A video is already in production. Please wait for it to finish.' });
+      } else if (err.response?.status === 403) {
+        setShowUpgradeModal(true);
       } else {
         setMessage({ type: 'error', text: detail || 'Retry failed.' });
       }
@@ -434,6 +458,63 @@ export default function Videos() {
       {/* Confetti on first successful video — additive */}
       <ConfettiCelebration show={showConfetti} onDone={() => setShowConfetti(false)} />
 
+      {/* ── Upgrade Modal ── */}
+      <AnimatePresence>
+        {showUpgradeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+            onClick={() => setShowUpgradeModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ duration: 0.2, ease }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-sm rounded-xl bg-surface-200 border border-[var(--border-subtle)] p-8 text-center space-y-5"
+            >
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="absolute top-3 right-3 p-1.5 rounded-md text-surface-600 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                <X size={14} />
+              </button>
+              <div className="w-14 h-14 rounded-2xl bg-brand-500/10 flex items-center justify-center mx-auto">
+                <Zap size={24} className="text-brand-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Monthly limit reached</h3>
+                <p className="text-[13px] text-surface-600 mt-2 leading-relaxed">
+                  You've used all <span className="text-white font-medium">{quota?.monthly_limit || 1}</span> video{(quota?.monthly_limit || 1) !== 1 ? 's' : ''} on
+                  your <span className="text-white font-medium capitalize">{quota?.plan || 'Free'}</span> plan this month.
+                  Upgrade to keep creating.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setShowUpgradeModal(false); navigate('/settings?tab=plan'); }}
+                  className="btn-primary w-full flex items-center justify-center gap-2 py-2.5 text-sm"
+                >
+                  <CreditCard size={14} />
+                  Upgrade Plan
+                  <ArrowRight size={14} />
+                </motion.button>
+                <button
+                  onClick={() => setShowUpgradeModal(false)}
+                  className="text-xs text-surface-600 hover:text-surface-800 transition-colors py-1"
+                >
+                  Maybe later
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header + Queue Indicator */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -461,6 +542,54 @@ export default function Videos() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* ── Monthly Usage Quota Bar ── */}
+      {quota && creationPhase === 'topic' && !scriptLoading && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease }}
+          className="card px-5 py-3.5 flex items-center gap-4"
+        >
+          <div className="shrink-0 w-8 h-8 rounded-lg bg-surface-300/60 flex items-center justify-center">
+            <Film size={14} className="text-surface-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] text-surface-700 font-medium">
+                {quota.monthly_used} of {quota.monthly_limit >= 999_999 ? '∞' : quota.monthly_limit} video{quota.monthly_limit !== 1 ? 's' : ''} this month
+              </span>
+              <span className="text-[10px] text-surface-500 capitalize">{quota.plan} plan</span>
+            </div>
+            <div className="h-[4px] rounded-full bg-surface-200 overflow-hidden">
+              <motion.div
+                className={`h-full rounded-full transition-colors ${
+                  quota.monthly_used >= quota.monthly_limit && quota.monthly_limit < 999_999
+                    ? 'bg-red-500'
+                    : quota.monthly_used >= quota.monthly_limit * 0.8
+                      ? 'bg-amber-500'
+                      : 'bg-brand-500'
+                }`}
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, quota.monthly_limit > 0 ? (quota.monthly_used / quota.monthly_limit) * 100 : 0)}%` }}
+                transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+              />
+            </div>
+          </div>
+          {quota.monthly_used >= quota.monthly_limit && quota.monthly_limit < 999_999 && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate('/settings?tab=plan')}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500 text-white text-[11px] font-medium hover:bg-brand-600 transition-colors"
+            >
+              <Zap size={11} />
+              Upgrade
+            </motion.button>
+          )}
+        </motion.div>
+      )}
 
       {/* ── Script Loading Overlay ── */}
       <AnimatePresence>
