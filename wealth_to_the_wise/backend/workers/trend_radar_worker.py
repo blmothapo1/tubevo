@@ -42,6 +42,8 @@ _MAX_AUTO_GENERATE_PER_CYCLE = 1
 _AUTO_GENERATE_MIN_CONFIDENCE = 65
 # Max pending (detected + generating) alerts per user before we stop scanning
 _MAX_PENDING_ALERTS = 10
+# Hard daily cap on trend-radar auto-generated videos per user (all sources combined)
+_DAILY_AUTO_GEN_CAP = 3
 
 
 async def _get_or_create_settings(db, user_id: str) -> TrendRadarSettings:
@@ -332,6 +334,26 @@ async def _process_detected_alerts(db) -> int:
         # Check quota
         if not await _check_plan_quota(db, user):
             logger.info("Trend Radar: user %s at quota limit, skipping generation", user.email)
+            continue
+
+        # ── Daily hard cap on auto-generated videos per user ─────────
+        now_check = datetime.now(timezone.utc)
+        today_start = now_check.replace(hour=0, minute=0, second=0, microsecond=0)
+        daily_gen_stmt = (
+            select(func.count())
+            .select_from(VideoRecord)
+            .where(
+                VideoRecord.user_id == uid,
+                VideoRecord.created_at >= today_start,
+                VideoRecord.status.notin_(["failed"]),
+            )
+        )
+        daily_gen_count = (await db.execute(daily_gen_stmt)).scalar() or 0
+        if daily_gen_count >= _DAILY_AUTO_GEN_CAP:
+            logger.info(
+                "Trend Radar: user %s hit daily auto-gen cap (%d/%d) — skipping",
+                user.email, daily_gen_count, _DAILY_AUTO_GEN_CAP,
+            )
             continue
 
         # Check if user already has a video in-flight — don't pile up

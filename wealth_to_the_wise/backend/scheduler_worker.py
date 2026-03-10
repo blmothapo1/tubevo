@@ -34,6 +34,17 @@ logger = logging.getLogger("tubevo.backend.scheduler_worker")
 # How often to check for due schedules (seconds)
 POLL_INTERVAL = 5 * 60  # 5 minutes
 
+# ── Safety caps ──────────────────────────────────────────────────────
+# Maximum videos the scheduler will generate per user per day.
+# This is a hard ceiling independent of plan limits — it prevents
+# runaway generation if next_run_at gets stuck in the past (e.g. after
+# a long Railway outage) or if a user sets frequency=daily with 30 topics.
+DAILY_SCHEDULER_CAP_PER_USER = 3
+
+# Maximum videos the scheduler will generate across ALL users per poll cycle.
+# Prevents a thundering-herd of catch-up jobs on container restart.
+MAX_GENERATIONS_PER_CYCLE = 2
+
 
 async def scheduler_loop() -> None:
     """Main scheduler loop — runs forever, checking for due schedules."""
@@ -73,9 +84,22 @@ async def _process_due_schedules() -> None:
 
         logger.info("Scheduler: %d schedule(s) due for processing", len(due_schedules))
 
+        # ── Per-cycle generation counter (hard cap) ──────────────────
+        cycle_generations = 0
+
         for schedule in due_schedules:
+            # ── Global per-cycle cap: stop entirely to avoid thundering herd ──
+            if cycle_generations >= MAX_GENERATIONS_PER_CYCLE:
+                logger.info(
+                    "Scheduler: hit per-cycle cap (%d) — deferring remaining schedules to next poll.",
+                    MAX_GENERATIONS_PER_CYCLE,
+                )
+                break
+
             try:
-                await _process_single_schedule(schedule, db)
+                generated = await _process_single_schedule(schedule, db)
+                if generated:
+                    cycle_generations += 1
             except Exception:
                 logger.exception(
                     "Scheduler: failed to process schedule %s for user %s",
@@ -89,9 +113,20 @@ async def _process_due_schedules() -> None:
         await db.commit()
 
 
-async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
-    """Process a single due schedule: pick the next topic and trigger generation."""
+async def _process_single_schedule(schedule: PostingSchedule, db) -> bool:
+    """Process a single due schedule: pick the next topic and trigger generation.
+
+    Returns True if a video generation was triggered, False if skipped.
+    """
     now = datetime.now(timezone.utc)
+
+    # ── SAFETY FIRST: Always advance next_run_at to the future ───────
+    # This MUST happen before any early return to prevent the catch-up
+    # bleed scenario: if next_run_at stays in the past, the scheduler
+    # re-fires every 5 minutes until it "catches up" days of missed runs.
+    delta = FREQUENCY_DELTAS.get(schedule.frequency, FREQUENCY_DELTAS["weekly"])
+    schedule.next_run_at = now + delta
+    schedule.updated_at = now
 
     # Parse topics
     try:
@@ -104,7 +139,7 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
         schedule.is_active = False
         schedule.next_run_at = None
         schedule.updated_at = now
-        return
+        return False
 
     # Get the user
     user_result = await db.execute(
@@ -116,14 +151,35 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
         schedule.is_active = False
         schedule.next_run_at = None
         schedule.updated_at = now
-        return
+        return False
+
+    # ── Daily scheduler cap per user ─────────────────────────────────
+    # Hard ceiling: even if a schedule fires multiple times, never exceed
+    # DAILY_SCHEDULER_CAP_PER_USER auto-generated videos per user per day.
+    from sqlalchemy import func
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    daily_count_stmt = (
+        select(func.count())
+        .select_from(VideoRecord)
+        .where(
+            VideoRecord.user_id == user.id,
+            VideoRecord.created_at >= today_start,
+            VideoRecord.status.notin_(["failed"]),
+        )
+    )
+    daily_count = (await db.execute(daily_count_stmt)).scalar() or 0
+    if daily_count >= DAILY_SCHEDULER_CAP_PER_USER:
+        logger.info(
+            "Schedule %s: user %s hit daily scheduler cap (%d/%d) — skipping.",
+            schedule.id, user.email, daily_count, DAILY_SCHEDULER_CAP_PER_USER,
+        )
+        return False
 
     # Check plan limit
     plan = user.plan or "free"
     limit = PLAN_MONTHLY_LIMITS.get(plan, PLAN_MONTHLY_LIMITS["free"])
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    from sqlalchemy import func
     count_stmt = (
         select(func.count())
         .select_from(VideoRecord)
@@ -137,14 +193,10 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
 
     if monthly_count >= limit:
         logger.info(
-            "Schedule %s: user %s hit monthly limit (%d/%d) — skipping, will retry next cycle.",
+            "Schedule %s: user %s hit monthly limit (%d/%d) — skipping.",
             schedule.id, user.email, monthly_count, limit,
         )
-        # Push next_run_at forward to avoid hammering
-        delta = FREQUENCY_DELTAS.get(schedule.frequency, FREQUENCY_DELTAS["weekly"])
-        schedule.next_run_at = now + delta
-        schedule.updated_at = now
-        return
+        return False
 
     # ── Per-user in-flight guard ─────────────────────────────────────
     # Skip if user already has a video generating — don't pile up jobs.
@@ -156,7 +208,7 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
             schedule.id, user.email,
         )
         # Don't advance next_run_at — retry on next poll (5 min)
-        return
+        return False
 
     # ── Circuit breaker: stop auto-generating if last N all failed ───
     if await is_circuit_broken(user.id, db):
@@ -165,10 +217,7 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
             "Pausing auto-generation to save API credits. User must generate manually to reset.",
             schedule.id, user.email,
         )
-        delta = FREQUENCY_DELTAS.get(schedule.frequency, FREQUENCY_DELTAS["weekly"])
-        schedule.next_run_at = now + delta
-        schedule.updated_at = now
-        return
+        return False
 
     # Get user API keys
     keys_result = await db.execute(
@@ -186,10 +235,7 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
             "Schedule %s: user %s missing API keys — skipping.",
             schedule.id, user.email,
         )
-        delta = FREQUENCY_DELTAS.get(schedule.frequency, FREQUENCY_DELTAS["weekly"])
-        schedule.next_run_at = now + delta
-        schedule.updated_at = now
-        return
+        return False
 
     user_api_keys = {
         "openai_api_key": openai_key,
@@ -233,17 +279,12 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
     schedule.topic_index = (idx + 1) % len(topics)
     schedule.last_run_at = now
     schedule.total_runs += 1
-
-    # Compute next run
-    delta = FREQUENCY_DELTAS.get(schedule.frequency, FREQUENCY_DELTAS["weekly"])
-    next_run = now + delta
-    schedule.next_run_at = next_run
-    schedule.updated_at = now
+    # (next_run_at was already advanced at the top of this function)
 
     logger.info(
         "Scheduler: triggering video for schedule %s, user %s, topic='%s' (%d/%d). Next run: %s",
         schedule.id, user.email, topic, idx + 1, len(topics),
-        next_run.isoformat(),
+        schedule.next_run_at,
     )
 
     # Fire and forget the pipeline
@@ -257,3 +298,5 @@ async def _process_single_schedule(schedule: PostingSchedule, db) -> None:
             yt_refresh_token=yt_refresh_token,
         )
     )
+
+    return True
