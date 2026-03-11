@@ -403,6 +403,29 @@ async def _apply_column_migrations() -> None:
                 ))
                 logger.info("Applied migration: users.referred_by")
 
+            # 0014: Trend Radar opt-in — one-time flip.
+            # Check if column default is still 'true'; if so, change to 'false'
+            # and reset all auto-created rows.
+            chk = await conn.execute(text(
+                "SELECT column_default FROM information_schema.columns "
+                "WHERE table_name = 'trend_radar_settings' "
+                "AND column_name = 'is_enabled'"
+            ))
+            col_default = chk.scalar_one_or_none()
+            if col_default and "true" in str(col_default).lower():
+                await conn.execute(text(
+                    "ALTER TABLE trend_radar_settings "
+                    "ALTER COLUMN is_enabled SET DEFAULT false"
+                ))
+                await conn.execute(text(
+                    "UPDATE trend_radar_settings SET is_enabled = false "
+                    "WHERE is_enabled = true"
+                ))
+                logger.info(
+                    "Applied migration: trend_radar_settings.is_enabled "
+                    "default changed true→false (opt-in)"
+                )
+
     logger.info("Column migrations complete.")
 
 

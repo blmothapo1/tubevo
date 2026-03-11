@@ -331,6 +331,11 @@ async def _process_detected_alerts(db) -> int:
         if not user or not user.is_active:
             continue
 
+        # ── Respect per-user opt-in toggle ───────────────────────────
+        user_settings = await _get_or_create_settings(db, uid)
+        if not user_settings.is_enabled:
+            continue
+
         # Check quota
         if not await _check_plan_quota(db, user):
             logger.info("Trend Radar: user %s at quota limit, skipping generation", user.email)

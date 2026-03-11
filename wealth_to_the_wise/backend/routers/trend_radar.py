@@ -80,7 +80,7 @@ class TrendStatsResponse(BaseModel):
 
 
 class TrendSettingsResponse(BaseModel):
-    is_enabled: bool = True
+    is_enabled: bool = False
     autopilot_enabled: bool = False
     autopilot_min_confidence: int = 80
     autopilot_daily_cap: int = 1

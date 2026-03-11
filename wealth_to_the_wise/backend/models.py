@@ -1041,8 +1041,8 @@ class TrendRadarSettings(Base):
         String(36), ForeignKey("users.id"), unique=True, nullable=False, index=True,
     )
 
-    # Master toggle
-    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Master toggle — opt-in: user must explicitly enable Trend Radar
+    is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Autopilot: auto-publish when confidence >= threshold
     autopilot_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
