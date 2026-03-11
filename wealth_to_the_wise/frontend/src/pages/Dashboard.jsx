@@ -181,6 +181,7 @@ export default function Dashboard() {
             {/* Quick nav row */}
             <div className="flex gap-2 mt-5 flex-wrap">
               {[
+                { to: '/insights', label: 'Insights', icon: TrendingUp },
                 { to: '/revenue', label: 'Revenue', icon: DollarSign },
                 { to: '/niche', label: 'Niche Intel', icon: Search },
                 { to: '/thumbnails', label: 'Thumbnails', icon: ImageIcon },

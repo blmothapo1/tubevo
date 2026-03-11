@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Film, CalendarClock, Settings, LogOut, X,
   Tv2, Search, DollarSign, Image, Eye, Mic, Shield,
-  ChevronsLeft, ChevronsRight, Command, Radar,
+  ChevronsLeft, ChevronsRight, Command, Radar, BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -20,6 +20,7 @@ const mainLinks = [
 ];
 
 const empireLinks = [
+  { to: '/insights', label: 'Insights', icon: BarChart3 },
   { to: '/trends', label: 'Trend Radar', icon: Radar },
   { to: '/channels', label: 'Channels', icon: Tv2 },
   { to: '/niche', label: 'Niche Intel', icon: Search },
