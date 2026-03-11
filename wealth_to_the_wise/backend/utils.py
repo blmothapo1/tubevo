@@ -89,6 +89,7 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "watermark": True,
         "multi_format": False,
         "bulk_generate": False,
+        "visual_tier": "free",
     },
     "starter": {
         "gpt_model": "gpt-4o",
@@ -104,6 +105,7 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "watermark": False,
         "multi_format": False,
         "bulk_generate": False,
+        "visual_tier": "starter",
     },
     "pro": {
         "gpt_model": "gpt-4o",
@@ -119,6 +121,7 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "watermark": False,
         "multi_format": True,
         "bulk_generate": False,
+        "visual_tier": "pro",
     },
     "agency": {
         "gpt_model": "gpt-4o",
@@ -134,6 +137,7 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "watermark": False,
         "multi_format": True,
         "bulk_generate": True,
+        "visual_tier": "agency",
     },
 }
 

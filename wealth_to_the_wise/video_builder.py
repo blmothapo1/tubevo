@@ -37,6 +37,10 @@ import subprocess
 import tempfile
 import textwrap
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from visual_effects import VisualProfile
 
 from pipeline_errors import RenderError
 
@@ -199,17 +203,135 @@ def _has_ffmpeg_filter(name: str) -> bool:
         return False
 
 
+# ── Cross-dissolve concat via xfade ─────────────────────────────────
+
+def _concat_with_xfade(
+    segment_files: list[str],
+    output_path: str,
+    xfade_duration: float,
+    target_duration: float,
+    tmp_dir: str,
+) -> str:
+    """Concatenate segments with cross-dissolve transitions via xfade filter.
+
+    Uses a chain of xfade filters: each pair of consecutive clips gets
+    a dissolve.  Memory-safe because FFmpeg processes frames sequentially.
+
+    Falls back to hard concat if xfade isn't available or if the chain
+    is too long (>8 segments = too many inputs for a single filterchain).
+    """
+    if not _has_ffmpeg_filter("xfade") or len(segment_files) < 2:
+        # Fallback: hard concat
+        concat_list = os.path.join(tmp_dir, "concat_bg_fallback.txt")
+        with open(concat_list, "w") as f:
+            for seg in segment_files:
+                f.write(f"file '{seg}'\n")
+        _run_ffmpeg([
+            "-f", "concat", "-safe", "0", "-i", concat_list,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            "-t", f"{target_duration:.2f}",
+            output_path,
+        ], "concat background (xfade fallback)")
+        return output_path
+
+    # Build xfade filter chain.
+    # For N segments, we need N-1 xfade operations.
+    # Each xfade shortens total duration by xfade_duration.
+    # xfade syntax: [v0][v1]xfade=transition=fade:duration=D:offset=O[vout]
+    n = len(segment_files)
+    xd = min(xfade_duration, 1.0)  # Cap dissolve at 1s for safety
+
+    # Get durations of each segment
+    seg_durs: list[float] = []
+    for sf in segment_files:
+        try:
+            seg_durs.append(_get_video_duration(sf))
+        except Exception:
+            seg_durs.append(3.0)  # Fallback estimate
+
+    # Build input args
+    input_args: list[str] = []
+    for sf in segment_files:
+        input_args.extend(["-i", sf])
+
+    # Build filter chain
+    filter_parts: list[str] = []
+    # Track cumulative offset (each xfade happens at the end of the accumulated output)
+    cumulative_dur = seg_durs[0]
+
+    for i in range(n - 1):
+        if i == 0:
+            in_a = "[0:v]"
+        else:
+            in_a = f"[vfade{i}]"
+
+        in_b = f"[{i + 1}:v]"
+        offset = max(0.1, cumulative_dur - xd)
+
+        if i < n - 2:
+            out_label = f"[vfade{i + 1}]"
+        else:
+            out_label = "[vout]"
+
+        filter_parts.append(
+            f"{in_a}{in_b}xfade=transition=fade:duration={xd:.2f}:offset={offset:.2f}{out_label}"
+        )
+        # Next segment's cumulative duration: previous output + next seg - overlap
+        cumulative_dur = offset + xd + (seg_durs[i + 1] if i + 1 < n else 0) - xd
+        # Simplified: cumulative = offset + seg_durs[i+1]
+        if i + 1 < n:
+            cumulative_dur = offset + seg_durs[i + 1]
+
+    filter_chain = ";".join(filter_parts)
+
+    try:
+        _run_ffmpeg(
+            input_args + [
+                "-filter_complex", filter_chain,
+                "-map", "[vout]",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                "-pix_fmt", "yuv420p",
+                "-t", f"{target_duration:.2f}",
+                output_path,
+            ],
+            "concat with cross-dissolve transitions",
+        )
+        logger.info("Cross-dissolve concat: %d segments, %.1fs dissolves", n, xd)
+    except Exception as xf_err:
+        # Fallback to hard concat if xfade fails
+        logger.warning("xfade concat failed — falling back to hard concat: %s", xf_err)
+        concat_list = os.path.join(tmp_dir, "concat_bg_fallback.txt")
+        with open(concat_list, "w") as f:
+            for seg in segment_files:
+                f.write(f"file '{seg}'\n")
+        _run_ffmpeg([
+            "-f", "concat", "-safe", "0", "-i", concat_list,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            "-t", f"{target_duration:.2f}",
+            output_path,
+        ], "concat background (xfade failed, hard concat)")
+
+    return output_path
+
+
 # ── Step 1: Prepare stock footage background ────────────────────────
 
 def _prepare_background(
     clip_paths: list[str],
     target_duration: float,
     tmp_dir: str,
+    *,
+    visual_profile: VisualProfile | None = None,
 ) -> str:
     """Scale, trim, and concatenate stock clips into a single background.mp4.
 
     Uses FFmpeg concat demuxer — processes clips one at a time, never loads
     them all into RAM simultaneously.
+
+    If *visual_profile* is provided and has Ken Burns enabled, each clip
+    segment gets a slow zoom/pan effect for cinematic motion.
     """
     output_path = os.path.join(tmp_dir, "background.mp4")
 
@@ -271,17 +393,48 @@ def _prepare_background(
             idx += 1
 
     # Scale and trim each segment, then concat
+    # If Ken Burns is enabled, apply zoompan for cinematic motion
+    _kb_enabled = (
+        visual_profile is not None
+        and visual_profile.ken_burns.enabled
+    )
     segment_files: list[str] = []
     for i, (path, use_dur) in enumerate(segments):
         seg_path = os.path.join(tmp_dir, f"seg_{i:03d}.mp4")
+
+        # Build the video filter chain for this segment
+        vf_parts: list[str] = [
+            f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease",
+            f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black",
+            f"fps={FPS}",
+            "format=yuv420p",
+        ]
+
+        if _kb_enabled:
+            try:
+                from visual_effects import pick_ken_burns_direction
+                assert visual_profile is not None  # type guard
+                direction = pick_ken_burns_direction(i, seed=str(target_duration))
+                kb_filter = visual_profile.ken_burns.get_zoompan_filter(
+                    VIDEO_WIDTH, VIDEO_HEIGHT, FPS, use_dur, direction=direction,
+                )
+                if kb_filter:
+                    # zoompan must come after scale+pad, and it outputs at target res
+                    # so we replace the fps filter and add zoompan
+                    vf_parts = [
+                        f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease",
+                        f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black",
+                        "format=yuv420p",
+                        kb_filter,
+                    ]
+                    logger.debug("Ken Burns segment %d: %s", i, direction)
+            except Exception as kb_err:
+                logger.warning("Ken Burns failed for segment %d — skipping: %s", i, kb_err)
+
         _run_ffmpeg([
             "-i", path,
             "-t", f"{use_dur:.2f}",
-            "-vf", (
-                f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
-                f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,"
-                f"fps={FPS},format=yuv420p"
-            ),
+            "-vf", ",".join(vf_parts),
             "-an",
             "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
             seg_path,
@@ -292,19 +445,32 @@ def _prepare_background(
         shutil.move(segment_files[0], output_path)
         return output_path
 
-    # Write concat list
-    concat_list = os.path.join(tmp_dir, "concat_bg.txt")
-    with open(concat_list, "w") as f:
-        for seg in segment_files:
-            f.write(f"file '{seg}'\n")
+    # ── Cross-dissolve transitions (Starter+ tiers) ─────────────────
+    # xfade filter creates smooth dissolves between clips.
+    # For free tier or >8 segments (memory guard), fall back to hard concat.
+    _use_xfade = (
+        visual_profile is not None
+        and visual_profile.transitions.enabled
+        and len(segment_files) <= 8
+    )
 
-    _run_ffmpeg([
-        "-f", "concat", "-safe", "0", "-i", concat_list,
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-pix_fmt", "yuv420p",
-        "-t", f"{target_duration:.2f}",
-        output_path,
-    ], "concat background segments")
+    if _use_xfade and visual_profile is not None:
+        xfade_dur = visual_profile.transitions.dissolve_duration
+        output_path = _concat_with_xfade(segment_files, output_path, xfade_dur, target_duration, tmp_dir)
+    else:
+        # Write concat list (hard cuts — free tier)
+        concat_list = os.path.join(tmp_dir, "concat_bg.txt")
+        with open(concat_list, "w") as f:
+            for seg in segment_files:
+                f.write(f"file '{seg}'\n")
+
+        _run_ffmpeg([
+            "-f", "concat", "-safe", "0", "-i", concat_list,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            "-t", f"{target_duration:.2f}",
+            output_path,
+        ], "concat background segments")
 
     # Clean up segment files
     for seg in segment_files:
@@ -322,6 +488,8 @@ def _prepare_background_from_scenes(
     scene_clip_data: list[dict],
     narration_duration: float,
     tmp_dir: str,
+    *,
+    visual_profile: VisualProfile | None = None,
 ) -> str:
     """Build background.mp4 by stitching scene-specific clips in order.
 
@@ -339,7 +507,7 @@ def _prepare_background_from_scenes(
 
     if not all_clips:
         logger.warning("No scene clips — falling back to blank background")
-        return _prepare_background([], narration_duration, tmp_dir)
+        return _prepare_background([], narration_duration, tmp_dir, visual_profile=visual_profile)
 
     output_path = os.path.join(tmp_dir, "background.mp4")
 
@@ -388,6 +556,12 @@ def _prepare_background_from_scenes(
         total_clip_dur = sum(d for _, d in valid)
         scene_remaining = scene_budget
 
+        # Ken Burns enabled?
+        _kb_on = (
+            visual_profile is not None
+            and visual_profile.ken_burns.enabled
+        )
+
         if total_clip_dur >= scene_budget:
             for path, dur in valid:
                 if scene_remaining <= 0:
@@ -395,14 +569,35 @@ def _prepare_background_from_scenes(
                 share = max(1.5, (dur / total_clip_dur) * scene_budget)
                 share = min(share, scene_remaining, dur)
                 seg_path = os.path.join(tmp_dir, f"seg_{seg_idx:03d}.mp4")
+
+                vf_parts = [
+                    f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease",
+                    f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black",
+                    f"fps={FPS}",
+                    "format=yuv420p",
+                ]
+                if _kb_on:
+                    try:
+                        from visual_effects import pick_ken_burns_direction
+                        assert visual_profile is not None  # type guard
+                        direction = pick_ken_burns_direction(seg_idx, seed=sd.get("label", ""))
+                        kb_f = visual_profile.ken_burns.get_zoompan_filter(
+                            VIDEO_WIDTH, VIDEO_HEIGHT, FPS, share, direction=direction,
+                        )
+                        if kb_f:
+                            vf_parts = [
+                                f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease",
+                                f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black",
+                                "format=yuv420p",
+                                kb_f,
+                            ]
+                    except Exception:
+                        pass
+
                 _run_ffmpeg([
                     "-i", path,
                     "-t", f"{share:.2f}",
-                    "-vf", (
-                        f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
-                        f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,"
-                        f"fps={FPS},format=yuv420p"
-                    ),
+                    "-vf", ",".join(vf_parts),
                     "-an",
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
                     seg_path,
@@ -419,14 +614,35 @@ def _prepare_background_from_scenes(
                 if use_dur < 1.0:
                     break
                 seg_path = os.path.join(tmp_dir, f"seg_{seg_idx:03d}.mp4")
+
+                vf_parts = [
+                    f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease",
+                    f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black",
+                    f"fps={FPS}",
+                    "format=yuv420p",
+                ]
+                if _kb_on:
+                    try:
+                        from visual_effects import pick_ken_burns_direction
+                        assert visual_profile is not None  # type guard
+                        direction = pick_ken_burns_direction(seg_idx, seed=sd.get("label", ""))
+                        kb_f = visual_profile.ken_burns.get_zoompan_filter(
+                            VIDEO_WIDTH, VIDEO_HEIGHT, FPS, use_dur, direction=direction,
+                        )
+                        if kb_f:
+                            vf_parts = [
+                                f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease",
+                                f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black",
+                                "format=yuv420p",
+                                kb_f,
+                            ]
+                    except Exception:
+                        pass
+
                 _run_ffmpeg([
                     "-i", path,
                     "-t", f"{use_dur:.2f}",
-                    "-vf", (
-                        f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,"
-                        f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black,"
-                        f"fps={FPS},format=yuv420p"
-                    ),
+                    "-vf", ",".join(vf_parts),
                     "-an",
                     "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
                     seg_path,
@@ -439,25 +655,36 @@ def _prepare_background_from_scenes(
         remaining_total -= (scene_budget - scene_remaining)
 
     if not segment_files:
-        return _prepare_background(all_clips, narration_duration, tmp_dir)
+        return _prepare_background(all_clips, narration_duration, tmp_dir, visual_profile=visual_profile)
 
     if len(segment_files) == 1:
         shutil.move(segment_files[0], output_path)
         return output_path
 
-    # Concat all scene segments
-    concat_list = os.path.join(tmp_dir, "concat_bg.txt")
-    with open(concat_list, "w") as f:
-        for seg in segment_files:
-            f.write(f"file '{seg}'\n")
+    # ── Cross-dissolve transitions (Starter+ tiers) ─────────────────
+    _use_xfade = (
+        visual_profile is not None
+        and visual_profile.transitions.enabled
+        and len(segment_files) <= 8
+    )
 
-    _run_ffmpeg([
-        "-f", "concat", "-safe", "0", "-i", concat_list,
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-pix_fmt", "yuv420p",
-        "-t", f"{narration_duration:.2f}",
-        output_path,
-    ], "concat scene-aware background segments")
+    if _use_xfade and visual_profile is not None:
+        xfade_dur = visual_profile.transitions.dissolve_duration
+        output_path = _concat_with_xfade(segment_files, output_path, xfade_dur, narration_duration, tmp_dir)
+    else:
+        # Concat all scene segments (hard cuts)
+        concat_list = os.path.join(tmp_dir, "concat_bg.txt")
+        with open(concat_list, "w") as f:
+            for seg in segment_files:
+                f.write(f"file '{seg}'\n")
+
+        _run_ffmpeg([
+            "-f", "concat", "-safe", "0", "-i", concat_list,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-pix_fmt", "yuv420p",
+            "-t", f"{narration_duration:.2f}",
+            output_path,
+        ], "concat scene-aware background segments")
 
     # Clean up segment files
     for seg in segment_files:
@@ -532,8 +759,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 # ── Step 3: Title card via FFmpeg ────────────────────────────────────
 
-def _create_title_card(title: str, tmp_dir: str, duration: float = TITLE_CARD_DURATION) -> str:
-    """Render a title card as a short video clip using FFmpeg drawtext."""
+def _create_title_card(
+    title: str,
+    tmp_dir: str,
+    duration: float = TITLE_CARD_DURATION,
+    *,
+    visual_profile: VisualProfile | None = None,
+) -> str:
+    """Render a title card as a short video clip using FFmpeg drawtext.
+
+    If *visual_profile* is provided, uses animated text reveals,
+    accent lines, shimmer effects, and subtitle text based on tier.
+    """
     output_path = os.path.join(tmp_dir, "title_card.mp4")
 
     # Write title to a temp file so drawtext can handle multi-line text
@@ -542,6 +779,27 @@ def _create_title_card(title: str, tmp_dir: str, duration: float = TITLE_CARD_DU
     with open(title_text_file, "w", encoding="utf-8") as f:
         f.write(wrapped_title)
 
+    # Premium title card filter
+    if visual_profile is not None:
+        try:
+            from visual_effects import build_title_card_filter
+            vf = build_title_card_filter(
+                visual_profile, title, title_text_file, FONT,
+                VIDEO_WIDTH, VIDEO_HEIGHT, duration,
+            )
+            _run_ffmpeg([
+                "-f", "lavfi",
+                "-i", f"color=c=0x0A0A0A:s={VIDEO_WIDTH}x{VIDEO_HEIGHT}:d={duration}:r={FPS}",
+                "-vf", vf,
+                "-t", str(duration),
+                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                output_path,
+            ], "render premium title card")
+            return output_path
+        except Exception as tc_err:
+            logger.warning("Premium title card failed — using baseline: %s", tc_err)
+
+    # Baseline title card (free tier / fallback)
     font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
     title_file_escaped = title_text_file.replace("\\", "/").replace(":", "\\:")
 
@@ -565,9 +823,40 @@ def _create_title_card(title: str, tmp_dir: str, duration: float = TITLE_CARD_DU
 
 # ── Step 4: Outro card via FFmpeg ────────────────────────────────────
 
-def _create_outro_card(tmp_dir: str, duration: float = OUTRO_CARD_DURATION) -> str:
-    """Render the subscribe/CTA outro card."""
+def _create_outro_card(
+    tmp_dir: str,
+    duration: float = OUTRO_CARD_DURATION,
+    *,
+    visual_profile: VisualProfile | None = None,
+) -> str:
+    """Render the subscribe/CTA outro card.
+
+    If *visual_profile* is provided, uses animated text, accent lines,
+    and fade in/out effects based on tier.
+    """
     output_path = os.path.join(tmp_dir, "outro_card.mp4")
+
+    # Premium outro card filter
+    if visual_profile is not None:
+        try:
+            from visual_effects import build_outro_card_filter
+            vf = build_outro_card_filter(
+                visual_profile, FONT,
+                VIDEO_WIDTH, VIDEO_HEIGHT, duration,
+            )
+            _run_ffmpeg([
+                "-f", "lavfi",
+                "-i", f"color=c=0x0A0A0A:s={VIDEO_WIDTH}x{VIDEO_HEIGHT}:d={duration}:r={FPS}",
+                "-vf", vf,
+                "-t", str(duration),
+                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                output_path,
+            ], "render premium outro card")
+            return output_path
+        except Exception as oc_err:
+            logger.warning("Premium outro card failed — using baseline: %s", oc_err)
+
+    # Baseline outro card (free tier / fallback)
     font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
 
     _run_ffmpeg([
@@ -600,36 +889,38 @@ def _composite_main_section(
     tmp_dir: str,
     *,
     watermark: bool = False,
+    visual_profile: VisualProfile | None = None,
+    topic_label: str | None = None,
 ) -> str:
     """Compose background + dark overlay + subtitles + branding + progress bar.
 
     All done in a single FFmpeg filtergraph pass — constant memory usage.
+
+    If *visual_profile* is provided, uses the premium visual effects engine
+    for color grading, vignette, grain, letterboxing, animated lower-third, etc.
     """
     output_path = os.path.join(tmp_dir, "main_section.mp4")
-    font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
 
-    # Escape the ASS path for FFmpeg filter (colons and backslashes)
-    ass_escaped = ass_path.replace("\\", "/").replace(":", "\\:")
-
-    bar_h = 4
-    darken = 1.0 - DARK_OVERLAY_OPACITY
-
-    vf = (
-        f"colorchannelmixer=rr={darken}:gg={darken}:bb={darken},"
-        f"ass='{ass_escaped}',"
-        f"drawtext=fontfile='{font_escaped}':text='TUBEVO':fontsize={BRAND_FONT_SIZE}:"
-        f"fontcolor=0x00D4AA:x=40:y=28,"
-        f"drawbox=x=0:y=ih-{bar_h}:w='floor(iw*(t/{narration_duration:.2f}))':h={bar_h}:"
-        f"color=0x00D4AA:t=fill"
-    )
-
-    # Free-tier watermark: semi-transparent text in bottom-right corner
-    if watermark:
-        vf += (
-            f",drawtext=fontfile='{font_escaped}':"
-            f"text='Made with Tubevo':fontsize=20:"
-            f"fontcolor=white@0.35:x=w-tw-20:y=h-th-20"
-        )
+    # Build filter chain — premium or baseline
+    if visual_profile is not None:
+        try:
+            from visual_effects import build_composite_filter
+            vf = build_composite_filter(
+                visual_profile,
+                narration_duration,
+                ass_path,
+                FONT,
+                VIDEO_WIDTH,
+                VIDEO_HEIGHT,
+                watermark=watermark,
+                topic_label=topic_label,
+            )
+            logger.info("Using premium composite filter (%s tier)", visual_profile.tier.value)
+        except Exception as vf_err:
+            logger.warning("Premium composite filter failed — using baseline: %s", vf_err)
+            vf = _baseline_composite_filter(ass_path, narration_duration, watermark)
+    else:
+        vf = _baseline_composite_filter(ass_path, narration_duration, watermark)
 
     _run_ffmpeg([
         "-i", background_path,
@@ -646,6 +937,36 @@ def _composite_main_section(
     ], "composite main section")
 
     return output_path
+
+
+def _baseline_composite_filter(
+    ass_path: str,
+    narration_duration: float,
+    watermark: bool,
+) -> str:
+    """Original baseline composite filter (free tier / fallback)."""
+    font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
+    ass_escaped = ass_path.replace("\\", "/").replace(":", "\\:")
+    bar_h = 4
+    darken = 1.0 - DARK_OVERLAY_OPACITY
+
+    vf = (
+        f"colorchannelmixer=rr={darken}:gg={darken}:bb={darken},"
+        f"ass='{ass_escaped}',"
+        f"drawtext=fontfile='{font_escaped}':text='TUBEVO':fontsize={BRAND_FONT_SIZE}:"
+        f"fontcolor=0x00D4AA:x=40:y=28,"
+        f"drawbox=x=0:y=ih-{bar_h}:w='floor(iw*(t/{narration_duration:.2f}))':h={bar_h}:"
+        f"color=0x00D4AA:t=fill"
+    )
+
+    if watermark:
+        vf += (
+            f",drawtext=fontfile='{font_escaped}':"
+            f"text='Made with Tubevo':fontsize=20:"
+            f"fontcolor=white@0.35:x=w-tw-20:y=h-th-20"
+        )
+
+    return vf
 
 
 # ── Step 6: Final assembly ──────────────────────────────────────────
@@ -838,6 +1159,8 @@ def build_video(
     audio_bitrate: str | None = None,
     watermark: bool = False,
     openai_api_key: str | None = None,
+    visual_tier: str | None = None,
+    topic_label: str | None = None,
 ) -> str:
     """Build a cinematic video from stock footage + voiceover + captions.
 
@@ -872,6 +1195,11 @@ def build_video(
         If True, burn a "Made with Tubevo" watermark (free tier).
     openai_api_key : str | None
         OpenAI key for Whisper-based subtitle alignment.
+    visual_tier : str | None
+        Plan tier for premium visual effects ("free", "starter", "pro", "agency").
+        None defaults to "free" (baseline visuals).
+    topic_label : str | None
+        Short topic label for lower-third overlay (Pro/Agency tiers).
     """
     # Resolve quality overrides (fall back to module-level constants)
     _w = video_width or VIDEO_WIDTH
@@ -924,6 +1252,8 @@ def build_video(
             audio_bitrate=_abr,
             watermark=watermark,
             openai_api_key=openai_api_key,
+            visual_tier=visual_tier,
+            topic_label=topic_label,
         )
     finally:
         try:
@@ -952,6 +1282,8 @@ def _build_video_inner(
     audio_bitrate: str = AUDIO_BITRATE,
     watermark: bool = False,
     openai_api_key: str | None = None,
+    visual_tier: str | None = None,
+    topic_label: str | None = None,
 ) -> str:
     """Inner build function — all work happens here."""
 
@@ -975,6 +1307,8 @@ def _build_video_inner(
             tmp_dir=tmp_dir,
             watermark=watermark,
             openai_api_key=openai_api_key,
+            visual_tier=visual_tier,
+            topic_label=topic_label,
         )
     finally:
         VIDEO_WIDTH, VIDEO_HEIGHT, FPS, ENCODING_CRF, VIDEO_BITRATE, AUDIO_BITRATE = _orig
@@ -993,8 +1327,25 @@ def _build_video_core(
     tmp_dir: str,
     watermark: bool = False,
     openai_api_key: str | None = None,
+    visual_tier: str | None = None,
+    topic_label: str | None = None,
 ) -> str:
     """Core build logic — called with module constants already overridden."""
+
+    # ── 0. Load visual profile ───────────────────────────────────────
+    try:
+        from visual_effects import get_visual_profile, build_composite_filter, build_title_card_filter, build_outro_card_filter
+        _vprofile = get_visual_profile(visual_tier or "free")
+        _use_premium_visuals = True
+        logger.info("Visual tier: %s (Ken Burns=%s, transitions=%s, grade=%s)",
+                     _vprofile.tier.value,
+                     _vprofile.ken_burns.enabled,
+                     _vprofile.transitions.enabled,
+                     _vprofile.color_grade.to_filter()[:40] or "none")
+    except Exception as ve_err:
+        logger.warning("Could not load visual_effects — using baseline visuals: %s", ve_err)
+        _vprofile = None
+        _use_premium_visuals = False
 
     # ── 1. Audio duration ────────────────────────────────────────────
     narration_duration = _get_audio_duration(audio_path)
@@ -1007,18 +1358,27 @@ def _build_video_core(
         # Scene-aware mode: clips already downloaded per-scene
         total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
         logger.info("Using scene-aware clips: %d clips across %d scenes", total_clips, len(scene_clip_data))
-        background_path = _prepare_background_from_scenes(scene_clip_data, narration_duration, tmp_dir)
+        background_path = _prepare_background_from_scenes(
+            scene_clip_data, narration_duration, tmp_dir,
+            visual_profile=_vprofile if _use_premium_visuals else None,
+        )
     elif stock_clip_paths is not None:
         # Legacy mode: flat list of clip paths provided
         logger.info("Preparing background from %d clips (legacy) …", len(stock_clip_paths))
-        background_path = _prepare_background(stock_clip_paths, narration_duration, tmp_dir)
+        background_path = _prepare_background(
+            stock_clip_paths, narration_duration, tmp_dir,
+            visual_profile=_vprofile if _use_premium_visuals else None,
+        )
     else:
         # Auto-download (legacy fallback)
         logger.info("Downloading %d stock footage clips …", NUM_STOCK_CLIPS)
         from stock_footage import download_clips_for_topic
         stock_clip_paths = download_clips_for_topic(title, num_clips=NUM_STOCK_CLIPS)
         logger.info("Preparing background from %d clips …", len(stock_clip_paths))
-        background_path = _prepare_background(stock_clip_paths, narration_duration, tmp_dir)
+        background_path = _prepare_background(
+            stock_clip_paths, narration_duration, tmp_dir,
+            visual_profile=_vprofile if _use_premium_visuals else None,
+        )
 
     logger.info("Background ready: %s", background_path)
 
@@ -1080,17 +1440,25 @@ def _build_video_core(
     main_path = _composite_main_section(
         background_path, audio_path, ass_path, narration_duration, tmp_dir,
         watermark=watermark,
+        visual_profile=_vprofile if _use_premium_visuals else None,
+        topic_label=topic_label,
     )
     logger.info("Main section ready: %s", main_path)
 
     # ── 6. Title card ────────────────────────────────────────────────
     logger.info("Rendering title card (%.1fs) …", TITLE_CARD_DURATION)
-    title_card_path = _create_title_card(title, tmp_dir)
+    title_card_path = _create_title_card(
+        title, tmp_dir,
+        visual_profile=_vprofile if _use_premium_visuals else None,
+    )
     logger.info("Title card ready")
 
     # ── 7. Outro card ────────────────────────────────────────────────
     logger.info("Rendering outro card (%.1fs) …", OUTRO_CARD_DURATION)
-    outro_card_path = _create_outro_card(tmp_dir)
+    outro_card_path = _create_outro_card(
+        tmp_dir,
+        visual_profile=_vprofile if _use_premium_visuals else None,
+    )
     logger.info("Outro card ready")
 
     # ── 8. Final assembly ────────────────────────────────────────────

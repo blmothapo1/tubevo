@@ -2199,6 +2199,8 @@ def _run_pipeline_locked(
             audio_bitrate=_quality["audio_bitrate"],
             watermark=_quality.get("watermark", False),
             openai_api_key=_openai_key,
+            visual_tier=_quality.get("visual_tier", "free"),
+            topic_label=topic,
         )
         result["file_path"] = video_path
         # Phase 5: capture SRT path from video builder
