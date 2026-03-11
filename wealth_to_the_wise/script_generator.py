@@ -405,6 +405,7 @@ def generate_script(
     user_preferences: dict | None = None,
     performance_profile: dict | None = None,
     api_key: str | None = None,
+    model: str = "gpt-4o",
     # ── Script Refinement: creator controls ──
     tone: str | None = None,
     audience_level: str | None = None,
@@ -519,7 +520,7 @@ def generate_script(
 
     # Phase 8: use retry wrapper instead of bare API call
     content = _call_openai_with_retry(
-        model="gpt-4o",
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -539,6 +540,7 @@ def generate_metadata(
     script: str,
     topic: str,
     *,
+    model: str = "gpt-4o",
     temperature: float | None = None,
     avoidance_prompt: str = "",
     user_preferences: dict | None = None,
@@ -603,7 +605,7 @@ def generate_metadata(
 
     # Phase 8: use retry wrapper instead of bare API call
     raw = _call_openai_with_retry(
-        model="gpt-4o",
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},

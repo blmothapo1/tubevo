@@ -721,6 +721,8 @@ async def render_video(
         # Pass the refined script so the pipeline doesn't regenerate it
         "_refined_script": body.script,
         "_refined_metadata": body.metadata,
+        # Plan-based quality profile
+        "_plan": current_user.plan or "free",
     }
 
     # ── Fetch YouTube OAuth tokens ───────────────────────────────────
@@ -848,6 +850,8 @@ async def generate_video(
         "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
         "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
         "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
+        # Plan-based quality profile
+        "_plan": current_user.plan or "free",
     }
 
     # ── Enforce plan-based monthly video limits ──────────────────────
@@ -1985,6 +1989,14 @@ def _run_pipeline_locked(
     _pexels_key = user_api_keys.get("pexels_api_key") or ""
     _pixabay_key = user_api_keys.get("pixabay_api_key") or ""
 
+    # ── Plan-based quality profile ───────────────────────────────────
+    from backend.utils import get_quality_profile
+    _user_plan = user_api_keys.get("_plan", "free")
+    _quality = get_quality_profile(_user_plan)
+    logger.info("Pipeline using quality profile: plan=%s model=%s resolution=%s crf=%s scenes=%d",
+                _user_plan, _quality["gpt_model"], _quality["video_resolution"],
+                _quality["video_crf"], _quality["target_scenes"])
+
     import config
     import script_generator
 
@@ -2033,6 +2045,8 @@ def _run_pipeline_locked(
                 script_kwargs["user_preferences"] = _user_prefs
             if _perf_profile:
                 script_kwargs["performance_profile"] = _perf_profile
+            script_kwargs["model"] = _quality["gpt_model"]
+            script_kwargs["max_tokens"] = _quality["max_script_tokens"]
             script = script_generator.generate_script(topic, api_key=_openai_key, **script_kwargs)
             (run_dir / "latest_script.txt").write_text(script, encoding="utf-8")
             result["_script_text"] = script
@@ -2061,6 +2075,7 @@ def _run_pipeline_locked(
                 meta_kwargs["user_preferences"] = _user_prefs
             if _perf_profile:
                 meta_kwargs["performance_profile"] = _perf_profile
+            meta_kwargs["model"] = _quality["gpt_model"]
             metadata = script_generator.generate_metadata(script, topic, api_key=_openai_key, **meta_kwargs)
             result["title"] = metadata.get("title", topic)
             result["_metadata"] = metadata
@@ -2077,6 +2092,7 @@ def _run_pipeline_locked(
         voice_kwargs: dict = {
             "output_path": str(run_dir / "voiceover.mp3"),
             "api_key": _elevenlabs_key,
+            "model_id": _quality["voice_model"],
         }
         if user_api_keys.get("elevenlabs_voice_id"):
             voice_kwargs["voice_id"] = user_api_keys["elevenlabs_voice_id"]
@@ -2131,7 +2147,7 @@ def _run_pipeline_locked(
             # Phase 7: pass style_seed from variation context for better rotation
             plan_kwargs: dict = {
                 "openai_api_key": user_api_keys["openai_api_key"],
-                "target_total_clips": 10,
+                "target_total_clips": _quality["target_scenes"],
             }
             if variation_ctx and variation_ctx.style_seed:
                 plan_kwargs["style_seed"] = variation_ctx.style_seed
@@ -2165,6 +2181,8 @@ def _run_pipeline_locked(
         _slug = _re.sub(r'[^\w\s-]', '', metadata["title"]).strip().lower()
         _slug = _re.sub(r'[\s_]+', '_', _slug)[:80]
         _video_output_path = str(run_dir / f"{_slug}.mp4")
+        # Unpack resolution tuple (e.g. (1920, 1080)) into width/height
+        _vid_w, _vid_h = _quality["video_resolution"]
         video_path = build_video(
             audio_path=audio_path,
             title=metadata["title"],
@@ -2173,6 +2191,13 @@ def _run_pipeline_locked(
             scene_clip_data=scene_clip_data,
             subtitle_style=user_api_keys.get("subtitle_style", "bold_pop"),
             burn_captions=user_api_keys.get("burn_captions", True),
+            video_width=_vid_w,
+            video_height=_vid_h,
+            video_fps=_quality["video_fps"],
+            video_crf=str(_quality["video_crf"]),
+            video_bitrate=_quality["video_bitrate"],
+            audio_bitrate=_quality["audio_bitrate"],
+            watermark=_quality.get("watermark", False),
         )
         result["file_path"] = video_path
         # Phase 5: capture SRT path from video builder
@@ -3095,6 +3120,8 @@ async def regenerate_video(
         "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
         "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
         "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
+        # Plan-based quality profile
+        "_plan": current_user.plan or "free",
     }
 
     # ── Enforce plan-based monthly video limits ──────────────────────

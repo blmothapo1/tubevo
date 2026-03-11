@@ -597,6 +597,8 @@ def _composite_main_section(
     ass_path: str,
     narration_duration: float,
     tmp_dir: str,
+    *,
+    watermark: bool = False,
 ) -> str:
     """Compose background + dark overlay + subtitles + branding + progress bar.
 
@@ -619,6 +621,14 @@ def _composite_main_section(
         f"drawbox=x=0:y=ih-{bar_h}:w='floor(iw*(t/{narration_duration:.2f}))':h={bar_h}:"
         f"color=0x00D4AA:t=fill"
     )
+
+    # Free-tier watermark: semi-transparent text in bottom-right corner
+    if watermark:
+        vf += (
+            f",drawtext=fontfile='{font_escaped}':"
+            f"text='Made with Tubevo':fontsize=20:"
+            f"fontcolor=white@0.35:x=w-tw-20:y=h-th-20"
+        )
 
     _run_ffmpeg([
         "-i", background_path,
@@ -742,6 +752,13 @@ def build_video(
     scene_clip_data: list[dict] | None = None,
     subtitle_style: str | None = None,
     burn_captions: bool = True,
+    video_width: int | None = None,
+    video_height: int | None = None,
+    video_fps: int | None = None,
+    video_crf: str | None = None,
+    video_bitrate: str | None = None,
+    audio_bitrate: str | None = None,
+    watermark: bool = False,
 ) -> str:
     """Build a cinematic video from stock footage + voiceover + captions.
 
@@ -770,13 +787,25 @@ def build_video(
         None = use default ("bold_pop"). Falls back to legacy if import fails.
     burn_captions : bool
         Whether to burn captions into the video (default True).
+    video_width / video_height / video_fps / video_crf / video_bitrate / audio_bitrate
+        Plan-based quality overrides.  When *None*, module-level defaults are used.
+    watermark : bool
+        If True, burn a "Made with Tubevo" watermark (free tier).
     """
+    # Resolve quality overrides (fall back to module-level constants)
+    _w = video_width or VIDEO_WIDTH
+    _h = video_height or VIDEO_HEIGHT
+    _fps = video_fps or FPS
+    _crf = video_crf or ENCODING_CRF
+    _vbr = video_bitrate or VIDEO_BITRATE
+    _abr = audio_bitrate or AUDIO_BITRATE
+
     if output_path is None:
         slug = re.sub(r'[^\w\s-]', '', title).strip().lower()
         slug = re.sub(r'[\s_]+', '_', slug)[:80]
         output_path = str(OUTPUT_DIR / f"{slug}.mp4")
 
-    logger.info("Building video (FFmpeg-native, %dx%d @ %d fps) …", VIDEO_WIDTH, VIDEO_HEIGHT, FPS)
+    logger.info("Building video (FFmpeg-native, %dx%d @ %d fps, crf=%s) …", _w, _h, _fps, _crf)
 
     tmp_dir = tempfile.mkdtemp(prefix="tubevo_build_")
     logger.info("Working directory: %s", tmp_dir)
@@ -792,6 +821,13 @@ def build_video(
             subtitle_style=subtitle_style,
             burn_captions=burn_captions,
             tmp_dir=tmp_dir,
+            video_width=_w,
+            video_height=_h,
+            video_fps=_fps,
+            video_crf=_crf,
+            video_bitrate=_vbr,
+            audio_bitrate=_abr,
+            watermark=watermark,
         )
     finally:
         try:
@@ -812,8 +848,54 @@ def _build_video_inner(
     subtitle_style: str | None,
     burn_captions: bool,
     tmp_dir: str,
+    video_width: int = VIDEO_WIDTH,
+    video_height: int = VIDEO_HEIGHT,
+    video_fps: int = FPS,
+    video_crf: str = ENCODING_CRF,
+    video_bitrate: str = VIDEO_BITRATE,
+    audio_bitrate: str = AUDIO_BITRATE,
+    watermark: bool = False,
 ) -> str:
     """Inner build function — all work happens here."""
+
+    # Override module-level constants so helper functions pick up
+    # plan-based quality settings without refactoring every signature.
+    global VIDEO_WIDTH, VIDEO_HEIGHT, FPS, ENCODING_CRF, VIDEO_BITRATE, AUDIO_BITRATE
+    _orig = (VIDEO_WIDTH, VIDEO_HEIGHT, FPS, ENCODING_CRF, VIDEO_BITRATE, AUDIO_BITRATE)
+    VIDEO_WIDTH, VIDEO_HEIGHT, FPS = video_width, video_height, video_fps
+    ENCODING_CRF, VIDEO_BITRATE, AUDIO_BITRATE = video_crf, video_bitrate, audio_bitrate
+
+    try:
+        return _build_video_core(
+            audio_path=audio_path,
+            title=title,
+            script=script,
+            output_path=output_path,
+            stock_clip_paths=stock_clip_paths,
+            scene_clip_data=scene_clip_data,
+            subtitle_style=subtitle_style,
+            burn_captions=burn_captions,
+            tmp_dir=tmp_dir,
+            watermark=watermark,
+        )
+    finally:
+        VIDEO_WIDTH, VIDEO_HEIGHT, FPS, ENCODING_CRF, VIDEO_BITRATE, AUDIO_BITRATE = _orig
+
+
+def _build_video_core(
+    *,
+    audio_path: str,
+    title: str,
+    script: str,
+    output_path: str,
+    stock_clip_paths: list[str] | None,
+    scene_clip_data: list[dict] | None,
+    subtitle_style: str | None,
+    burn_captions: bool,
+    tmp_dir: str,
+    watermark: bool = False,
+) -> str:
+    """Core build logic — called with module constants already overridden."""
 
     # ── 1. Audio duration ────────────────────────────────────────────
     narration_duration = _get_audio_duration(audio_path)
@@ -894,6 +976,7 @@ def _build_video_inner(
 
     main_path = _composite_main_section(
         background_path, audio_path, ass_path, narration_duration, tmp_dir,
+        watermark=watermark,
     )
     logger.info("Main section ready: %s", main_path)
 

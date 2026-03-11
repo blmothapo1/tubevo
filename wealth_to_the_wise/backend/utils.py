@@ -54,6 +54,95 @@ PLAN_MONTHLY_PRICE_CENTS: dict[str, int] = {
 }
 
 
+# ── Plan-based quality profiles (single source of truth) ─────────────
+# Each tier gets progressively better AI models, voice quality, video
+# resolution, and more creative control.  This ensures a free user
+# and a $199/mo Agency user have noticeably different output quality.
+#
+# Fields:
+#   gpt_model           — OpenAI model for script & metadata generation
+#   max_script_tokens   — Max tokens for script generation (longer = more detailed)
+#   voice_model         — ElevenLabs TTS model
+#   video_resolution    — (width, height) tuple
+#   video_fps           — Frames per second
+#   video_crf           — FFmpeg CRF (lower = higher quality, bigger file)
+#   audio_bitrate       — AAC audio bitrate
+#   video_bitrate       — Max video bitrate cap
+#   target_scenes       — Number of scene plan segments (more = richer visuals)
+#   subtitle_style      — Default subtitle style
+#   watermark           — Whether to burn a "Made with Tubevo" watermark
+#   multi_format        — Whether portrait/square exports are available
+#   bulk_generate       — Whether bulk generation is available
+
+PLAN_QUALITY_PROFILES: dict[str, dict] = {
+    "free": {
+        "gpt_model": "gpt-4o-mini",
+        "max_script_tokens": 800,
+        "voice_model": "eleven_multilingual_v2",
+        "video_resolution": (1280, 720),
+        "video_fps": 24,
+        "video_crf": "26",
+        "audio_bitrate": "96k",
+        "video_bitrate": "2500k",
+        "target_scenes": 6,
+        "subtitle_style": "default",
+        "watermark": True,
+        "multi_format": False,
+        "bulk_generate": False,
+    },
+    "starter": {
+        "gpt_model": "gpt-4o",
+        "max_script_tokens": 1200,
+        "voice_model": "eleven_multilingual_v2",
+        "video_resolution": (1920, 1080),
+        "video_fps": 30,
+        "video_crf": "22",
+        "audio_bitrate": "128k",
+        "video_bitrate": "4000k",
+        "target_scenes": 10,
+        "subtitle_style": "bold_pop",
+        "watermark": False,
+        "multi_format": False,
+        "bulk_generate": False,
+    },
+    "pro": {
+        "gpt_model": "gpt-4o",
+        "max_script_tokens": 1500,
+        "voice_model": "eleven_multilingual_v2",
+        "video_resolution": (1920, 1080),
+        "video_fps": 30,
+        "video_crf": "20",
+        "audio_bitrate": "192k",
+        "video_bitrate": "5000k",
+        "target_scenes": 14,
+        "subtitle_style": "bold_pop",
+        "watermark": False,
+        "multi_format": True,
+        "bulk_generate": False,
+    },
+    "agency": {
+        "gpt_model": "gpt-4o",
+        "max_script_tokens": 2000,
+        "voice_model": "eleven_multilingual_v2",
+        "video_resolution": (1920, 1080),
+        "video_fps": 30,
+        "video_crf": "18",
+        "audio_bitrate": "192k",
+        "video_bitrate": "6000k",
+        "target_scenes": 18,
+        "subtitle_style": "bold_pop",
+        "watermark": False,
+        "multi_format": True,
+        "bulk_generate": True,
+    },
+}
+
+
+def get_quality_profile(plan: str) -> dict:
+    """Return the quality profile for a given plan, defaulting to 'free'."""
+    return PLAN_QUALITY_PROFILES.get(plan, PLAN_QUALITY_PROFILES["free"])
+
+
 # ── API-key masking ──────────────────────────────────────────────────
 # We try to import the canonical ``mask_secrets`` from the top-level
 # ``config.py``.  If the import fails (e.g. in tests that don't have
