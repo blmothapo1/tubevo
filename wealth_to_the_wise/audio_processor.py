@@ -193,90 +193,204 @@ def _parse_loudnorm_stats(stderr: str) -> dict | None:
 
 # ── Step 3: Generate ambient background music ───────────────────────
 
+# ── Chord progressions for mood variety ──────────────────────────────
+# Each progression is a list of 4 chords; each chord is (root, third, fifth, octave) in Hz.
+# The pipeline cycles through chords over the track duration.
+CHORD_PROGRESSIONS: dict[str, list[tuple[float, float, float, float]]] = {
+    # I – vi – IV – V in C major (warm, uplifting — default)
+    "major_warm": [
+        (130.81, 164.81, 196.00, 261.63),   # C  (C-E-G-C)
+        (110.00, 130.81, 164.81, 220.00),   # Am (A-C-E-A)
+        (174.61, 220.00, 261.63, 349.23),   # F  (F-A-C-F)
+        (146.83, 185.00, 220.00, 293.66),   # G  (G-B-D-G)
+    ],
+    # i – VI – III – VII in A minor (contemplative, serious)
+    "minor_reflective": [
+        (110.00, 130.81, 164.81, 220.00),   # Am
+        (174.61, 220.00, 261.63, 349.23),   # F
+        (130.81, 164.81, 196.00, 261.63),   # C
+        (196.00, 246.94, 293.66, 392.00),   # G
+    ],
+    # I – IV – vi – V in G major (hopeful, forward-moving)
+    "hopeful": [
+        (196.00, 246.94, 293.66, 392.00),   # G
+        (130.81, 164.81, 196.00, 261.63),   # C
+        (164.81, 196.00, 246.94, 329.63),   # Em
+        (146.83, 185.00, 220.00, 293.66),   # D  (approx)
+    ],
+    # I – V – vi – IV  (universally emotional — "pop" canon)
+    "emotional": [
+        (130.81, 164.81, 196.00, 261.63),   # C
+        (196.00, 246.94, 293.66, 392.00),   # G
+        (110.00, 130.81, 164.81, 220.00),   # Am
+        (174.61, 220.00, 261.63, 349.23),   # F
+    ],
+}
+
+
 def generate_ambient_music(
     duration: float,
     output_path: str,
     *,
     frequencies: list[float] | None = None,
     tremolo_base: float | None = None,
+    progression: str | None = None,
 ) -> str:
     """Generate a subtle ambient pad using FFmpeg's audio synthesis.
 
-    Creates a warm, barely-noticeable ambient drone using layered sine
-    waves at consonant intervals. This is 100% royalty-free since it's
-    generated programmatically.
+    Creates a warm, barely-noticeable ambient background using layered
+    sine waves with chord progressions for a richer, more musical feel.
+    100% royalty-free since it's generated programmatically.
 
-    Phase 7 — Music Mood Rotation:
-    *frequencies* and *tremolo_base* can be overridden by the variation
-    engine to rotate between different keys/moods.  When not provided,
-    the original C-major pad is used (backward-compatible).
-
-    Default (C-major pad):
-    - C3 (130.81 Hz) — root
-    - E3 (164.81 Hz) — major third
-    - G3 (196.00 Hz) — fifth
-    - C4 (261.63 Hz) — octave (very quiet)
-
-    With a slow tremolo for organic feel.
+    Parameters
+    ----------
+    duration : float
+        Length of the ambient track in seconds.
+    output_path : str
+        Path to write the resulting MP3.
+    frequencies : list[float] | None
+        Legacy override — static 4-frequency chord (skips progressions).
+    tremolo_base : float | None
+        Override tremolo speed (Hz).  Default 0.07 for a slow pulse.
+    progression : str | None
+        Chord progression key from CHORD_PROGRESSIONS.
+        One of: ``major_warm``, ``minor_reflective``, ``hopeful``, ``emotional``.
+        When *None* and *frequencies* are also *None*, defaults to
+        ``major_warm``.
     """
-    # Phase 7: use provided frequencies or fall back to original C-major
-    f1, f2, f3, f4 = (frequencies or [130.81, 164.81, 196.00, 261.63])[:4]
     trem_base = tremolo_base if tremolo_base is not None else 0.07
 
+    # ── Resolve chord list ──
+    if frequencies is not None:
+        # Legacy / explicit override: single static chord
+        chords = [tuple(frequencies[:4])]
+    else:
+        prog_name = progression or "major_warm"
+        chords = CHORD_PROGRESSIONS.get(prog_name, CHORD_PROGRESSIONS["major_warm"])
+
     logger.info(
-        "Generating ambient music: %.1fHz/%.1fHz/%.1fHz/%.1fHz  tremolo=%.3f",
-        f1, f2, f3, f4, trem_base,
+        "Generating ambient music: progression=%s (%d chords), tremolo=%.3f, dur=%.1fs",
+        progression or ("custom" if frequencies else "major_warm"),
+        len(chords),
+        trem_base,
+        duration,
     )
 
-    # Generate layered sine tones with tremolo modulation
-    # Each voice at a different volume to create a warm pad
-    af_filter = (
-        # Voice 1: Root note with slow tremolo
-        "sine=frequency={f1}:duration={dur},"
-        "tremolo=f={t1}:d=0.3,"
-        "volume=0.25 [v1];"
-        # Voice 2: Third
-        "sine=frequency={f2}:duration={dur},"
-        "tremolo=f={t2}:d=0.25,"
-        "volume=0.18 [v2];"
-        # Voice 3: Fifth
-        "sine=frequency={f3}:duration={dur},"
-        "tremolo=f={t3}:d=0.2,"
-        "volume=0.15 [v3];"
-        # Voice 4: Octave (barely there)
-        "sine=frequency={f4}:duration={dur},"
-        "tremolo=f={t4}:d=0.35,"
-        "volume=0.08 [v4];"
-        # Mix all voices
-        "[v1][v2][v3][v4] amix=inputs=4:duration=longest,"
-        # Gentle low-pass filter for warmth
-        "lowpass=f=800:p=2,"
-        # Fade in/out for smooth start/end
-        "afade=t=in:st=0:d=3,"
-        "afade=t=out:st={fade_out_start}:d=3,"
-        # Final volume adjustment
-        "volume={vol}dB"
-    ).format(
-        f1=f1, f2=f2, f3=f3, f4=f4,
-        t1=round(trem_base + 0.01, 3),
-        t2=round(trem_base - 0.01, 3),
-        t3=trem_base,
-        t4=round(trem_base - 0.02, 3),
-        dur=duration + 1,  # +1s buffer
-        fade_out_start=max(0, duration - 3),
-        vol=MUSIC_VOLUME_DB,
-    )
+    # ── Compute chord timing ──
+    # Each chord plays for ``chord_dur`` seconds with a 1.5s cross-fade.
+    num_chords = len(chords)
+    if num_chords == 1:
+        # Single static chord — original behaviour
+        chord_sections = [(0.0, duration, chords[0])]
+    else:
+        # Cycle chords evenly across the full duration
+        chord_dur = duration / num_chords
+        chord_sections = []
+        for i in range(num_chords):
+            start = i * chord_dur
+            chord_sections.append((start, chord_dur, chords[i % num_chords]))
 
-    _run_ffmpeg([
-        "-f", "lavfi",
-        "-i", af_filter,
-        "-t", f"{duration:.2f}",
-        "-c:a", "libmp3lame", "-q:a", "4",
-        "-ar", "44100", "-ac", "2",
-        output_path,
-    ], "generate ambient background music")
+    # ── Build per-chord audio segments then concatenate ──
+    import tempfile as _tmpmod
+    tmp_dir = _tmpmod.mkdtemp(prefix="tubevo_music_")
+    segment_paths: list[str] = []
 
-    return output_path
+    try:
+        for idx, (start_t, seg_dur, (f1, f2, f3, f4)) in enumerate(chord_sections):
+            seg_path = os.path.join(tmp_dir, f"chord_{idx:02d}.wav")
+
+            # Build a 4-voice pad with tremolo + low-pass
+            af_filter = (
+                # Voice 1: Root — warm and present
+                "sine=frequency={f1}:duration={dur},"
+                "tremolo=f={t1}:d=0.3,"
+                "volume=0.25 [v1];"
+                # Voice 2: Third — gives major/minor character
+                "sine=frequency={f2}:duration={dur},"
+                "tremolo=f={t2}:d=0.25,"
+                "volume=0.18 [v2];"
+                # Voice 3: Fifth — harmonic anchor
+                "sine=frequency={f3}:duration={dur},"
+                "tremolo=f={t3}:d=0.2,"
+                "volume=0.15 [v3];"
+                # Voice 4: Octave — airy top layer
+                "sine=frequency={f4}:duration={dur},"
+                "tremolo=f={t4}:d=0.35,"
+                "volume=0.08 [v4];"
+                # Voice 5: Sub-bass an octave below root — warmth
+                "sine=frequency={f_sub}:duration={dur},"
+                "tremolo=f={t5}:d=0.15,"
+                "volume=0.10 [v5];"
+                # Mix all voices
+                "[v1][v2][v3][v4][v5] amix=inputs=5:duration=longest,"
+                # Low-pass for warmth
+                "lowpass=f=900:p=2,"
+                # Cross-fade friendly: fade-in first 1.5s, fade-out last 1.5s
+                "afade=t=in:st=0:d={fade_in},"
+                "afade=t=out:st={fade_out_start}:d={fade_out},"
+                # Volume
+                "volume={vol}dB"
+            ).format(
+                f1=f1, f2=f2, f3=f3, f4=f4,
+                f_sub=f1 / 2,  # sub-bass one octave below root
+                t1=round(trem_base + 0.01, 3),
+                t2=round(trem_base - 0.01, 3),
+                t3=trem_base,
+                t4=round(trem_base - 0.02, 3),
+                t5=round(trem_base + 0.005, 3),
+                dur=seg_dur + 2,  # buffer
+                fade_in=min(1.5, seg_dur * 0.15),
+                fade_out_start=max(0, seg_dur - min(1.5, seg_dur * 0.15)),
+                fade_out=min(1.5, seg_dur * 0.15),
+                vol=MUSIC_VOLUME_DB,
+            )
+
+            _run_ffmpeg([
+                "-f", "lavfi",
+                "-i", af_filter,
+                "-t", f"{seg_dur:.2f}",
+                "-c:a", "pcm_s16le",
+                "-ar", "44100", "-ac", "2",
+                seg_path,
+            ], f"generate chord segment {idx + 1}/{len(chord_sections)}")
+            segment_paths.append(seg_path)
+
+        if len(segment_paths) == 1:
+            # Single chord — just convert to mp3
+            _run_ffmpeg([
+                "-i", segment_paths[0],
+                "-c:a", "libmp3lame", "-q:a", "4",
+                "-ar", "44100", "-ac", "2",
+                output_path,
+            ], "convert single-chord ambient to mp3")
+        else:
+            # Concatenate all chord segments with cross-fade
+            # Use acrossfade between pairs, or simple concat for reliability
+            concat_list = os.path.join(tmp_dir, "concat.txt")
+            with open(concat_list, "w") as cl:
+                for sp in segment_paths:
+                    cl.write(f"file '{sp}'\n")
+
+            _run_ffmpeg([
+                "-f", "concat", "-safe", "0",
+                "-i", concat_list,
+                # Overall fade-in/out on the entire track
+                "-af", (
+                    f"afade=t=in:st=0:d=3,"
+                    f"afade=t=out:st={max(0, duration - 3):.2f}:d=3"
+                ),
+                "-c:a", "libmp3lame", "-q:a", "4",
+                "-ar", "44100", "-ac", "2",
+                "-t", f"{duration:.2f}",
+                output_path,
+            ], "concatenate chord segments into ambient track")
+
+        logger.info("Ambient music generated: %s (%.1fs)", output_path, duration)
+        return output_path
+
+    finally:
+        import shutil as _shutil
+        _shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ── Step 4: Mix with ducking ────────────────────────────────────────
@@ -338,6 +452,7 @@ def polish_audio(
     normalize_enabled: bool = True,
     music_frequencies: list[float] | None = None,
     music_tremolo_base: float | None = None,
+    music_progression: str | None = None,
 ) -> str:
     """Full audio polish pipeline: trim → normalize → music → duck → mix.
 
@@ -355,8 +470,13 @@ def polish_audio(
         Whether to normalize loudness (default True).
     music_frequencies : list[float] | None
         Phase 7 — Override ambient pad frequencies for mood rotation.
+        When provided, overrides *music_progression* (single static chord).
     music_tremolo_base : float | None
         Phase 7 — Override tremolo speed for mood rotation.
+    music_progression : str | None
+        Chord progression name (``major_warm``, ``minor_reflective``,
+        ``hopeful``, ``emotional``).  Ignored when *music_frequencies*
+        is provided.  Default ``major_warm``.
 
     Returns
     -------
@@ -402,6 +522,7 @@ def polish_audio(
                     music_path,
                     frequencies=music_frequencies,
                     tremolo_base=music_tremolo_base,
+                    progression=music_progression,
                 )
 
                 mixed_path = os.path.join(tmp_dir, "mixed.mp3")

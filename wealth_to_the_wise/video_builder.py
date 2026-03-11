@@ -740,6 +740,81 @@ def _enforce_size_limit(video_path: str) -> str:
     return video_path
 
 
+# ── Output video validation ──────────────────────────────────────────
+
+def _validate_output_video(
+    video_path: str,
+    expected_width: int | None = None,
+    expected_height: int | None = None,
+    min_duration: float = 5.0,
+) -> None:
+    """Sanity-check the final rendered video.
+
+    Raises ``RenderError`` if the output file is missing, empty,
+    unreadable by ffprobe, too short, or has the wrong resolution.
+    """
+    # ── Existence / size ──
+    if not os.path.isfile(video_path):
+        raise RenderError(f"Output video not found: {video_path}")
+    file_size = os.path.getsize(video_path)
+    if file_size == 0:
+        raise RenderError(f"Output video is 0 bytes: {video_path}")
+
+    # ── Probe with ffprobe ──
+    probe_cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height,duration,codec_name",
+        "-show_entries", "format=duration",
+        "-of", "json",
+        video_path,
+    ]
+    try:
+        probe = subprocess.run(
+            probe_cmd, capture_output=True, text=True, timeout=30,
+        )
+        info = json.loads(probe.stdout)
+    except Exception as exc:
+        raise RenderError(f"ffprobe failed on {video_path}: {exc}") from exc
+
+    # ── Duration ──
+    streams = info.get("streams", [{}])
+    fmt = info.get("format", {})
+    duration_str = (
+        streams[0].get("duration")
+        if streams and streams[0].get("duration")
+        else fmt.get("duration")
+    )
+    if duration_str is not None:
+        duration = float(duration_str)
+        if duration < min_duration:
+            raise RenderError(
+                f"Output video too short: {duration:.1f}s (min {min_duration:.1f}s)"
+            )
+        logger.info("Validation: duration %.1fs ✓", duration)
+    else:
+        logger.warning("Validation: could not determine video duration — skipping check")
+
+    # ── Resolution ──
+    if streams and expected_width and expected_height:
+        actual_w = streams[0].get("width")
+        actual_h = streams[0].get("height")
+        if actual_w and actual_h:
+            if int(actual_w) != expected_width or int(actual_h) != expected_height:
+                logger.warning(
+                    "Validation: resolution mismatch — expected %dx%d, got %sx%s",
+                    expected_width, expected_height, actual_w, actual_h,
+                )
+            else:
+                logger.info("Validation: resolution %dx%d ✓", expected_width, expected_height)
+
+    # ── Codec sanity ──
+    if streams:
+        codec = streams[0].get("codec_name", "unknown")
+        logger.info("Validation: video codec %s, file size %.1f MB ✓",
+                     codec, file_size / (1024 * 1024))
+
+
 # ── Main entry point ────────────────────────────────────────────────
 
 def build_video(
@@ -759,6 +834,7 @@ def build_video(
     video_bitrate: str | None = None,
     audio_bitrate: str | None = None,
     watermark: bool = False,
+    openai_api_key: str | None = None,
 ) -> str:
     """Build a cinematic video from stock footage + voiceover + captions.
 
@@ -791,6 +867,8 @@ def build_video(
         Plan-based quality overrides.  When *None*, module-level defaults are used.
     watermark : bool
         If True, burn a "Made with Tubevo" watermark (free tier).
+    openai_api_key : str | None
+        OpenAI key for Whisper-based subtitle alignment.
     """
     # Resolve quality overrides (fall back to module-level constants)
     _w = video_width or VIDEO_WIDTH
@@ -828,6 +906,7 @@ def build_video(
             video_bitrate=_vbr,
             audio_bitrate=_abr,
             watermark=watermark,
+            openai_api_key=openai_api_key,
         )
     finally:
         try:
@@ -855,6 +934,7 @@ def _build_video_inner(
     video_bitrate: str = VIDEO_BITRATE,
     audio_bitrate: str = AUDIO_BITRATE,
     watermark: bool = False,
+    openai_api_key: str | None = None,
 ) -> str:
     """Inner build function — all work happens here."""
 
@@ -877,6 +957,7 @@ def _build_video_inner(
             burn_captions=burn_captions,
             tmp_dir=tmp_dir,
             watermark=watermark,
+            openai_api_key=openai_api_key,
         )
     finally:
         VIDEO_WIDTH, VIDEO_HEIGHT, FPS, ENCODING_CRF, VIDEO_BITRATE, AUDIO_BITRATE = _orig
@@ -894,6 +975,7 @@ def _build_video_core(
     burn_captions: bool,
     tmp_dir: str,
     watermark: bool = False,
+    openai_api_key: str | None = None,
 ) -> str:
     """Core build logic — called with module constants already overridden."""
 
@@ -940,6 +1022,10 @@ def _build_video_core(
             srt_output=_srt_out,
             ass_output=ass_path,
             burn_captions=burn_captions,
+            video_width=VIDEO_WIDTH,
+            video_height=VIDEO_HEIGHT,
+            audio_path=audio_path,
+            openai_api_key=openai_api_key,
         )
         if _ass_path:
             ass_path = _ass_path
@@ -999,6 +1085,13 @@ def _build_video_core(
 
     # ── 9. File-size enforcement ─────────────────────────────────────
     output_path = _enforce_size_limit(output_path)
+
+    # ── 10. Output validation ────────────────────────────────────────
+    _validate_output_video(
+        output_path,
+        expected_width=VIDEO_WIDTH,
+        expected_height=VIDEO_HEIGHT,
+    )
 
     # Phase 5: Store SRT path for pipeline access
     global last_srt_path

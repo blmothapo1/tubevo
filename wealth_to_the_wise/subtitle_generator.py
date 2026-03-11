@@ -282,6 +282,103 @@ def compute_timestamps(
     return timed
 
 
+# ── Whisper-based speech alignment ──────────────────────────────────
+
+def compute_timestamps_whisper(
+    segments: list[str],
+    audio_path: str,
+    *,
+    openai_api_key: str | None = None,
+    gap_between: float = 0.05,
+) -> list[TimedSegment] | None:
+    """Use the OpenAI Whisper API to get word-level timestamps, then
+    align caption *segments* to the real speech timing.
+
+    Returns ``None`` on any failure so the caller can fall back to the
+    proportional estimator.  The Whisper ``timestamp_granularities``
+    feature gives us per-word start/end times that we stitch to the
+    display segments.
+    """
+    try:
+        from openai import OpenAI
+
+        api_key = openai_api_key
+        if not api_key:
+            import config
+            api_key = getattr(config, "OPENAI_API_KEY", "")
+        if not api_key:
+            return None
+
+        client = OpenAI(api_key=api_key)
+
+        with open(audio_path, "rb") as f:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f,
+                response_format="verbose_json",
+                timestamp_granularities=["word"],
+            )
+
+        words: list[dict] = getattr(transcript, "words", None) or []
+        if not words:
+            logger.warning("Whisper returned no word-level timestamps")
+            return None
+
+        logger.info("Whisper aligned %d words from audio", len(words))
+
+        # Build a flat list of (word_text, start, end)
+        word_timings: list[tuple[str, float, float]] = [
+            (w["word"].strip(), float(w["start"]), float(w["end"]))
+            for w in words
+            if w.get("word", "").strip()
+        ]
+
+        if not word_timings:
+            return None
+
+        # For each display segment, find the span of word timings that
+        # best matches it.  We walk through word_timings sequentially
+        # and greedily consume words that appear in the segment text.
+        timed: list[TimedSegment] = []
+        wt_idx = 0
+
+        for seg_text in segments:
+            seg_words_lower = [w.lower().strip(".,!?;:\"'()") for w in seg_text.split()]
+            seg_word_count = len(seg_words_lower)
+
+            if wt_idx >= len(word_timings):
+                # Ran out of Whisper words — use last known timestamp
+                last_end = word_timings[-1][2] if word_timings else 0.0
+                timed.append(TimedSegment(
+                    text=seg_text,
+                    start=last_end,
+                    end=last_end + 2.0,
+                ))
+                continue
+
+            # The segment start is the start of the current word
+            seg_start = word_timings[wt_idx][1]
+
+            # Consume approximately as many Whisper words as the segment has
+            consume = min(seg_word_count, len(word_timings) - wt_idx)
+            consume = max(consume, 1)
+            seg_end = word_timings[min(wt_idx + consume - 1, len(word_timings) - 1)][2]
+            wt_idx += consume
+
+            timed.append(TimedSegment(
+                text=seg_text,
+                start=seg_start,
+                end=seg_end + gap_between,
+            ))
+
+        logger.info("Whisper alignment produced %d timed segments", len(timed))
+        return timed
+
+    except Exception as exc:
+        logger.warning("Whisper alignment failed (will fall back to estimation): %s", exc)
+        return None
+
+
 # ── SRT generation ──────────────────────────────────────────────────
 
 def _seconds_to_srt_time(seconds: float) -> str:
@@ -332,14 +429,32 @@ def generate_ass(
     timed_segments: list[TimedSegment],
     output_path: str,
     style: SubtitleStyle | None = None,
+    video_width: int | None = None,
+    video_height: int | None = None,
 ) -> str:
     """Generate an ASS subtitle file with styled captions for burning in.
 
     ASS subtitles are rendered by FFmpeg natively (via libass) with zero
     extra RAM — the filter reads the .ass file and burns text frame by frame.
+
+    When *video_width* / *video_height* are provided the PlayRes and
+    font metrics are scaled to match the actual render resolution.
     """
     if style is None:
         style = SUBTITLE_STYLES[DEFAULT_STYLE]
+
+    res_w = video_width or VIDEO_WIDTH
+    res_h = video_height or VIDEO_HEIGHT
+
+    # Scale font size and margins proportionally when resolution differs
+    # from the 720p baseline the presets were designed for.
+    scale = res_h / 720
+    scaled_font_size = max(24, round(style.font_size * scale))
+    scaled_margin_v = max(20, round(style.margin_v * scale))
+    scaled_margin_l = max(10, round(style.margin_l * scale))
+    scaled_margin_r = max(10, round(style.margin_r * scale))
+    scaled_outline = round(style.outline_width * scale, 1)
+    scaled_shadow = round(style.shadow_depth * scale, 1)
 
     bold_flag = -1 if style.bold else 0
     italic_flag = -1 if style.italic else 0
@@ -348,13 +463,13 @@ def generate_ass(
 Title: Tubevo Captions
 ScriptType: v4.00+
 WrapStyle: 0
-PlayResX: {VIDEO_WIDTH}
-PlayResY: {VIDEO_HEIGHT}
+PlayResX: {res_w}
+PlayResY: {res_h}
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{style.font_family},{style.font_size},{style.primary_color},&H000000FF,{style.outline_color},{style.back_color},{bold_flag},{italic_flag},0,0,100,100,0,0,{style.border_style},{style.outline_width},{style.shadow_depth},{style.alignment},{style.margin_l},{style.margin_r},{style.margin_v},1
+Style: Default,{style.font_family},{scaled_font_size},{style.primary_color},&H000000FF,{style.outline_color},{style.back_color},{bold_flag},{italic_flag},0,0,100,100,0,0,{style.border_style},{scaled_outline},{scaled_shadow},{style.alignment},{scaled_margin_l},{scaled_margin_r},{scaled_margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -389,6 +504,10 @@ def generate_subtitles(
     srt_output: str | None = None,
     ass_output: str | None = None,
     burn_captions: bool = True,
+    video_width: int | None = None,
+    video_height: int | None = None,
+    audio_path: str | None = None,
+    openai_api_key: str | None = None,
 ) -> tuple[str, str | None]:
     """Generate both SRT and (optionally) ASS subtitle files.
 
@@ -406,6 +525,14 @@ def generate_subtitles(
         Path for ASS file. Defaults to output/captions.ass.
     burn_captions : bool
         Whether to generate ASS file for burn-in (default True).
+    video_width / video_height : int | None
+        Actual render resolution.  When provided, ASS PlayRes and font
+        metrics are scaled to match (default: 1280×720).
+    audio_path : str | None
+        Path to the voiceover audio file.  When provided, Whisper-based
+        speech alignment is attempted for frame-accurate captions.
+    openai_api_key : str | None
+        OpenAI API key for Whisper alignment.
 
     Returns
     -------
@@ -426,8 +553,18 @@ def generate_subtitles(
     segments = split_script_to_segments(script, max_chars=style.wrap_width)
     logger.info("Split script into %d caption segments", len(segments))
 
-    # Compute timestamps
-    timed = compute_timestamps(segments, audio_duration)
+    # Compute timestamps — try Whisper alignment first for frame-accurate
+    # captions, fall back to proportional word-count estimation.
+    timed = None
+    if audio_path and openai_api_key:
+        timed = compute_timestamps_whisper(
+            segments, audio_path, openai_api_key=openai_api_key,
+        )
+        if timed:
+            logger.info("Using Whisper-aligned timestamps (%d segments)", len(timed))
+    if timed is None:
+        timed = compute_timestamps(segments, audio_duration)
+        logger.info("Using proportional timestamp estimation (%d segments)", len(timed))
 
     # Generate SRT (always — used for YouTube upload)
     srt_path = generate_srt(timed, srt_output, max_width=style.wrap_width)
@@ -435,7 +572,8 @@ def generate_subtitles(
     # Generate ASS (for burn-in, if enabled)
     ass_path = None
     if burn_captions:
-        ass_path = generate_ass(timed, ass_output, style=style)
+        ass_path = generate_ass(timed, ass_output, style=style,
+                                video_width=video_width, video_height=video_height)
 
     return srt_path, ass_path
 
