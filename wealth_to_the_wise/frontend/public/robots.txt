@@ -1,0 +1,27 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://tubevo.us/sitemap.xml
+
+# Block admin / auth callback routes from indexing
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /auth/
+Disallow: /apple-callback
+Disallow: /onboarding
+Disallow: /dashboard
+Disallow: /videos
+Disallow: /schedule
+Disallow: /settings
+Disallow: /channels
+Disallow: /niche
+Disallow: /revenue
+Disallow: /thumbnails
+Disallow: /competitors
+Disallow: /voices
+Disallow: /trends
+Disallow: /insights
+Disallow: /team
+Disallow: /referrals

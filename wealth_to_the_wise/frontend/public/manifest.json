@@ -1,0 +1,22 @@
+{
+  "name": "Tubevo",
+  "short_name": "Tubevo",
+  "description": "Your YouTube channel on autopilot. Create, schedule, and publish high-performing videos.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0c0c14",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo-color.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

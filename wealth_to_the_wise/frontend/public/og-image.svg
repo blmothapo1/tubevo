@@ -1,0 +1,26 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0c0c14;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a2e;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="brand" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)" />
+  <- Add SEO-optimized titles and Subtle glow -->
+  <circle cx="600" cy="250" r="200" fill="#6366f1" opacity="0.06" />
+  <circle cx="600" cy="250" r="300" fill="#6366f1" opacity="0.03" />
+  <- Add SEO-optimized titles and Brand name -->
+  <text x="600" y="240" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="72" font-weight="700" fill="white" text-anchor="middle" letter-spacing="-2">Tubevo</text>
+  <- Add SEO-optimized titles and Tagline -->
+  <text x="600" y="310" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="32" font-weight="500" fill="url(#brand)" text-anchor="middle">Your YouTube Channel. On Autopilot.</text>
+  <- Add SEO-optimized titles and Subtitle -->
+  <text x="600" y="370" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="20" fill="#9ca3af" text-anchor="middle">AI-powered video generation, scheduling, and publishing</text>
+  <- Add SEO-optimized titles and URL -->
+  <text x="600" y="560" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="18" fill="#6366f1" text-anchor="middle">tubevo.us</text>
+  <- Add SEO-optimized titles and Bottom line accent -->
+  <rect x="450" y="590" width="300" height="3" rx="2" fill="url(#brand)" opacity="0.4" />
+</svg>
