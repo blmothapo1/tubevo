@@ -58,7 +58,7 @@ async def _get_or_create_settings(db, user_id: str) -> TrendRadarSettings:
         settings = TrendRadarSettings(
             id=_new_uuid(),
             user_id=user_id,
-            is_enabled=True,
+            is_enabled=False,  # opt-in: user must explicitly enable Trend Radar
             created_at=_utcnow(),
         )
         db.add(settings)
