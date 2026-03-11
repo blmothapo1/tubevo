@@ -43,6 +43,16 @@ PLAN_MAX_TEAMS: dict[str, int] = {
     "agency": 10,
 }
 
+# ── Referral system constants (Phase 5) ──────────────────────────────
+REFERRAL_COMMISSION_PCT = 20          # 20% recurring commission
+REFERRAL_COMMISSION_MONTHS = 12       # pay commissions for first 12 months
+PLAN_MONTHLY_PRICE_CENTS: dict[str, int] = {
+    "free": 0,
+    "starter": 1900,    # $19/mo
+    "pro": 4900,         # $49/mo
+    "agency": 9900,      # $99/mo
+}
+
 
 # ── API-key masking ──────────────────────────────────────────────────
 # We try to import the canonical ``mask_secrets`` from the top-level

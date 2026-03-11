@@ -29,6 +29,7 @@ import VoiceClones from './pages/VoiceClones';
 import TrendRadar from './pages/TrendRadar';
 import Insights from './pages/Insights';
 import Team from './pages/Team';
+import Referrals from './pages/Referrals';
 
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -134,6 +135,7 @@ export default function App() {
           <Route path="/trends" element={<TrendRadar />} />
           <Route path="/insights" element={<Insights />} />
           <Route path="/team" element={<Team />} />
+          <Route path="/referrals" element={<Referrals />} />
         </Route>
       </Routes>
     </BrowserRouter>

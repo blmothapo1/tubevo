@@ -36,6 +36,7 @@ class SignUpRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
     full_name: str | None = Field(None, max_length=120)
+    referral_code: str | None = Field(None, max_length=20)
 
 
 class SignUpResponse(BaseModel):

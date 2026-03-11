@@ -58,6 +58,14 @@ class User(Base):
     )
     credit_balance: Mapped[int] = mapped_column(Integer, default=0)
 
+    # ── Referral system (Phase 5) ────────────────────────────────────
+    referral_code: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, unique=True, index=True,
+    )
+    referred_by: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True,
+    )
+
     # ── Password-reset token ─────────────────────────────────────────
     reset_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
     reset_token_expires: Mapped[datetime | None] = mapped_column(
@@ -1242,3 +1250,100 @@ class TeamInvite(Base):
 
     def __repr__(self) -> str:
         return f"<TeamInvite team={self.team_id} email={self.email} status={self.status}>"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# PHASE 5 — Referral / Affiliate System
+# ══════════════════════════════════════════════════════════════════════
+
+
+class Referral(Base):
+    """Tracks when a referred user signs up and converts to a paid plan.
+
+    Lifecycle:
+      1. Referred user signs up with ``?ref=CODE`` → Referral created (status=signup)
+      2. Referred user upgrades to a paid plan → status=converted, commission calculated
+      3. Commission is paid out monthly → linked ReferralPayout records
+    """
+
+    __tablename__ = "referrals"
+    __table_args__ = (
+        UniqueConstraint("referred_user_id", name="uq_referral_referred_user"),
+        Index("ix_referral_referrer", "referrer_id"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    referrer_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False,
+    )
+    referred_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False,
+    )
+
+    # signup | converted | churned
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="signup")
+
+    # Set when status becomes "converted"
+    converted_plan: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    converted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+
+    # Cumulative earnings from this referral
+    total_earned_cents: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<Referral referrer={self.referrer_id} referred={self.referred_user_id} status={self.status}>"
+
+
+class ReferralPayout(Base):
+    """Tracks individual commission payouts (or credits) for a referral.
+
+    Each time a referred user's subscription renews, a new payout record
+    is created.  Status: pending → paid | failed
+    """
+
+    __tablename__ = "referral_payouts"
+    __table_args__ = (
+        Index("ix_payout_referrer", "referrer_id"),
+        Index("ix_payout_referral", "referral_id"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    referral_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("referrals.id"), nullable=False,
+    )
+    referrer_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False,
+    )
+
+    # Amount in cents (USD)
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # What triggered this payout (checkout | renewal | manual)
+    trigger: Mapped[str] = mapped_column(String(30), nullable=False, default="checkout")
+
+    # pending → paid | failed
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+
+    # Stripe-related IDs for reconciliation
+    stripe_invoice_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    paid_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<ReferralPayout referrer={self.referrer_id} amount={self.amount_cents}¢ status={self.status}>"
+

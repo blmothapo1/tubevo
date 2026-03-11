@@ -133,6 +133,14 @@ async def signup(
 
     logger.info("New user registered: %s (id=%s)", user.email, user.id)
 
+    # ── Phase 5: Record referral if a code was provided ──────────────
+    if body.referral_code:
+        try:
+            from backend.routers.referrals import record_referral_signup
+            await record_referral_signup(body.referral_code, user, db)
+        except Exception:
+            logger.warning("Referral recording failed for %s (non-fatal)", user.email, exc_info=True)
+
     # ── Admin event: user_signup ─────────────────────────────────────
     await emit_event(db, "user_signup", user_id=user.id, meta={"email": user.email})
 

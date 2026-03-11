@@ -209,6 +209,15 @@ async def stripe_webhook(
             db.add(user)
             await db.commit()
             logger.info("User %s upgraded to %s plan (stripe_customer=%s).", user.email, plan, customer_id)
+
+            # Phase 5: Record referral commission if this user was referred
+            try:
+                from backend.routers.referrals import convert_referral_on_upgrade
+                await convert_referral_on_upgrade(user, plan, db)
+                await db.commit()
+            except Exception:
+                logger.warning("Referral commission recording failed for %s (non-fatal)", user.email, exc_info=True)
+
             # Send plan upgrade email
             try:
                 from backend.services.email_service import send_plan_upgrade_email

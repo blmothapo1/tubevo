@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Film, CalendarClock, Settings, LogOut, X,
   Tv2, Search, DollarSign, Image, Eye, Mic, Shield,
-  ChevronsLeft, ChevronsRight, Command, Radar, BarChart3, Users,
+  ChevronsLeft, ChevronsRight, Command, Radar, BarChart3, Users, Gift,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -29,6 +29,7 @@ const empireLinks = [
   { to: '/thumbnails', label: 'Thumbnails', icon: Image },
   { to: '/competitors', label: 'Competitors', icon: Eye },
   { to: '/voices', label: 'Voice Clones', icon: Mic },
+  { to: '/referrals', label: 'Referrals', icon: Gift },
 ];
 
 /* ── Reusable sidebar link ── */

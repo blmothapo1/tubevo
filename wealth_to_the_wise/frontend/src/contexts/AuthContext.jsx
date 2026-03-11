@@ -57,11 +57,13 @@ export function AuthProvider({ children }) {
     return me;
   }
 
-  async function signup(email, password, full_name) {
+  async function signup(email, password, full_name, referral_code) {
+    const payload = { email, password, full_name };
+    if (referral_code) payload.referral_code = referral_code;
     const res = await fetch(`${API_BASE}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, full_name }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Signup failed.' }));

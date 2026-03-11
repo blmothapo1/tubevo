@@ -282,6 +282,18 @@ async def _apply_column_migrations() -> None:
                     "ALTER TABLE video_records ADD COLUMN batch_position INTEGER"
                 ))
                 logger.info("Applied migration: video_records.batch_position")
+
+            # 0013: referral columns on users (Phase 5)
+            if not await _col_exists_sqlite("users", "referral_code"):
+                await conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN referral_code VARCHAR(16)"
+                ))
+                logger.info("Applied migration: users.referral_code")
+            if not await _col_exists_sqlite("users", "referred_by"):
+                await conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN referred_by VARCHAR(36) REFERENCES users(id)"
+                ))
+                logger.info("Applied migration: users.referred_by")
         else:
             # PostgreSQL path — use information_schema
             async def _col_exists_pg(table: str, column: str) -> bool:
@@ -374,6 +386,22 @@ async def _apply_column_migrations() -> None:
                     "ALTER TABLE video_records ADD COLUMN batch_position INTEGER"
                 ))
                 logger.info("Applied migration: video_records.batch_position")
+
+            # 0013: referral columns on users (Phase 5)
+            if not await _col_exists_pg("users", "referral_code"):
+                await conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN referral_code VARCHAR(16)"
+                ))
+                await conn.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_referral_code "
+                    "ON users (referral_code) WHERE referral_code IS NOT NULL"
+                ))
+                logger.info("Applied migration: users.referral_code")
+            if not await _col_exists_pg("users", "referred_by"):
+                await conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN referred_by VARCHAR(36) REFERENCES users(id)"
+                ))
+                logger.info("Applied migration: users.referred_by")
 
     logger.info("Column migrations complete.")
 

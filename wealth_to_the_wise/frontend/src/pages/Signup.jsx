@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import Spinner from '../components/Spinner';
@@ -9,18 +9,36 @@ const ease = [0.25, 0.1, 0.25, 1];
 export default function Signup() {
   const { signup, login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [referralCode] = useState(() => searchParams.get('ref') || '');
+  const [referrerName, setReferrerName] = useState('');
+
+  // Validate referral code on mount
+  useEffect(() => {
+    if (!referralCode) return;
+    fetch(`${import.meta.env.VITE_API_URL || ''}/api/referrals/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: referralCode }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.valid && data.referrer_name) setReferrerName(data.referrer_name);
+      })
+      .catch(() => {});
+  }, [referralCode]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await signup(email, password, name);
+      await signup(email, password, name, referralCode || undefined);
       await login(email, password);
       navigate('/onboarding');
     } catch (err) {
@@ -49,6 +67,17 @@ export default function Signup() {
         </div>
 
         <form onSubmit={handleSubmit} className="card p-7 space-y-6">
+          {referrerName && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-brand-500/8 text-brand-400 text-[13px] px-3 py-2.5 rounded-[10px] flex items-center gap-2"
+            >
+              <span className="text-[14px]">🎁</span>
+              Referred by <span className="font-semibold">{referrerName}</span>
+            </motion.div>
+          )}
+
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
