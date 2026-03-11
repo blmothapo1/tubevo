@@ -263,8 +263,8 @@ async def test_convert_referral_on_upgrade(client: AsyncClient):
         await db.commit()
 
     assert payout is not None
-    # Pro plan = $49/mo, 20% commission = $9.80 = 980 cents
-    assert payout.amount_cents == 980
+    # Pro plan = $79/mo, 20% commission = $15.80 = 1580 cents
+    assert payout.amount_cents == 1580
     assert payout.trigger == "checkout"
     assert payout.status == "pending"
 
