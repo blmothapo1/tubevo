@@ -4,6 +4,7 @@ import api from '../lib/api';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
 import { FadeIn } from '../components/Motion';
+import { useToast } from '../contexts/ToastContext';
 import {
   Gift, Users, DollarSign, TrendingUp, Copy, Check,
   ExternalLink, Clock, ArrowUpRight, UserPlus,
@@ -49,17 +50,20 @@ function StatCard({ icon: Icon, iconColor, gradient, label, value, prefix, suffi
 
 /* ── Share link card ── */
 function ShareCard({ code, shareUrl }) {
+  const toast = useToast();
   const [copied, setCopied] = useState(false);
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl);
     setCopied(true);
+    toast.success('Referral link copied!');
     setTimeout(() => setCopied(false), 2000);
   };
 
   const copyCode = () => {
     navigator.clipboard.writeText(code);
     setCopied(true);
+    toast.success('Referral code copied!');
     setTimeout(() => setCopied(false), 2000);
   };
 

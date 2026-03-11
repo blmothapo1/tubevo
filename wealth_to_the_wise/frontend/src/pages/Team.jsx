@@ -4,6 +4,7 @@ import api from '../lib/api';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
 import { FadeIn } from '../components/Motion';
+import { useToast } from '../contexts/ToastContext';
 import {
   Users, Plus, Mail, Shield, Edit3, Trash2, Crown,
   UserPlus, Copy, Check, Clock, ChevronDown, X,
@@ -29,6 +30,7 @@ function RoleBadge({ role }) {
 
 /* ── Member row ── */
 function MemberRow({ member, isOwnerOrAdmin, currentUserId, teamId, onRefresh }) {
+  const toast = useToast();
   const [roleOpen, setRoleOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
 
@@ -36,9 +38,10 @@ function MemberRow({ member, isOwnerOrAdmin, currentUserId, teamId, onRefresh })
     setRoleOpen(false);
     try {
       await api.patch(`/api/teams/${teamId}/members/${member.user_id}`, { role: newRole });
+      toast.success(`Role updated to ${newRole}`);
       onRefresh();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to change role');
+      toast.error(err.response?.data?.detail || 'Failed to change role');
     }
   };
 
@@ -47,9 +50,10 @@ function MemberRow({ member, isOwnerOrAdmin, currentUserId, teamId, onRefresh })
     setRemoving(true);
     try {
       await api.delete(`/api/teams/${teamId}/members/${member.user_id}`);
+      toast.success(`${member.email} removed from team`);
       onRefresh();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to remove');
+      toast.error(err.response?.data?.detail || 'Failed to remove member');
     } finally {
       setRemoving(false);
     }
@@ -163,6 +167,7 @@ function InviteRow({ invite, teamId, onRefresh }) {
 
 /* ── Create team modal ── */
 function CreateTeamModal({ open, onClose, onCreated }) {
+  const toast = useToast();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -181,6 +186,7 @@ function CreateTeamModal({ open, onClose, onCreated }) {
       setName('');
       setDescription('');
       onClose();
+      toast.success('Team created!');
       onCreated();
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create team');
@@ -250,6 +256,7 @@ function CreateTeamModal({ open, onClose, onCreated }) {
 
 /* ── Invite modal ── */
 function InviteModal({ open, onClose, teamId, onInvited }) {
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('editor');
   const [loading, setLoading] = useState(false);
@@ -265,6 +272,7 @@ function InviteModal({ open, onClose, teamId, onInvited }) {
         email: email.trim().toLowerCase(),
         role,
       });
+      toast.success(`Invite sent to ${email.trim()}`);
       setEmail('');
       setRole('editor');
       onClose();

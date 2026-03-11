@@ -8,6 +8,7 @@ import ConfettiCelebration from '../components/ConfettiCelebration';
 import EmptyState from '../components/EmptyState';
 import ScriptRefiner from '../components/ScriptRefiner';
 import BulkGenerator from '../components/BulkGenerator';
+import { useToast } from '../contexts/ToastContext';
 import {
   CheckCircle,
   XCircle,
@@ -119,6 +120,7 @@ function RenderProgressBar({ pct, step, startedAt }) {
 
 export default function Videos() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [topic, setTopic] = useState('');
@@ -255,11 +257,14 @@ export default function Videos() {
 
         if (data.status === 'failed') {
           setMessage({ type: 'error', text: data.error_message || 'Video creation failed.' });
+          toast.error(data.error_message || 'Video creation failed.');
         } else if (data.status === 'posted') {
           setMessage({ type: 'success', text: `Video "${data.title}" created and posted to YouTube!` });
+          toast.success(`"${data.title}" posted to YouTube!`);
           triggerFirstVideoConfetti();
         } else {
           setMessage({ type: 'success', text: `Video "${data.title}" created successfully!` });
+          toast.success(`"${data.title}" created successfully!`);
           triggerFirstVideoConfetti();
         }
         fetchVideos();

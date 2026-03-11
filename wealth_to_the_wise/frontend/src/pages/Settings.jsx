@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import api from '../lib/api';
 import { FadeIn } from '../components/Motion';
 import { SkeletonLine, SkeletonCard } from '../components/Skeleton';
@@ -129,6 +130,7 @@ export default function Settings() {
 /* ── Account ─────────────────────────────────────────────────── */
 function AccountTab({ fullName, setFullName, email }) {
   const { fetchUser } = useAuth();
+  const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -141,9 +143,12 @@ function AccountTab({ fullName, setFullName, email }) {
       await api.patch('/auth/me', { full_name: fullName });
       await fetchUser();
       setSaved(true);
+      toast.success('Account updated');
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save.');
+      const msg = err.response?.data?.detail || 'Failed to save.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -313,6 +318,7 @@ const KEY_PREFIXES = {
 };
 
 function ApiKeysTab() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -377,9 +383,12 @@ function ApiKeysTab() {
       setForm({ openai_api_key: '', elevenlabs_api_key: '', elevenlabs_voice_id: '', pexels_api_key: '', pixabay_api_key: '' });
       setFieldErrors({});
       setSaved(true);
+      toast.success('API keys saved securely');
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save keys.');
+      const msg = err.response?.data?.detail || 'Failed to save keys.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -678,6 +687,7 @@ const SPEED_LABELS = {
 };
 
 function VideoPreferencesTab() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -714,9 +724,12 @@ function VideoPreferencesTab() {
         speech_speed: speechSpeed === '1.0' ? null : speechSpeed,
       });
       setSaved(true);
+      toast.success('Video preferences saved');
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save preferences.');
+      const msg = err.response?.data?.detail || 'Failed to save preferences.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }

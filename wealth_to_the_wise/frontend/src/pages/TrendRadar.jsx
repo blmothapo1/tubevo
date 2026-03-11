@@ -7,6 +7,7 @@ import {
   BarChart3, Target, Loader2, Sparkles, Check
 } from 'lucide-react';
 import api from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
 
 /* ── Available niches (matches Onboarding) ── */
 const ALL_NICHES = [
@@ -21,6 +22,7 @@ const ease = [0.25, 0.1, 0.25, 1];
 
 /* ── Inline niche quick-setup ── */
 function NicheSetup({ onComplete }) {
+  const toast = useToast();
   const [selected, setSelected] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -42,9 +44,12 @@ function NicheSetup({ onComplete }) {
         channel_goal: 'growth',
         posting_frequency: 'weekly',
       });
+      toast.success('Niches saved!');
       onComplete();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to save niches');
+      const msg = err.response?.data?.detail || 'Failed to save niches';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -466,6 +471,7 @@ function SettingsPanel({ settings, onSave, saving }) {
  * ══════════════════════════════════════════════════════════════════════ */
 
 export default function TrendRadar() {
+  const toast = useToast();
   const [alerts, setAlerts] = useState([]);
   const [stats, setStats] = useState(null);
   const [settings, setSettings] = useState(null);
@@ -556,12 +562,14 @@ export default function TrendRadar() {
     try {
       await api.post('/api/trends/scan');
       await Promise.all([fetchAlerts(), fetchStats()]);
+      toast.success('Trend scan complete');
     } catch (err) {
       const detail = err.response?.data?.detail || 'Scan failed';
       if (detail.toLowerCase().includes('niche') || detail.toLowerCase().includes('onboarding')) {
         setNeedsNiches(true);
       } else {
         setError(detail);
+        toast.error(detail);
       }
     } finally {
       setScanning(false);
@@ -579,9 +587,12 @@ export default function TrendRadar() {
   const handlePublish = async (id) => {
     try {
       await api.post(`/api/trends/${id}/publish`);
+      toast.success('Trend video queued for creation');
       await Promise.all([fetchAlerts(), fetchStats()]);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Action failed');
+      const msg = err.response?.data?.detail || 'Action failed';
+      setError(msg);
+      toast.error(msg);
     }
   };
 

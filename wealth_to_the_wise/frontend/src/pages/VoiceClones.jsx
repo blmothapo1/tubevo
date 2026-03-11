@@ -5,6 +5,7 @@ import { StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonStatCards } from '../components/Skeleton';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
+import { useToast } from '../contexts/ToastContext';
 import {
   Mic, Plus, Trash2, X, RefreshCw, CheckCircle2, Clock, AlertTriangle, Loader2,
   Square, Upload, Play, Pause, CircleDot, ChevronRight,
@@ -435,6 +436,7 @@ function CreateVoiceModal({ onClose, onCreated }) {
 
 /* ── Main page ───────────────────────────────────────────────────── */
 export default function VoiceClones() {
+  const toast = useToast();
   const [clones, setClones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -462,15 +464,21 @@ export default function VoiceClones() {
     if (!confirm('Delete this voice clone?')) return;
     try {
       await api.delete(`/voice-clones/${id}`);
+      toast.success('Voice clone deleted');
       fetchClones();
-    } catch { /* empty */ }
+    } catch {
+      toast.error('Failed to delete voice clone');
+    }
   };
 
   const retryClone = async (id) => {
     try {
       await api.post(`/voice-clones/${id}/retry`);
+      toast.info('Retrying voice clone…');
       fetchClones();
-    } catch { /* empty */ }
+    } catch {
+      toast.error('Failed to retry voice clone');
+    }
   };
 
   if (loading) return <div className="max-w-4xl mx-auto"><SkeletonStatCards /></div>;

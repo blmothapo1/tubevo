@@ -5,6 +5,7 @@ import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonCard } from '../components/Skeleton';
 import PageHeader from '../components/PageHeader';
 import EmptyState from '../components/EmptyState';
+import { useToast } from '../contexts/ToastContext';
 import {
   Plus,
   CalendarClock,
@@ -35,6 +36,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => ({
 }));
 
 export default function Schedule() {
+  const toast = useToast();
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -96,6 +98,7 @@ export default function Schedule() {
             onCreated={(s) => {
               setSchedules((prev) => [s, ...prev]);
               setShowCreate(false);
+              toast.success('Schedule created!');
             }}
             setError={setError}
           />
@@ -361,6 +364,7 @@ function CreateScheduleModal({ onClose, onCreated, setError }) {
 /* ═══════════════════════════════════════════════════════════════════ */
 
 function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
+  const toast = useToast();
   const [expanded, setExpanded] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [triggering, setTriggering] = useState(false);
@@ -379,8 +383,11 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
         is_active: !schedule.is_active,
       });
       onUpdate(data);
+      toast.success(data.is_active ? 'Schedule activated' : 'Schedule paused');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to update schedule.');
+      const msg = err.response?.data?.detail || 'Failed to update schedule.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setToggling(false);
     }
@@ -390,13 +397,16 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
     setTriggering(true);
     try {
       await api.post(`/api/schedules/${schedule.id}/run`);
+      toast.success('Schedule triggered — video is being created');
       // Refresh the schedule to get updated topic_index
       const { data: updated } = await api.get('/api/schedules');
       const fresh = updated.find((s) => s.id === schedule.id);
       if (fresh) onUpdate(fresh);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to trigger schedule.');
+      const msg = err.response?.data?.detail || 'Failed to trigger schedule.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setTriggering(false);
     }
@@ -407,9 +417,12 @@ function ScheduleCard({ schedule, onUpdate, onDelete, setError }) {
     setDeleting(true);
     try {
       await api.delete(`/api/schedules/${schedule.id}`);
+      toast.success('Schedule deleted');
       onDelete(schedule.id);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to delete schedule.');
+      const msg = err.response?.data?.detail || 'Failed to delete schedule.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setDeleting(false);
     }
