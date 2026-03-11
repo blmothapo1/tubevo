@@ -258,7 +258,7 @@ def generate_ambient_music(
         When *None* and *frequencies* are also *None*, defaults to
         ``major_warm``.
     """
-    trem_base = tremolo_base if tremolo_base is not None else 0.07
+    trem_base = max(0.1, tremolo_base if tremolo_base is not None else 0.12)
 
     # ── Resolve chord list ──
     if frequencies is not None:
@@ -333,11 +333,11 @@ def generate_ambient_music(
             ).format(
                 f1=f1, f2=f2, f3=f3, f4=f4,
                 f_sub=f1 / 2,  # sub-bass one octave below root
-                t1=round(trem_base + 0.01, 3),
-                t2=round(trem_base - 0.01, 3),
-                t3=trem_base,
-                t4=round(trem_base - 0.02, 3),
-                t5=round(trem_base + 0.005, 3),
+                t1=round(max(0.1, trem_base + 0.02), 3),
+                t2=round(max(0.1, trem_base - 0.01), 3),
+                t3=round(max(0.1, trem_base), 3),
+                t4=round(max(0.1, trem_base + 0.01), 3),
+                t5=round(max(0.1, trem_base - 0.005), 3),
                 dur=seg_dur + 2,  # buffer
                 fade_in=min(1.5, seg_dur * 0.15),
                 fade_out_start=max(0, seg_dur - min(1.5, seg_dur * 0.15)),

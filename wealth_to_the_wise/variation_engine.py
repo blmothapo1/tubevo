@@ -153,7 +153,7 @@ class MusicMood:
     """A musical mood consisting of 4 sine-wave frequencies and a label."""
     label: str
     frequencies: list[float] = field(default_factory=list)  # 4 frequencies
-    tremolo_base: float = 0.07  # base tremolo speed
+    tremolo_base: float = 0.12  # base tremolo speed (FFmpeg min = 0.1)
 
 
 # Chord voicings (root, 3rd, 5th, octave) — all in the 100-300 Hz range
@@ -162,42 +162,42 @@ MUSIC_MOODS: list[MusicMood] = [
     MusicMood(
         label="C major (warm)",
         frequencies=[130.81, 164.81, 196.00, 261.63],
-        tremolo_base=0.07,
+        tremolo_base=0.12,
     ),
     MusicMood(
         label="A minor (reflective)",
         frequencies=[110.00, 130.81, 164.81, 220.00],
-        tremolo_base=0.06,
+        tremolo_base=0.10,
     ),
     MusicMood(
         label="G major (uplifting)",
         frequencies=[98.00, 123.47, 146.83, 196.00],
-        tremolo_base=0.08,
+        tremolo_base=0.14,
     ),
     MusicMood(
         label="E minor (contemplative)",
         frequencies=[82.41, 98.00, 123.47, 164.81],
-        tremolo_base=0.065,
+        tremolo_base=0.11,
     ),
     MusicMood(
         label="D major (confident)",
         frequencies=[146.83, 185.00, 220.00, 293.66],
-        tremolo_base=0.075,
+        tremolo_base=0.13,
     ),
     MusicMood(
         label="F major (peaceful)",
         frequencies=[87.31, 110.00, 130.81, 174.61],
-        tremolo_base=0.06,
+        tremolo_base=0.10,
     ),
     MusicMood(
         label="Bb major (mellow)",
         frequencies=[116.54, 146.83, 174.61, 233.08],
-        tremolo_base=0.065,
+        tremolo_base=0.11,
     ),
     MusicMood(
         label="C# minor (mysterious)",
         frequencies=[138.59, 164.81, 207.65, 277.18],
-        tremolo_base=0.055,
+        tremolo_base=0.10,
     ),
 ]
 
