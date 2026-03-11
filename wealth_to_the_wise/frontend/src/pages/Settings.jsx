@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import useOnboarding from '../hooks/useOnboarding';
 import { getStoredPreference, setPreference as setThemePreference } from '../theme/theme';
+import PricingCards from '../components/PricingCards';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
@@ -1117,15 +1118,6 @@ function PlanTab({ plan, userId, userEmail }) {
   const [portalLoading, setPortalLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Load Stripe Pricing Table script once
-  useEffect(() => {
-    if (document.querySelector('script[src*="pricing-table.js"]')) return;
-    const script = document.createElement('script');
-    script.src = 'https://js.stripe.com/v3/pricing-table.js';
-    script.async = true;
-    document.head.appendChild(script);
-  }, []);
-
   async function handleManageSubscription() {
     setError('');
     setPortalLoading(true);
@@ -1190,20 +1182,8 @@ function PlanTab({ plan, userId, userEmail }) {
         )}
       </AnimatePresence>
 
-      {/* Stripe Pricing Table */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease }}
-        className="rounded-xl overflow-hidden"
-      >
-        <stripe-pricing-table
-          pricing-table-id="prctbl_1T9WsoEi8DhCMyZZHVnqitjz"
-          publishable-key="pk_live_51T48CtEi8DhCMyZZJ1PGcAXXAkBSPeS8dDtwyIvDOA2rTZzWQ73jmWEVO4KYXzeAtzdAELvXhuTkvE3JRRH4339a00pLa3AUoH"
-          client-reference-id={userId || ''}
-          customer-email={userEmail || ''}
-        />
-      </motion.div>
+      {/* Pricing Cards */}
+      <PricingCards currentPlan={plan} authenticated={true} />
     </div>
   );
 }

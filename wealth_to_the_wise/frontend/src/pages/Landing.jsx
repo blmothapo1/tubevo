@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Mic, Upload, Target, CalendarClock, Zap, ArrowRight, Loader2,
+  Sparkles, Mic, Upload, Target, CalendarClock, Zap, ArrowRight, Loader2, Check,
 } from 'lucide-react';
 import api from '../lib/api';
+import PricingCards from '../components/PricingCards';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
@@ -36,16 +37,6 @@ export default function Landing() {
     api.get('/api/waitlist/count')
       .then(res => setWaitlistCount(res.data.count))
       .catch(() => {});
-  }, []);
-
-  // Load Stripe Pricing Table script
-  useEffect(() => {
-    if (!document.querySelector('script[src="https://js.stripe.com/v3/pricing-table.js"]')) {
-      const script = document.createElement('script');
-      script.src = 'https://js.stripe.com/v3/pricing-table.js';
-      script.async = true;
-      document.head.appendChild(script);
-    }
   }, []);
 
   const handleWaitlistSubmit = async (e) => {
@@ -263,12 +254,8 @@ export default function Landing() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-60px' }}
             transition={{ duration: 0.5, ease }}
-            className="rounded-xl overflow-hidden"
           >
-            <stripe-pricing-table
-              pricing-table-id="prctbl_1T9WsoEi8DhCMyZZHVnqitjz"
-              publishable-key="pk_live_51T48CtEi8DhCMyZZJ1PGcAXXAkBSPeS8dDtwyIvDOA2rTZzWQ73jmWEVO4KYXzeAtzdAELvXhuTkvE3JRRH4339a00pLa3AUoH"
-            />
+            <PricingCards currentPlan="free" authenticated={false} />
           </motion.div>
         </div>
       </section>
