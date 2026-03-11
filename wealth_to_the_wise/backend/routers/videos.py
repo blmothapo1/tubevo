@@ -2142,6 +2142,7 @@ def _run_pipeline_locked(
         import stock_footage as stock_mod
 
         scene_clip_data = None
+        _use_ai_illustrations = _quality.get("ai_illustrations", False)
         try:
             from scene_planner import plan_scenes
             # Phase 7: pass style_seed from variation context for better rotation
@@ -2159,14 +2160,43 @@ def _run_pipeline_locked(
             )
             _report("Scene plan ready", 45)
 
-            # Download per-scene clips
-            _report("Downloading stock footage…", 48)
-            logger.info("Pipeline step 4b/6: Downloading scene-aware stock footage")
-            from stock_footage import download_clips_for_scenes
-            scene_clip_data = download_clips_for_scenes(scene_plans, clips_dir=run_clips_dir, api_key=_pexels_key, pixabay_api_key=_pixabay_key)
-            total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
-            logger.info("Pipeline step 4b/6: Downloaded %d clips across %d scenes", total_clips, len(scene_clip_data))
-            _report("Stock footage ready", 60)
+            if _use_ai_illustrations:
+                # ── Premium path: AI-generated illustrations (Pro/Agency) ──
+                _report("Generating AI illustrations…", 48)
+                logger.info("Pipeline step 4b/6: Generating AI scene illustrations (premium)")
+                try:
+                    from scene_illustrator import generate_illustrations_for_scenes
+                    _style_seed = variation_ctx.style_seed if variation_ctx and variation_ctx.style_seed else ""
+                    scene_clip_data = generate_illustrations_for_scenes(
+                        scene_plans,
+                        openai_api_key=_openai_key,
+                        topic=topic,
+                        style_seed=_style_seed,
+                        clips_dir=run_clips_dir,
+                        image_quality=_quality.get("ai_image_quality", "standard"),
+                        video_width=_quality["video_resolution"][0],
+                        video_height=_quality["video_resolution"][1],
+                        video_fps=_quality["video_fps"],
+                    )
+                    total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
+                    logger.info("Pipeline step 4b/6: Generated %d AI illustration clips across %d scenes", total_clips, len(scene_clip_data))
+                    _report("AI illustrations ready", 60)
+                except Exception as ai_err:
+                    logger.warning(
+                        "AI illustration failed — falling back to stock footage: %s", ai_err
+                    )
+                    _use_ai_illustrations = False
+                    # Fall through to stock footage below
+
+            if not _use_ai_illustrations or scene_clip_data is None:
+                # ── Standard path: stock footage (Free/Starter/fallback) ──
+                _report("Downloading stock footage…", 48)
+                logger.info("Pipeline step 4b/6: Downloading scene-aware stock footage")
+                from stock_footage import download_clips_for_scenes
+                scene_clip_data = download_clips_for_scenes(scene_plans, clips_dir=run_clips_dir, api_key=_pexels_key, pixabay_api_key=_pixabay_key)
+                total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
+                logger.info("Pipeline step 4b/6: Downloaded %d clips across %d scenes", total_clips, len(scene_clip_data))
+                _report("Stock footage ready", 60)
         except Exception as scene_err:
             logger.warning(
                 "Scene planner failed, falling back to legacy download: %s", scene_err

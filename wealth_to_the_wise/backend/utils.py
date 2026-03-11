@@ -90,6 +90,8 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "multi_format": False,
         "bulk_generate": False,
         "visual_tier": "free",
+        "ai_illustrations": False,      # stock footage only
+        "ai_image_quality": "standard",
     },
     "starter": {
         "gpt_model": "gpt-4o",
@@ -106,6 +108,8 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "multi_format": False,
         "bulk_generate": False,
         "visual_tier": "starter",
+        "ai_illustrations": False,      # stock footage only
+        "ai_image_quality": "standard",
     },
     "pro": {
         "gpt_model": "gpt-4o",
@@ -122,6 +126,8 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "multi_format": True,
         "bulk_generate": False,
         "visual_tier": "pro",
+        "ai_illustrations": True,       # ✨ AI-generated scene art
+        "ai_image_quality": "standard",  # $0.04/image × 14 ≈ $0.56/video
     },
     "agency": {
         "gpt_model": "gpt-4o",
@@ -138,6 +144,8 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "multi_format": True,
         "bulk_generate": True,
         "visual_tier": "agency",
+        "ai_illustrations": True,       # ✨ AI-generated scene art
+        "ai_image_quality": "hd",        # $0.08/image × 18 ≈ $1.44/video (HD quality)
     },
 }
 
