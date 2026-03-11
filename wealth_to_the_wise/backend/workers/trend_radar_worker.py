@@ -465,6 +465,10 @@ async def _check_ready_alerts(db) -> int:
 
             # Check if autopilot should auto-publish
             settings = await _get_or_create_settings(db, alert.user_id)
+            if not settings.is_enabled:
+                # User disabled Trend Radar — still mark ready so they
+                # can see the result, but never auto-publish.
+                continue
             if settings.autopilot_enabled and video.status == "completed":
                 # Check confidence threshold + daily cap
                 if alert.confidence_score >= settings.autopilot_min_confidence:

@@ -542,6 +542,28 @@ async def update_settings_endpoint(
 
     if body.is_enabled is not None:
         settings.is_enabled = body.is_enabled
+
+        # ── When user disables Trend Radar, dismiss all pending alerts ──
+        # This prevents stale "detected" alerts from being processed if
+        # the user re-enables later.
+        if not body.is_enabled:
+            from sqlalchemy import update
+            await db.execute(
+                update(TrendAlert)
+                .where(
+                    TrendAlert.user_id == current_user.id,
+                    TrendAlert.status.in_(["detected"]),
+                )
+                .values(
+                    status="dismissed",
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            logger.info(
+                "Trend Radar disabled for user %s — dismissed pending detected alerts",
+                current_user.email,
+            )
+
     if body.autopilot_enabled is not None:
         settings.autopilot_enabled = body.autopilot_enabled
     if body.autopilot_min_confidence is not None:
