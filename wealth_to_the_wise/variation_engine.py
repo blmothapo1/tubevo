@@ -150,54 +150,71 @@ def pick_voice_params(*, topic: str = "", seed: str | None = None) -> VoiceParam
 
 @dataclass
 class MusicMood:
-    """A musical mood consisting of 4 sine-wave frequencies and a label."""
+    """A musical mood consisting of 4 sine-wave frequencies and a label.
+
+    The ``progression`` field names a chord progression from
+    ``audio_processor.CHORD_PROGRESSIONS``.  When set, it takes
+    priority over the legacy ``frequencies`` array, enabling the
+    richer 4-chord ambient pad with detuning and reverb.
+    """
     label: str
-    frequencies: list[float] = field(default_factory=list)  # 4 frequencies
-    tremolo_base: float = 0.12  # base tremolo speed (FFmpeg min = 0.1)
+    frequencies: list[float] = field(default_factory=list)  # 4 frequencies (legacy)
+    tremolo_base: float = 0.08  # base tremolo speed (FFmpeg min = 0.1)
+    progression: str | None = None  # chord progression name (new)
 
 
 # Chord voicings (root, 3rd, 5th, octave) — all in the 100-300 Hz range
 # for a warm, non-distracting ambient pad.
+# The ``progression`` field maps to ``audio_processor.CHORD_PROGRESSIONS``
+# for the richer multi-chord synthesis engine.
 MUSIC_MOODS: list[MusicMood] = [
     MusicMood(
         label="C major (warm)",
         frequencies=[130.81, 164.81, 196.00, 261.63],
-        tremolo_base=0.12,
+        tremolo_base=0.08,
+        progression="major_warm",
     ),
     MusicMood(
         label="A minor (reflective)",
         frequencies=[110.00, 130.81, 164.81, 220.00],
-        tremolo_base=0.10,
+        tremolo_base=0.08,
+        progression="minor_reflective",
     ),
     MusicMood(
         label="G major (uplifting)",
         frequencies=[98.00, 123.47, 146.83, 196.00],
-        tremolo_base=0.14,
+        tremolo_base=0.09,
+        progression="hopeful",
     ),
     MusicMood(
         label="E minor (contemplative)",
         frequencies=[82.41, 98.00, 123.47, 164.81],
-        tremolo_base=0.11,
+        tremolo_base=0.08,
+        progression="dark_ambient",
     ),
     MusicMood(
         label="D major (confident)",
         frequencies=[146.83, 185.00, 220.00, 293.66],
-        tremolo_base=0.13,
+        tremolo_base=0.09,
+        progression="motivational",
     ),
     MusicMood(
         label="F major (peaceful)",
         frequencies=[87.31, 110.00, 130.81, 174.61],
-        tremolo_base=0.10,
+        tremolo_base=0.07,
+        progression="emotional",
     ),
     MusicMood(
         label="Bb major (mellow)",
         frequencies=[116.54, 146.83, 174.61, 233.08],
-        tremolo_base=0.11,
+        tremolo_base=0.08,
+        progression="expansive",
     ),
     MusicMood(
         label="C# minor (mysterious)",
         frequencies=[138.59, 164.81, 207.65, 277.18],
-        tremolo_base=0.10,
+        tremolo_base=0.07,
+        progression="cinematic_drama",
     ),
 ]
 

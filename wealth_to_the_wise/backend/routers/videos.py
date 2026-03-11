@@ -2131,11 +2131,16 @@ def _run_pipeline_locked(
         _report("Polishing audio…", 36)
         try:
             from audio_processor import polish_audio
-            # Phase 7: music mood rotation — pass frequencies from variation context
+            # Phase 7: music mood rotation — prefer progression name (richer
+            # multi-chord engine) over legacy single-chord frequencies.
             polish_kwargs: dict = {}
             if variation_ctx:
-                polish_kwargs["music_frequencies"] = variation_ctx.music_mood.frequencies
-                polish_kwargs["music_tremolo_base"] = variation_ctx.music_mood.tremolo_base
+                mood = variation_ctx.music_mood
+                if getattr(mood, "progression", None):
+                    polish_kwargs["music_progression"] = mood.progression
+                else:
+                    polish_kwargs["music_frequencies"] = mood.frequencies
+                polish_kwargs["music_tremolo_base"] = mood.tremolo_base
             polished_path = polish_audio(audio_path, output_path=str(run_dir / "voiceover_polished.mp3"), **polish_kwargs)
             audio_path = polished_path
             logger.info("Pipeline step 3b: Audio polished → %s", audio_path)

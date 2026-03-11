@@ -225,6 +225,34 @@ CHORD_PROGRESSIONS: dict[str, list[tuple[float, float, float, float]]] = {
         (110.00, 130.81, 164.81, 220.00),   # Am
         (174.61, 220.00, 261.63, 349.23),   # F
     ],
+    # vi – IV – V – I in E minor (dramatic, cinematic)
+    "cinematic_drama": [
+        (164.81, 196.00, 246.94, 329.63),   # Em (E-G-B-E)
+        (130.81, 164.81, 196.00, 261.63),   # C  (C-E-G-C)
+        (146.83, 185.00, 220.00, 293.66),   # D  (D-F#-A-D)
+        (196.00, 246.94, 293.66, 392.00),   # G  (G-B-D-G)
+    ],
+    # I – iii – vi – IV in E♭ (rich, expansive — documentary feel)
+    "expansive": [
+        (155.56, 196.00, 233.08, 311.13),   # E♭ (Eb-G-Bb-Eb)
+        (185.00, 220.00, 261.63, 369.99),   # G  (G-Bb-D-G)
+        (130.81, 155.56, 196.00, 261.63),   # Cm (C-Eb-G-C)
+        (174.61, 207.65, 261.63, 349.23),   # A♭ (Ab-C-Eb-Ab)
+    ],
+    # i – iv – v – i in D minor (dark, contemplative)
+    "dark_ambient": [
+        (146.83, 174.61, 220.00, 293.66),   # Dm (D-F-A-D)
+        (196.00, 233.08, 293.66, 392.00),   # Gm (G-Bb-D-G)
+        (110.00, 130.81, 164.81, 220.00),   # Am (A-C-E-A)
+        (146.83, 174.61, 220.00, 293.66),   # Dm (D-F-A-D)
+    ],
+    # IV – V – iii – vi in B♭ (uplifting, motivational)
+    "motivational": [
+        (155.56, 196.00, 233.08, 311.13),   # E♭
+        (174.61, 220.00, 261.63, 349.23),   # F
+        (146.83, 174.61, 220.00, 293.66),   # Dm
+        (196.00, 233.08, 293.66, 392.00),   # Gm
+    ],
 }
 
 
@@ -236,10 +264,11 @@ def generate_ambient_music(
     tremolo_base: float | None = None,
     progression: str | None = None,
 ) -> str:
-    """Generate a subtle ambient pad using FFmpeg's audio synthesis.
+    """Generate a rich ambient pad using FFmpeg's audio synthesis.
 
-    Creates a warm, barely-noticeable ambient background using layered
-    sine waves with chord progressions for a richer, more musical feel.
+    Creates a warm, cinematic ambient background using layered sine
+    waves with detuning for warmth, chord progressions for movement,
+    low-pass + high-pass for clean tone, and reverb (aecho) for space.
     100% royalty-free since it's generated programmatically.
 
     Parameters
@@ -251,32 +280,37 @@ def generate_ambient_music(
     frequencies : list[float] | None
         Legacy override — static 4-frequency chord (skips progressions).
     tremolo_base : float | None
-        Override tremolo speed (Hz).  Default 0.07 for a slow pulse.
+        Override tremolo speed (Hz).  Default 0.08 for a slow pulse.
     progression : str | None
         Chord progression key from CHORD_PROGRESSIONS.
-        One of: ``major_warm``, ``minor_reflective``, ``hopeful``, ``emotional``.
-        When *None* and *frequencies* are also *None*, defaults to
-        ``major_warm``.
+        When *None* and *frequencies* are also *None*, a random
+        progression is chosen for variety.
     """
-    trem_base = max(0.1, tremolo_base if tremolo_base is not None else 0.12)
+    import random as _rng
+    trem_base = max(0.1, tremolo_base if tremolo_base is not None else 0.08)
 
     # ── Resolve chord list ──
     if frequencies is not None:
         # Legacy / explicit override: single static chord
         chords = [tuple(frequencies[:4])]
+        prog_used = "custom"
     else:
-        prog_name = progression or "major_warm"
+        if progression:
+            prog_name = progression
+        else:
+            # Random progression for variety across videos
+            prog_name = _rng.choice(list(CHORD_PROGRESSIONS.keys()))
         chords = CHORD_PROGRESSIONS.get(prog_name, CHORD_PROGRESSIONS["major_warm"])
+        prog_used = prog_name
 
-    # Cap at 2 chord segments to limit FFmpeg subprocess overhead on
-    # memory-constrained containers (Railway 512 MB).  Pick chords [0]
-    # and [2] for harmonic contrast when the full list has ≥ 3 entries.
-    if len(chords) > 2:
-        chords = [chords[0], chords[min(2, len(chords) - 1)]]
+    # Use all 4 chords for richer harmonic movement.
+    # On short videos (< 30s), cap at 2 chords to avoid rushed changes.
+    if duration < 30 and len(chords) > 2:
+        chords = [chords[0], chords[2 % len(chords)]]
 
     logger.info(
         "Generating ambient music: progression=%s (%d chords), tremolo=%.3f, dur=%.1fs",
-        progression or ("custom" if frequencies else "major_warm"),
+        prog_used,
         len(chords),
         trem_base,
         duration,
@@ -305,49 +339,76 @@ def generate_ambient_music(
         for idx, (start_t, seg_dur, (f1, f2, f3, f4)) in enumerate(chord_sections):
             seg_path = os.path.join(tmp_dir, f"chord_{idx:02d}.wav")
 
-            # Build a 4-voice pad with tremolo + low-pass
+            # Detuning: slight pitch offset on each voice creates a
+            # natural "chorus" warmth — eliminates the robotic sine feel.
+            detune = 0.5  # Hz offset
+
+            # Build an 8-voice pad: 4 main + 4 detuned + sub-bass
+            # Each pair (voice + detuned copy) creates a richer timbre.
             af_filter = (
                 # Voice 1: Root — warm and present
                 "sine=frequency={f1}:duration={dur},"
-                "tremolo=f={t1}:d=0.3,"
-                "volume=0.25 [v1];"
+                "tremolo=f={t1}:d=0.25,"
+                "volume=0.20 [v1];"
+                # Voice 1b: Root detuned — adds chorus warmth
+                "sine=frequency={f1d}:duration={dur},"
+                "tremolo=f={t1b}:d=0.20,"
+                "volume=0.12 [v1d];"
                 # Voice 2: Third — gives major/minor character
                 "sine=frequency={f2}:duration={dur},"
-                "tremolo=f={t2}:d=0.25,"
-                "volume=0.18 [v2];"
+                "tremolo=f={t2}:d=0.22,"
+                "volume=0.15 [v2];"
+                # Voice 2b: Third detuned
+                "sine=frequency={f2d}:duration={dur},"
+                "tremolo=f={t2b}:d=0.18,"
+                "volume=0.09 [v2d];"
                 # Voice 3: Fifth — harmonic anchor
                 "sine=frequency={f3}:duration={dur},"
-                "tremolo=f={t3}:d=0.2,"
-                "volume=0.15 [v3];"
+                "tremolo=f={t3}:d=0.18,"
+                "volume=0.12 [v3];"
+                # Voice 3b: Fifth detuned
+                "sine=frequency={f3d}:duration={dur},"
+                "tremolo=f={t3b}:d=0.15,"
+                "volume=0.07 [v3d];"
                 # Voice 4: Octave — airy top layer
                 "sine=frequency={f4}:duration={dur},"
-                "tremolo=f={t4}:d=0.35,"
-                "volume=0.08 [v4];"
+                "tremolo=f={t4}:d=0.30,"
+                "volume=0.06 [v4];"
                 # Voice 5: Sub-bass an octave below root — warmth
                 "sine=frequency={f_sub}:duration={dur},"
-                "tremolo=f={t5}:d=0.15,"
-                "volume=0.10 [v5];"
+                "tremolo=f={t5}:d=0.12,"
+                "volume=0.08 [v5];"
                 # Mix all voices
-                "[v1][v2][v3][v4][v5] amix=inputs=5:duration=longest,"
-                # Low-pass for warmth
-                "lowpass=f=900:p=2,"
-                # Cross-fade friendly: fade-in first 1.5s, fade-out last 1.5s
+                "[v1][v1d][v2][v2d][v3][v3d][v4][v5] amix=inputs=8:duration=longest,"
+                # High-pass to remove rumble below 60 Hz
+                "highpass=f=60:p=2,"
+                # Low-pass for warmth — cuts harsh overtones
+                "lowpass=f=700:p=2,"
+                # Reverb via aecho — creates spacious ambient feel
+                "aecho=0.6:0.4:800|1200:0.3|0.2,"
+                # Cross-fade friendly: smooth fade-in and fade-out
                 "afade=t=in:st=0:d={fade_in},"
                 "afade=t=out:st={fade_out_start}:d={fade_out},"
                 # Volume
                 "volume={vol}dB"
             ).format(
                 f1=f1, f2=f2, f3=f3, f4=f4,
+                f1d=round(f1 + detune, 2),
+                f2d=round(f2 - detune, 2),
+                f3d=round(f3 + detune * 0.8, 2),
                 f_sub=f1 / 2,  # sub-bass one octave below root
-                t1=round(max(0.1, trem_base + 0.02), 3),
+                t1=round(max(0.1, trem_base + 0.015), 3),
+                t1b=round(max(0.1, trem_base - 0.008), 3),
                 t2=round(max(0.1, trem_base - 0.01), 3),
+                t2b=round(max(0.1, trem_base + 0.005), 3),
                 t3=round(max(0.1, trem_base), 3),
+                t3b=round(max(0.1, trem_base + 0.008), 3),
                 t4=round(max(0.1, trem_base + 0.01), 3),
                 t5=round(max(0.1, trem_base - 0.005), 3),
                 dur=seg_dur + 2,  # buffer
-                fade_in=min(1.5, seg_dur * 0.15),
-                fade_out_start=max(0, seg_dur - min(1.5, seg_dur * 0.15)),
-                fade_out=min(1.5, seg_dur * 0.15),
+                fade_in=min(2.0, seg_dur * 0.2),
+                fade_out_start=max(0, seg_dur - min(2.0, seg_dur * 0.2)),
+                fade_out=min(2.0, seg_dur * 0.2),
                 vol=MUSIC_VOLUME_DB,
             )
 
