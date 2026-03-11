@@ -358,15 +358,17 @@ function InviteModal({ open, onClose, teamId, onInvited }) {
 
 /* ── Pending invites for the current user ── */
 function PendingInvitesBanner({ invites, onAccepted }) {
+  const toast = useToast();
   const [processing, setProcessing] = useState(null);
 
   const respond = async (token, action) => {
     setProcessing(token);
     try {
       await api.post(`/api/teams/invites/${token}/${action}`);
+      toast.success(action === 'accept' ? 'Invite accepted!' : 'Invite declined');
       onAccepted();
     } catch (err) {
-      alert(err.response?.data?.detail || `Failed to ${action} invite`);
+      toast.error(err.response?.data?.detail || `Failed to ${action} invite`);
     } finally {
       setProcessing(null);
     }

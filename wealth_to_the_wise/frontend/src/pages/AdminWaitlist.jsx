@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { getAccessToken, API_BASE } from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import {
@@ -11,12 +12,10 @@ import {
   Search,
   RefreshCw,
   UserPlus,
-  CheckCircle2,
   Clock,
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  X,
 } from 'lucide-react';
 
 function timeSince(dateStr) {
@@ -44,6 +43,7 @@ async function adminFetch(path, options = {}) {
 export default function AdminWaitlist() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -51,7 +51,6 @@ export default function AdminWaitlist() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [inviting, setInviting] = useState(null);
-  const [toast, setToast] = useState(null);
 
   const pageSize = 25;
 
@@ -83,12 +82,10 @@ export default function AdminWaitlist() {
         method: 'POST',
         body: JSON.stringify({ email }),
       });
-      setToast({ type: 'success', message: res.message });
+      toast.success(res.message);
       // Refresh to update any status
-      setTimeout(() => setToast(null), 4000);
     } catch {
-      setToast({ type: 'error', message: `Failed to invite ${email}` });
-      setTimeout(() => setToast(null), 4000);
+      toast.error(`Failed to invite ${email}`);
     } finally {
       setInviting(null);
     }
@@ -289,23 +286,6 @@ export default function AdminWaitlist() {
           </FadeIn>
         )}
       </main>
-
-      {/* ── Toast notification ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-[10px] shadow-lg ${
-              toast.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/20'
-            }`}
-          >
-            {toast.type === 'success' ? <CheckCircle2 size={16} /> : <X size={16} />}
-            <span className="text-[13px] font-medium">{toast.message}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
