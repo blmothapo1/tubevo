@@ -10,7 +10,7 @@ const PLANS = [
   {
     key: 'starter',
     name: 'Starter',
-    price: 19,
+    price: 29,
     icon: Zap,
     accent: 'brand',
     description: 'Perfect for getting started with automated video creation.',
@@ -27,7 +27,7 @@ const PLANS = [
   {
     key: 'pro',
     name: 'Pro',
-    price: 49,
+    price: 79,
     icon: Rocket,
     accent: 'violet',
     popular: true,
@@ -47,7 +47,7 @@ const PLANS = [
   {
     key: 'agency',
     name: 'Agency',
-    price: 99,
+    price: 199,
     icon: Crown,
     accent: 'amber',
     description: 'Unlimited power for agencies and multi-channel operations.',

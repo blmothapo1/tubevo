@@ -48,9 +48,9 @@ REFERRAL_COMMISSION_PCT = 20          # 20% recurring commission
 REFERRAL_COMMISSION_MONTHS = 12       # pay commissions for first 12 months
 PLAN_MONTHLY_PRICE_CENTS: dict[str, int] = {
     "free": 0,
-    "starter": 1900,    # $19/mo
-    "pro": 4900,         # $49/mo
-    "agency": 9900,      # $99/mo
+    "starter": 2900,    # $29/mo
+    "pro": 7900,         # $79/mo
+    "agency": 19900,     # $199/mo
 }
 
 
