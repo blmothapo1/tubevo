@@ -1111,3 +1111,134 @@ class VoiceClone(Base):
 
     def __repr__(self) -> str:
         return f"<VoiceClone {self.name} status={self.status} user={self.user_id}>"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# PHASE 4 — Team Seats & Client Workspaces
+# ══════════════════════════════════════════════════════════════════════
+
+
+class Team(Base):
+    """A team/workspace that groups users for collaborative video production.
+
+    The owner's plan determines the max seat count.
+    All team members share the owner's video quota and API keys.
+    """
+
+    __tablename__ = "teams"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    owner_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True,
+    )
+
+    # Optional branding
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<Team {self.name} owner={self.owner_id}>"
+
+
+class TeamMember(Base):
+    """A user's membership in a team.
+
+    Roles: owner | admin | editor | viewer
+    - owner: full control (transfer ownership, delete team)
+    - admin: invite/remove members, manage settings
+    - editor: create/edit videos for the team
+    - viewer: read-only access to team videos and insights
+    """
+
+    __tablename__ = "team_members"
+    __table_args__ = (
+        UniqueConstraint("team_id", "user_id", name="uq_team_user"),
+        Index("ix_team_member_user", "user_id"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False,
+    )
+
+    # owner | admin | editor | viewer
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="editor")
+
+    invited_by: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=True,
+    )
+
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<TeamMember team={self.team_id} user={self.user_id} role={self.role}>"
+
+
+class TeamInvite(Base):
+    """A pending invitation to join a team.
+
+    Lifecycle: pending → accepted | expired | revoked
+    """
+
+    __tablename__ = "team_invites"
+    __table_args__ = (
+        Index("ix_invite_team_email", "team_id", "email"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=_new_uuid,
+    )
+    team_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    email: Mapped[str] = mapped_column(
+        String(320), nullable=False,
+    )
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="editor",
+    )
+    invited_by: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False,
+    )
+
+    # Secure random token for accepting the invite via link
+    token: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, index=True,
+    )
+
+    # Status: pending | accepted | expired | revoked
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending",
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow,
+    )
+
+    def __repr__(self) -> str:
+        return f"<TeamInvite team={self.team_id} email={self.email} status={self.status}>"

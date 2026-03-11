@@ -41,7 +41,7 @@ from backend.routers import (
     api_keys, auth, admin, billing, health, schedules, videos, waitlist, youtube,
     # Empire OS routers (Phase 0 — scaffold only, gated by feature flags)
     channels, competitors, niche_intel, revenue, thumb_experiments, trend_radar, voice_clones,
-    insights,
+    insights, teams,
 )
 from backend.scheduler_worker import scheduler_loop
 from backend.analytics_worker import analytics_loop
@@ -317,6 +317,7 @@ def create_app() -> FastAPI:
     app.include_router(voice_clones.router)
     app.include_router(trend_radar.router)
     app.include_router(insights.router)
+    app.include_router(teams.router)
 
     return app
 

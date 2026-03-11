@@ -27,6 +27,22 @@ PLAN_MONTHLY_LIMITS: dict[str, int] = {
     "agency": 999_999,   # effectively unlimited
 }
 
+# ── Plan-based team seat limits (Phase 4) ────────────────────────────
+PLAN_TEAM_SEAT_LIMITS: dict[str, int] = {
+    "free": 0,         # no team feature
+    "starter": 3,
+    "pro": 10,
+    "agency": 25,
+}
+
+# ── Plan-based max teams per user (Phase 4) ──────────────────────────
+PLAN_MAX_TEAMS: dict[str, int] = {
+    "free": 0,
+    "starter": 1,
+    "pro": 3,
+    "agency": 10,
+}
+
 
 # ── API-key masking ──────────────────────────────────────────────────
 # We try to import the canonical ``mask_secrets`` from the top-level

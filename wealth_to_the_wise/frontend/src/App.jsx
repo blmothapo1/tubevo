@@ -28,6 +28,7 @@ import Competitors from './pages/Competitors';
 import VoiceClones from './pages/VoiceClones';
 import TrendRadar from './pages/TrendRadar';
 import Insights from './pages/Insights';
+import Team from './pages/Team';
 
 import DashboardLayout from './components/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -132,6 +133,7 @@ export default function App() {
           <Route path="/voices" element={<VoiceClones />} />
           <Route path="/trends" element={<TrendRadar />} />
           <Route path="/insights" element={<Insights />} />
+          <Route path="/team" element={<Team />} />
         </Route>
       </Routes>
     </BrowserRouter>
