@@ -268,6 +268,12 @@ def generate_ambient_music(
         prog_name = progression or "major_warm"
         chords = CHORD_PROGRESSIONS.get(prog_name, CHORD_PROGRESSIONS["major_warm"])
 
+    # Cap at 2 chord segments to limit FFmpeg subprocess overhead on
+    # memory-constrained containers (Railway 512 MB).  Pick chords [0]
+    # and [2] for harmonic contrast when the full list has ≥ 3 entries.
+    if len(chords) > 2:
+        chords = [chords[0], chords[min(2, len(chords) - 1)]]
+
     logger.info(
         "Generating ambient music: progression=%s (%d chords), tremolo=%.3f, dur=%.1fs",
         progression or ("custom" if frequencies else "major_warm"),

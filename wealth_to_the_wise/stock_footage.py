@@ -586,18 +586,18 @@ def download_clips_for_scenes(
             "_index": scene_idx,
         }
 
-    # Run scenes in parallel (cap at 4 workers to be polite to APIs)
+    # Run scenes in parallel (cap at 2 workers to stay within Railway memory limits)
     scene_clips_unordered: list[dict] = []
-    max_workers = min(4, len(scene_plans))
+    max_workers = min(2, len(scene_plans))
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
             pool.submit(_download_scene, i, sp): i
             for i, sp in enumerate(scene_plans)
         }
-        for future in as_completed(futures):
+        for future in as_completed(futures, timeout=180):
             try:
-                scene_clips_unordered.append(future.result())
+                scene_clips_unordered.append(future.result(timeout=120))
             except Exception as exc:
                 idx = futures[future]
                 logger.warning("Scene %d download failed: %s", idx, exc)

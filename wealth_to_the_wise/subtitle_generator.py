@@ -309,7 +309,13 @@ def compute_timestamps_whisper(
         if not api_key:
             return None
 
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, timeout=60.0)
+
+        # Guard against very large audio files that might OOM on Railway
+        file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
+        if file_size_mb > 25:
+            logger.warning("Audio file too large for Whisper (%.1f MB > 25 MB limit)", file_size_mb)
+            return None
 
         with open(audio_path, "rb") as f:
             transcript = client.audio.transcriptions.create(

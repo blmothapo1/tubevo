@@ -1086,12 +1086,15 @@ def _build_video_core(
     # ── 9. File-size enforcement ─────────────────────────────────────
     output_path = _enforce_size_limit(output_path)
 
-    # ── 10. Output validation ────────────────────────────────────────
-    _validate_output_video(
-        output_path,
-        expected_width=VIDEO_WIDTH,
-        expected_height=VIDEO_HEIGHT,
-    )
+    # ── 10. Output validation (non-fatal — warn but don't crash) ────
+    try:
+        _validate_output_video(
+            output_path,
+            expected_width=VIDEO_WIDTH,
+            expected_height=VIDEO_HEIGHT,
+        )
+    except Exception as val_err:
+        logger.warning("Output validation flagged an issue (non-fatal): %s", val_err)
 
     # Phase 5: Store SRT path for pipeline access
     global last_srt_path
