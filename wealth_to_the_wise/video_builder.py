@@ -211,12 +211,16 @@ def _concat_with_xfade(
     xfade_duration: float,
     target_duration: float,
     tmp_dir: str,
+    *,
+    allowed_transitions: list[str] | None = None,
 ) -> str:
-    """Concatenate segments with cross-dissolve transitions via xfade filter.
+    """Concatenate segments with varied transitions via xfade filter.
 
     Uses a chain of xfade filters: each pair of consecutive clips gets
-    a dissolve.  Memory-safe because FFmpeg processes frames sequentially.
+    a randomly chosen transition type (dissolve, fade-to-black, slide,
+    wipe, etc.) for visual variety.
 
+    Memory-safe because FFmpeg processes frames sequentially.
     Falls back to hard concat if xfade isn't available or if the chain
     is too long (>8 segments = too many inputs for a single filterchain).
     """
@@ -238,7 +242,7 @@ def _concat_with_xfade(
     # Build xfade filter chain.
     # For N segments, we need N-1 xfade operations.
     # Each xfade shortens total duration by xfade_duration.
-    # xfade syntax: [v0][v1]xfade=transition=fade:duration=D:offset=O[vout]
+    # xfade syntax: [v0][v1]xfade=transition=TYPE:duration=D:offset=O[vout]
     n = len(segment_files)
     xd = min(xfade_duration, 1.0)  # Cap dissolve at 1s for safety
 
@@ -255,10 +259,18 @@ def _concat_with_xfade(
     for sf in segment_files:
         input_args.extend(["-i", sf])
 
-    # Build filter chain
+    # Build filter chain with varied transition types
     filter_parts: list[str] = []
     # Track cumulative offset (each xfade happens at the end of the accumulated output)
     cumulative_dur = seg_durs[0]
+
+    # Import transition picker for variety
+    try:
+        from visual_effects import pick_transition_type as _pick_tr
+    except ImportError:
+        _pick_tr = None  # type: ignore[assignment]
+
+    transition_types_used: list[str] = []
 
     for i in range(n - 1):
         if i == 0:
@@ -274,8 +286,19 @@ def _concat_with_xfade(
         else:
             out_label = "[vout]"
 
+        # Pick a varied transition type
+        if _pick_tr is not None:
+            tr_type = _pick_tr(
+                i, seed=str(target_duration),
+                allowed=allowed_transitions,
+            )
+        else:
+            tr_type = "fade"
+
+        transition_types_used.append(tr_type)
+
         filter_parts.append(
-            f"{in_a}{in_b}xfade=transition=fade:duration={xd:.2f}:offset={offset:.2f}{out_label}"
+            f"{in_a}{in_b}xfade=transition={tr_type}:duration={xd:.2f}:offset={offset:.2f}{out_label}"
         )
         # Next segment's cumulative duration: previous output + next seg - overlap
         cumulative_dur = offset + xd + (seg_durs[i + 1] if i + 1 < n else 0) - xd
@@ -295,9 +318,12 @@ def _concat_with_xfade(
                 "-t", f"{target_duration:.2f}",
                 output_path,
             ],
-            "concat with cross-dissolve transitions",
+            "concat with varied transitions",
         )
-        logger.info("Cross-dissolve concat: %d segments, %.1fs dissolves", n, xd)
+        logger.info(
+            "Varied transitions: %d segments, %.1fs duration, types=%s",
+            n, xd, transition_types_used,
+        )
     except Exception as xf_err:
         # Fallback to hard concat if xfade fails
         logger.warning("xfade concat failed — falling back to hard concat: %s", xf_err)
@@ -393,8 +419,8 @@ def _prepare_background(
             idx += 1
 
     # Scale and trim each segment, then concat
-    # If Ken Burns is enabled, apply zoompan for cinematic motion
-    _kb_enabled = (
+    # Motion variety: pick a style per segment (Ken Burns, static, slow zoom, drift)
+    _motion_enabled = (
         visual_profile is not None
         and visual_profile.ken_burns.enabled
     )
@@ -410,26 +436,29 @@ def _prepare_background(
             "format=yuv420p",
         ]
 
-        if _kb_enabled:
+        if _motion_enabled:
             try:
-                from visual_effects import pick_ken_burns_direction
+                from visual_effects import pick_motion_style, get_motion_filter
                 assert visual_profile is not None  # type guard
-                direction = pick_ken_burns_direction(i, seed=str(target_duration))
-                kb_filter = visual_profile.ken_burns.get_zoompan_filter(
-                    VIDEO_WIDTH, VIDEO_HEIGHT, FPS, use_dur, direction=direction,
+                style = pick_motion_style(i, seed=str(target_duration))
+                motion_filter = get_motion_filter(
+                    style, i, VIDEO_WIDTH, VIDEO_HEIGHT, FPS, use_dur,
+                    ken_burns_config=visual_profile.ken_burns,
+                    seed=str(target_duration),
                 )
-                if kb_filter:
-                    # zoompan must come after scale+pad, and it outputs at target res
-                    # so we replace the fps filter and add zoompan
+                if motion_filter:
+                    # zoompan-based filters must come after scale+pad
                     vf_parts = [
                         f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease",
                         f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black",
                         "format=yuv420p",
-                        kb_filter,
+                        motion_filter,
                     ]
-                    logger.debug("Ken Burns segment %d: %s", i, direction)
-            except Exception as kb_err:
-                logger.warning("Ken Burns failed for segment %d — skipping: %s", i, kb_err)
+                    logger.debug("Motion segment %d: %s", i, style.value)
+                else:
+                    logger.debug("Static segment %d (no motion filter)", i)
+            except Exception as motion_err:
+                logger.warning("Motion style failed for segment %d — skipping: %s", i, motion_err)
 
         _run_ffmpeg([
             "-i", path,
@@ -456,7 +485,10 @@ def _prepare_background(
 
     if _use_xfade and visual_profile is not None:
         xfade_dur = visual_profile.transitions.dissolve_duration
-        output_path = _concat_with_xfade(segment_files, output_path, xfade_dur, target_duration, tmp_dir)
+        output_path = _concat_with_xfade(
+            segment_files, output_path, xfade_dur, target_duration, tmp_dir,
+            allowed_transitions=visual_profile.transitions.transition_types,
+        )
     else:
         # Write concat list (hard cuts — free tier)
         concat_list = os.path.join(tmp_dir, "concat_bg.txt")
@@ -556,8 +588,8 @@ def _prepare_background_from_scenes(
         total_clip_dur = sum(d for _, d in valid)
         scene_remaining = scene_budget
 
-        # Ken Burns enabled?
-        _kb_on = (
+        # Motion variety enabled?
+        _motion_on = (
             visual_profile is not None
             and visual_profile.ken_burns.enabled
         )
@@ -576,20 +608,22 @@ def _prepare_background_from_scenes(
                     f"fps={FPS}",
                     "format=yuv420p",
                 ]
-                if _kb_on:
+                if _motion_on:
                     try:
-                        from visual_effects import pick_ken_burns_direction
+                        from visual_effects import pick_motion_style, get_motion_filter
                         assert visual_profile is not None  # type guard
-                        direction = pick_ken_burns_direction(seg_idx, seed=sd.get("label", ""))
-                        kb_f = visual_profile.ken_burns.get_zoompan_filter(
-                            VIDEO_WIDTH, VIDEO_HEIGHT, FPS, share, direction=direction,
+                        style = pick_motion_style(seg_idx, seed=sd.get("label", ""))
+                        m_f = get_motion_filter(
+                            style, seg_idx, VIDEO_WIDTH, VIDEO_HEIGHT, FPS, share,
+                            ken_burns_config=visual_profile.ken_burns,
+                            seed=sd.get("label", ""),
                         )
-                        if kb_f:
+                        if m_f:
                             vf_parts = [
                                 f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease",
                                 f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black",
                                 "format=yuv420p",
-                                kb_f,
+                                m_f,
                             ]
                     except Exception:
                         pass
@@ -621,20 +655,22 @@ def _prepare_background_from_scenes(
                     f"fps={FPS}",
                     "format=yuv420p",
                 ]
-                if _kb_on:
+                if _motion_on:
                     try:
-                        from visual_effects import pick_ken_burns_direction
+                        from visual_effects import pick_motion_style, get_motion_filter
                         assert visual_profile is not None  # type guard
-                        direction = pick_ken_burns_direction(seg_idx, seed=sd.get("label", ""))
-                        kb_f = visual_profile.ken_burns.get_zoompan_filter(
-                            VIDEO_WIDTH, VIDEO_HEIGHT, FPS, use_dur, direction=direction,
+                        style = pick_motion_style(seg_idx, seed=sd.get("label", ""))
+                        m_f = get_motion_filter(
+                            style, seg_idx, VIDEO_WIDTH, VIDEO_HEIGHT, FPS, use_dur,
+                            ken_burns_config=visual_profile.ken_burns,
+                            seed=sd.get("label", ""),
                         )
-                        if kb_f:
+                        if m_f:
                             vf_parts = [
                                 f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=decrease",
                                 f"pad={VIDEO_WIDTH}:{VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2:color=black",
                                 "format=yuv420p",
-                                kb_f,
+                                m_f,
                             ]
                     except Exception:
                         pass
@@ -670,7 +706,10 @@ def _prepare_background_from_scenes(
 
     if _use_xfade and visual_profile is not None:
         xfade_dur = visual_profile.transitions.dissolve_duration
-        output_path = _concat_with_xfade(segment_files, output_path, xfade_dur, narration_duration, tmp_dir)
+        output_path = _concat_with_xfade(
+            segment_files, output_path, xfade_dur, narration_duration, tmp_dir,
+            allowed_transitions=visual_profile.transitions.transition_types,
+        )
     else:
         # Concat all scene segments (hard cuts)
         concat_list = os.path.join(tmp_dir, "concat_bg.txt")

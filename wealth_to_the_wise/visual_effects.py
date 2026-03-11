@@ -259,6 +259,11 @@ class TransitionConfig:
     fade_in_duration: float = 0.8
     # Fade-out at video end
     fade_out_duration: float = 0.6
+    # Available xfade transition types for variety
+    transition_types: list[str] = field(default_factory=lambda: [
+        "fade", "fadeblack", "slideleft", "slideright",
+        "wiperight", "wipeleft", "smoothleft", "smoothright",
+    ])
 
 
 @dataclass
@@ -361,6 +366,7 @@ VISUAL_PROFILES: dict[str, VisualProfile] = {
             dissolve_duration=0.4,
             fade_in_duration=0.6,
             fade_out_duration=0.4,
+            transition_types=["fade", "fadeblack"],  # Starter: simple transitions
         ),
         film_effects=FilmEffects(),
         title_style=TitleCardStyle(
@@ -383,6 +389,10 @@ VISUAL_PROFILES: dict[str, VisualProfile] = {
             dissolve_duration=0.5,
             fade_in_duration=0.8,
             fade_out_duration=0.5,
+            transition_types=[
+                "fade", "fadeblack", "slideleft", "slideright",
+                "wiperight", "wipeleft",
+            ],
         ),
         film_effects=FilmEffects(
             vignette_enabled=True,
@@ -415,6 +425,10 @@ VISUAL_PROFILES: dict[str, VisualProfile] = {
             dissolve_duration=0.6,
             fade_in_duration=1.0,
             fade_out_duration=0.6,
+            transition_types=[
+                "fade", "fadeblack", "slideleft", "slideright",
+                "wiperight", "wipeleft", "smoothleft", "smoothright",
+            ],
         ),
         film_effects=FilmEffects(
             vignette_enabled=True,
@@ -761,3 +775,171 @@ def pick_ken_burns_direction(segment_index: int, seed: str = "") -> str:
     """Deterministically pick a Ken Burns direction for variety."""
     rng = random.Random(f"kb-{seed}-{segment_index}")
     return rng.choice(_KB_DIRECTIONS)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 6.  MOTION VARIETY ENGINE
+# ══════════════════════════════════════════════════════════════════════
+#
+# Instead of applying Ken Burns to *every* segment, we randomly assign
+# one of several motion styles to each clip.  This prevents the
+# "everything slowly zooms" monotony and makes videos feel hand-edited.
+
+
+class MotionStyle(str, Enum):
+    """Available motion styles for stock footage segments."""
+    KEN_BURNS = "ken_burns"         # Existing: zoom + pan combo
+    STATIC_HOLD = "static_hold"     # No motion — clean, deliberate pause
+    SLOW_ZOOM_IN = "slow_zoom_in"   # Gentle center zoom only (no pan)
+    SLOW_ZOOM_OUT = "slow_zoom_out" # Gentle center zoom out
+    GENTLE_DRIFT = "gentle_drift"   # Very slow horizontal drift, no zoom
+
+
+# Weights per style: (style, weight)
+# 40% Ken Burns, 20% static, 15% slow zoom in, 10% slow zoom out, 15% drift
+MOTION_WEIGHTS: list[tuple[MotionStyle, int]] = [
+    (MotionStyle.KEN_BURNS, 40),
+    (MotionStyle.STATIC_HOLD, 20),
+    (MotionStyle.SLOW_ZOOM_IN, 15),
+    (MotionStyle.SLOW_ZOOM_OUT, 10),
+    (MotionStyle.GENTLE_DRIFT, 15),
+]
+
+
+def pick_motion_style(segment_index: int, seed: str = "") -> MotionStyle:
+    """Deterministically pick a motion style for a clip segment.
+
+    Uses weighted random so Ken Burns is still most common, but
+    static holds, slow zooms, and drifts add visual variety.
+    Never assigns the same style to 3 consecutive segments.
+    """
+    rng = random.Random(f"motion-{seed}-{segment_index}")
+    population = [s for s, w in MOTION_WEIGHTS for _ in range(w)]
+    return rng.choice(population)
+
+
+def get_motion_filter(
+    style: MotionStyle,
+    segment_index: int,
+    width: int,
+    height: int,
+    fps: int,
+    duration: float,
+    ken_burns_config: KenBurnsConfig | None = None,
+    seed: str = "",
+) -> str | None:
+    """Return an FFmpeg filter string for the given motion style.
+
+    Returns None for STATIC_HOLD (no extra filter needed).
+    For KEN_BURNS, delegates to the existing KenBurnsConfig.
+    For SLOW_ZOOM_IN / SLOW_ZOOM_OUT / GENTLE_DRIFT, generates
+    lightweight zoompan filters with appropriate parameters.
+    """
+    total_frames = int(duration * fps)
+    if total_frames < 2:
+        return None
+
+    if style == MotionStyle.STATIC_HOLD:
+        return None
+
+    if style == MotionStyle.KEN_BURNS:
+        if ken_burns_config and ken_burns_config.enabled:
+            direction = pick_ken_burns_direction(segment_index, seed=seed)
+            f = ken_burns_config.get_zoompan_filter(
+                width, height, fps, duration, direction=direction,
+            )
+            return f if f else None
+        # Fallback: if Ken Burns config is off, do a gentle center zoom in
+        style = MotionStyle.SLOW_ZOOM_IN
+
+    if style == MotionStyle.SLOW_ZOOM_IN:
+        # Very gentle center zoom: 1.0 → 1.06 (subtler than Ken Burns)
+        z_start, z_end = 1.0, 1.06
+        z_inc = (z_end - z_start) / max(total_frames, 1)
+        return (
+            f"zoompan=z='min({z_start}+{z_inc:.6f}*on,{z_end})':"
+            f"d={total_frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"s={width}x{height}:fps={fps}"
+        )
+
+    if style == MotionStyle.SLOW_ZOOM_OUT:
+        # Gentle center zoom out: 1.08 → 1.0
+        z_start, z_end = 1.08, 1.0
+        z_dec = (z_start - z_end) / max(total_frames, 1)
+        return (
+            f"zoompan=z='max({z_start}-{z_dec:.6f}*on,{z_end})':"
+            f"d={total_frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"s={width}x{height}:fps={fps}"
+        )
+
+    if style == MotionStyle.GENTLE_DRIFT:
+        # Very slow horizontal pan at fixed zoom — no zoom change
+        z = 1.04  # Slight zoom so we have room to pan
+        rng = random.Random(f"drift-{seed}-{segment_index}")
+        go_right = rng.choice([True, False])
+        # Pan across ~4% of frame over the duration
+        max_pan = width * 0.04
+        px_per_frame = max_pan / max(total_frames, 1)
+        if go_right:
+            x_expr = f"min(on*{px_per_frame:.4f},iw-iw/zoom)"
+        else:
+            x_expr = f"max(iw-iw/zoom-on*{px_per_frame:.4f},0)"
+        return (
+            f"zoompan=z='{z}':"
+            f"d={total_frames}:"
+            f"x='{x_expr}':"
+            f"y='ih/2-(ih/zoom/2)':"
+            f"s={width}x{height}:fps={fps}"
+        )
+
+    return None
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 7.  TRANSITION VARIETY
+# ══════════════════════════════════════════════════════════════════════
+
+# xfade transition types supported by FFmpeg — visually distinctive ones only.
+# "fade" is default (cross-dissolve). The rest add variety.
+XFADE_TRANSITIONS: list[str] = [
+    "fade",           # Classic cross-dissolve (most common)
+    "fadeblack",      # Fade through black — cinematic cut
+    "slideleft",      # Slide left reveal
+    "slideright",     # Slide right reveal
+    "wiperight",      # Wipe right
+    "wipeleft",       # Wipe left
+    "smoothleft",     # Smooth slide left
+    "smoothright",    # Smooth slide right
+]
+
+# Weights: fade is most common (classic dissolve), black-fade second,
+# the rest add spice. Total = 100.
+XFADE_WEIGHTS: list[tuple[str, int]] = [
+    ("fade", 35),
+    ("fadeblack", 20),
+    ("slideleft", 10),
+    ("slideright", 10),
+    ("wiperight", 8),
+    ("wipeleft", 7),
+    ("smoothleft", 5),
+    ("smoothright", 5),
+]
+
+
+def pick_transition_type(
+    segment_index: int,
+    seed: str = "",
+    *,
+    allowed: list[str] | None = None,
+) -> str:
+    """Deterministically pick an xfade transition type.
+
+    Uses weighted random — dissolve is most common, but every few clips
+    a slide, wipe, or fade-to-black adds visual interest.
+    """
+    rng = random.Random(f"xfade-{seed}-{segment_index}")
+    pool = [(t, w) for t, w in XFADE_WEIGHTS if allowed is None or t in allowed]
+    if not pool:
+        return "fade"
+    population = [t for t, w in pool for _ in range(w)]
+    return rng.choice(population)
