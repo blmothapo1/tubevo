@@ -18,7 +18,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from sqlalchemy import func, select, case, desc
+from sqlalchemy import func, select, case, desc, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth import get_current_user
@@ -135,14 +135,14 @@ async def insights_overview(
     row = (await db.execute(agg_q)).one()
 
     # Average CTR and retention (only over rows that have values)
-    ctr_q = select(func.avg(func.cast(ContentPerformance.ctr_pct, func.REAL))).where(
+    ctr_q = select(func.avg(func.cast(ContentPerformance.ctr_pct, Float))).where(
         ContentPerformance.user_id == current_user.id,
         ContentPerformance.created_at >= cutoff,
         ContentPerformance.ctr_pct.isnot(None),
     )
     avg_ctr = (await db.execute(ctr_q)).scalar()
 
-    ret_q = select(func.avg(func.cast(ContentPerformance.avg_view_duration_pct, func.REAL))).where(
+    ret_q = select(func.avg(func.cast(ContentPerformance.avg_view_duration_pct, Float))).where(
         ContentPerformance.user_id == current_user.id,
         ContentPerformance.created_at >= cutoff,
         ContentPerformance.avg_view_duration_pct.isnot(None),

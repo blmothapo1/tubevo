@@ -560,7 +560,12 @@ async def accept_invite(
     if not invite:
         raise HTTPException(status_code=404, detail="Invitation not found or already used.")
 
-    if invite.expires_at < datetime.now(timezone.utc):
+    # Compare expiration — handle both naive and timezone-aware datetimes
+    now_utc = datetime.now(timezone.utc)
+    expires = invite.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if expires < now_utc:
         invite.status = "expired"
         await db.commit()
         raise HTTPException(status_code=410, detail="This invitation has expired.")
