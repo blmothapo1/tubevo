@@ -8,8 +8,9 @@ import { useToast } from '../contexts/ToastContext';
 import {
   Gift, Users, DollarSign, TrendingUp, Copy, Check,
   ExternalLink, Clock, ArrowUpRight, UserPlus,
-  RefreshCw, Sparkles, ChevronDown, Share2,
+  Sparkles, ChevronDown, Share2,
 } from 'lucide-react';
+import { SkeletonReferralPage } from '../components/Skeleton';
 
 /* ── Animated number ── */
 function AnimNum({ value, prefix = '', suffix = '' }) {
@@ -294,9 +295,7 @@ export default function Referrals() {
     return (
       <div className="max-w-4xl mx-auto">
         <PageHeader title="Referrals" subtitle="Earn commissions by referring others" />
-        <div className="flex items-center justify-center h-40">
-          <RefreshCw size={20} className="text-surface-500 animate-spin" />
-        </div>
+        <SkeletonReferralPage />
       </div>
     );
   }

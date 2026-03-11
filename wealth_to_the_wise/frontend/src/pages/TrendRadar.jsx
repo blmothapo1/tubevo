@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import { SkeletonTrendRadar } from '../components/Skeleton';
 
 /* ── Available niches (matches Onboarding) ── */
 const ALL_NICHES = [
@@ -628,6 +629,11 @@ export default function TrendRadar() {
   };
 
   const readyCount = stats?.total_ready || 0;
+
+  /* ── Initial page-level skeleton while everything loads ── */
+  if (loading && !stats && alerts.length === 0) {
+    return <SkeletonTrendRadar />;
+  }
 
   /* ── If no niches, show inline quick-setup ── */
   if (!loading && needsNiches) {

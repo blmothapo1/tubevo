@@ -9,8 +9,9 @@ import {
   Users, Plus, Mail, Shield, Edit3, Trash2, Crown,
   UserPlus, Copy, Check, Clock, ChevronDown, X,
   Eye, Film, AlertCircle, Settings, UserMinus,
-  RefreshCw, ExternalLink,
+  ExternalLink,
 } from 'lucide-react';
+import { SkeletonTeamList, SkeletonTeamDetail } from '../components/Skeleton';
 
 /* ── Role badge ── */
 const ROLE_STYLES = {
@@ -457,11 +458,7 @@ function TeamDetail({ teamId, userId, onBack, onRefreshList }) {
   const isOwnerOrAdmin = myRole === 'owner' || myRole === 'admin';
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-40">
-        <RefreshCw size={20} className="text-surface-500 animate-spin" />
-      </div>
-    );
+    return <SkeletonTeamDetail />;
   }
 
   if (!team) {
@@ -539,8 +536,16 @@ function TeamDetail({ teamId, userId, onBack, onRefreshList }) {
       {tab === 'activity' && (
         <FadeIn>
           {actLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <RefreshCw size={18} className="text-surface-500 animate-spin" />
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="card p-4 flex items-center gap-3">
+                  <div className="skeleton w-8 h-8 rounded-[8px]" />
+                  <div className="flex-1 space-y-2">
+                    <div className="skeleton h-3.5 w-2/3 rounded-[6px]" />
+                    <div className="skeleton h-3 w-1/3 rounded-[6px]" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : activity.length === 0 ? (
             <EmptyState icon={Film} title="No team activity yet" subtitle="Videos created by team members will show here." />
@@ -660,9 +665,7 @@ export default function Team() {
           />
         </FadeIn>
       ) : loading ? (
-        <div className="flex items-center justify-center h-40">
-          <RefreshCw size={20} className="text-surface-500 animate-spin" />
-        </div>
+        <SkeletonTeamList />
       ) : teams.length === 0 ? (
         <EmptyState
           icon={Users}
