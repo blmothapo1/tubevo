@@ -74,8 +74,8 @@ ENCODING_CRF = "20"            # constant-quality (lower = better, 18-23 is good
 VIDEO_BITRATE = "3500k"        # only used as fallback / maxrate cap
 AUDIO_BITRATE = "128k"
 # Limit FFmpeg thread pool so it doesn't spawn as many threads as CPU
-# cores (Railway shares vCPUs).  2 threads keeps peak RSS well under 512 MB.
-FFMPEG_THREADS = "2"
+# cores (Railway shares vCPUs).  1 thread minimises peak RSS for 512 MB.
+FFMPEG_THREADS = "1"
 
 # Cross-platform font detection
 # Phase 5: last generated SRT path (set by _build_video_inner, read by pipeline)
@@ -119,6 +119,7 @@ FONT_FAMILY = _font_family()
 def _run_ffmpeg(args: list[str], description: str = "ffmpeg") -> None:
     """Run an FFmpeg command, raise on failure."""
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning",
+           "-nostdin",
            "-threads", FFMPEG_THREADS] + args
     logger.info("Running %s …", description)
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
@@ -636,9 +637,10 @@ def _composite_main_section(
         "-vf", vf,
         "-t", f"{narration_duration:.2f}",
         "-c:v", "libx264", "-preset", ENCODING_PRESET,
-        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "7000k",
+        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "2000k",
         "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
         "-pix_fmt", "yuv420p",
+        "-max_muxing_queue_size", "512",
         "-shortest",
         output_path,
     ], "composite main section")
@@ -689,9 +691,10 @@ def _assemble_final(
     _run_ffmpeg([
         "-f", "concat", "-safe", "0", "-i", concat_list,
         "-c:v", "libx264", "-preset", ENCODING_PRESET,
-        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "7000k",
+        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "2000k",
         "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
         "-pix_fmt", "yuv420p",
+        "-max_muxing_queue_size", "512",
         "-movflags", "+faststart",
         output_path,
     ], "assemble final video")
@@ -877,6 +880,20 @@ def build_video(
     _crf = video_crf or ENCODING_CRF
     _vbr = video_bitrate or VIDEO_BITRATE
     _abr = audio_bitrate or AUDIO_BITRATE
+
+    # ── Railway memory guard: cap at 720p to prevent OOM kills ───────
+    # Railway containers typically have 512 MB–1 GB RAM.  Encoding
+    # 1080p video with subtitle rendering + filters exceeds 512 MB.
+    # Detect production via ENV var (set by Railway service config)
+    # or RAILWAY_ENVIRONMENT (auto-set by Railway).
+    _env = (os.environ.get("ENV", "") or os.environ.get("RAILWAY_ENVIRONMENT", "")).lower()
+    _is_production = _env == "production" or bool(os.environ.get("RAILWAY_PROJECT_ID"))
+    _max_res = int(os.environ.get("TUBEVO_MAX_VIDEO_HEIGHT", "720" if _is_production else "1080"))
+    if _h > _max_res:
+        _scale = _max_res / _h
+        _w = int(_w * _scale) & ~1  # ensure even number
+        _h = _max_res
+        logger.info("Resolution capped to %dx%d (production memory limit)", _w, _h)
 
     if output_path is None:
         slug = re.sub(r'[^\w\s-]', '', title).strip().lower()
@@ -1344,9 +1361,10 @@ def _reformat_inner(
         "-t", f"{main_dur:.2f}",
         "-vf", vf_chain,
         "-c:v", "libx264", "-preset", ENCODING_PRESET,
-        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "7000k",
+        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "2000k",
         "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
         "-pix_fmt", "yuv420p",
+        "-max_muxing_queue_size", "512",
         composited_main_path,
     ], f"composite {target_format} main section")
 
@@ -1513,9 +1531,10 @@ def _assemble_final_for_format(
     _run_ffmpeg([
         "-f", "concat", "-safe", "0", "-i", concat_list,
         "-c:v", "libx264", "-preset", ENCODING_PRESET,
-        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "7000k",
+        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "2000k",
         "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
         "-pix_fmt", "yuv420p",
+        "-max_muxing_queue_size", "512",
         "-movflags", "+faststart",
         output_path,
     ], f"assemble final ({width}x{height})")
