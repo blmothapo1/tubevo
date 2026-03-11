@@ -2161,15 +2161,24 @@ def _run_pipeline_locked(
             _report("Scene plan ready", 45)
 
             if _use_ai_illustrations:
-                # ── Premium path: AI-generated illustrations (Pro/Agency) ──
-                _report("Generating AI illustrations…", 48)
-                logger.info("Pipeline step 4b/6: Generating AI scene illustrations (premium)")
+                # ── Premium path: AI-generated video clips (Pro/Agency) ──
+                _report("Generating AI video clips…", 48)
+                logger.info("Pipeline step 4b/6: Generating AI scene videos (premium)")
                 try:
                     from scene_illustrator import generate_illustrations_for_scenes
                     _style_seed = variation_ctx.style_seed if variation_ctx and variation_ctx.style_seed else ""
+                    # Runway API key: user BYOK → platform default
+                    _runway_key = user_api_keys.get("runway_api_key", "") or ""
+                    if not _runway_key:
+                        try:
+                            from backend.config import get_settings as _get_cfg
+                            _runway_key = _get_cfg().runway_api_key
+                        except Exception:
+                            pass
                     scene_clip_data = generate_illustrations_for_scenes(
                         scene_plans,
                         openai_api_key=_openai_key,
+                        runway_api_key=_runway_key,
                         topic=topic,
                         style_seed=_style_seed,
                         clips_dir=run_clips_dir,
@@ -2177,10 +2186,13 @@ def _run_pipeline_locked(
                         video_width=_quality["video_resolution"][0],
                         video_height=_quality["video_resolution"][1],
                         video_fps=_quality["video_fps"],
+                        ai_video_model=_quality.get("ai_video_model", "gen4_turbo"),
+                        ai_video_duration=_quality.get("ai_video_duration", 5),
                     )
                     total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
-                    logger.info("Pipeline step 4b/6: Generated %d AI illustration clips across %d scenes", total_clips, len(scene_clip_data))
-                    _report("AI illustrations ready", 60)
+                    _runway_count = sum(1 for sd in scene_clip_data if sd.get("_method") == "runway")
+                    logger.info("Pipeline step 4b/6: Generated %d AI video clips (%d Runway, %d fallback) across %d scenes", total_clips, _runway_count, total_clips - _runway_count, len(scene_clip_data))
+                    _report("AI video clips ready", 60)
                 except Exception as ai_err:
                     logger.warning(
                         "AI illustration failed — falling back to stock footage: %s", ai_err

@@ -76,6 +76,9 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str = Field(default="", repr=False)
     elevenlabs_voice_id: str = Field(default="", repr=False)
 
+    # ── Runway (AI video generation for Pro/Agency) ──────────────────
+    runway_api_key: str = Field(default="", repr=False)
+
     # ── Stripe ───────────────────────────────────────────────────────
     stripe_publishable_key: str = Field(default="", repr=False)
     stripe_secret_key: str = Field(default="", repr=False)
