@@ -262,6 +262,14 @@ async def _apply_column_migrations() -> None:
                     "ALTER TABLE user_api_keys ADD COLUMN pixabay_api_key TEXT"
                 ))
                 logger.info("Applied migration: user_api_keys.pixabay_api_key")
+
+            # 0011: multi-format video paths on video_records
+            for col in ("portrait_path", "square_path"):
+                if not await _col_exists_sqlite("video_records", col):
+                    await conn.execute(text(
+                        f"ALTER TABLE video_records ADD COLUMN {col} TEXT"
+                    ))
+                    logger.info("Applied migration: video_records.%s", col)
         else:
             # PostgreSQL path — use information_schema
             async def _col_exists_pg(table: str, column: str) -> bool:
@@ -328,6 +336,14 @@ async def _apply_column_migrations() -> None:
                     "ALTER TABLE user_api_keys ADD COLUMN pixabay_api_key TEXT"
                 ))
                 logger.info("Applied migration: user_api_keys.pixabay_api_key")
+
+            # 0011: multi-format video paths on video_records
+            for col in ("portrait_path", "square_path"):
+                if not await _col_exists_pg("video_records", col):
+                    await conn.execute(text(
+                        f"ALTER TABLE video_records ADD COLUMN {col} TEXT"
+                    ))
+                    logger.info("Applied migration: video_records.%s", col)
 
     logger.info("Column migrations complete.")
 

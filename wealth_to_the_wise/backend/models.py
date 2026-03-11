@@ -142,6 +142,10 @@ class VideoRecord(Base):
     # ── Phase 5 — Subtitle artefacts ─────────────────────────────────
     srt_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # ── Multi-format export (portrait / square variants) ─────────────
+    portrait_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    square_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # ── Analytics — when the video was published to YouTube ──────────
     published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,

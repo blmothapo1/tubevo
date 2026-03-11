@@ -34,6 +34,9 @@ import {
   ArrowRight,
   Zap,
   X,
+  Smartphone,
+  Square,
+  Monitor,
 } from 'lucide-react';
 
 const ease = [0.25, 0.1, 0.25, 1];
@@ -450,6 +453,102 @@ export default function Videos() {
       window.URL.revokeObjectURL(url);
     } catch {
       setMessage({ type: 'error', text: 'Download failed. The file may not be available on this server.' });
+    }
+  }
+
+  // ── Multi-format export state ──
+  const [exportDropdownId, setExportDropdownId] = useState(null);
+  const [reformatLoading, setReformatLoading] = useState({}); // { videoId_format: true }
+  const exportDropdownRef = useRef(null);
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target)) {
+        setExportDropdownId(null);
+      }
+    }
+    if (exportDropdownId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [exportDropdownId]);
+
+  async function handleFormatDownload(videoId, title, format) {
+    if (format === 'landscape') {
+      // Landscape = original download
+      handleDownload(videoId, title);
+      setExportDropdownId(null);
+      return;
+    }
+
+    // Check if format already exists on the video record
+    const video = videos.find((v) => v.id === videoId);
+    const existingPath = format === 'portrait' ? video?.portrait_path : video?.square_path;
+
+    if (existingPath) {
+      // Already generated — download directly
+      try {
+        const response = await api.get(`/api/videos/${videoId}/download/${format}`, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const a = document.createElement('a');
+        a.href = url;
+        const fmtLabel = format === 'portrait' ? 'shorts_9x16' : 'square_1x1';
+        a.download = `${(title || 'video').replace(/\s+/g, '_').slice(0, 60)}_${fmtLabel}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        setExportDropdownId(null);
+      } catch {
+        setMessage({ type: 'error', text: `Download failed for ${format} format.` });
+      }
+      return;
+    }
+
+    // Need to generate the format first
+    const loadingKey = `${videoId}_${format}`;
+    setReformatLoading((prev) => ({ ...prev, [loadingKey]: true }));
+    setMessage({ type: 'info', text: `Converting to ${format === 'portrait' ? '9:16 (Shorts/Reels/TikTok)' : '1:1 (Square)'}… ~30 seconds` });
+
+    try {
+      const { data } = await api.post(`/api/videos/${videoId}/reformat`, { target_format: format });
+
+      if (data.status === 'ready') {
+        // Update local state
+        setVideos((prev) =>
+          prev.map((v) =>
+            v.id === videoId
+              ? { ...v, [`${format}_path`]: data.file_path }
+              : v,
+          ),
+        );
+        setMessage({ type: 'success', text: `${format === 'portrait' ? 'Shorts/Reels/TikTok' : 'Square'} version ready! (${data.size_mb} MB)` });
+
+        // Auto-download the new format
+        try {
+          const response = await api.get(`/api/videos/${videoId}/download/${format}`, { responseType: 'blob' });
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const a = document.createElement('a');
+          a.href = url;
+          const fmtLabel = format === 'portrait' ? 'shorts_9x16' : 'square_1x1';
+          a.download = `${(title || 'video').replace(/\s+/g, '_').slice(0, 60)}_${fmtLabel}.mp4`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+        } catch { /* Download failed silently — user can click again */ }
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setMessage({ type: 'error', text: detail || `Failed to convert to ${format} format.` });
+    } finally {
+      setReformatLoading((prev) => {
+        const next = { ...prev };
+        delete next[loadingKey];
+        return next;
+      });
+      setExportDropdownId(null);
     }
   }
 
@@ -890,15 +989,91 @@ export default function Videos() {
                         </a>
                       )}
 
-                      {/* Phase 6: Download MP4 button */}
+                      {/* Multi-format export dropdown */}
                       {canDownload && (
-                        <button
-                          onClick={() => handleDownload(video.id, video.title)}
-                          className="p-2 rounded text-blue-400 hover:bg-blue-500/10 transition-colors duration-150"
-                          title="Download MP4"
-                        >
-                          <Download size={14} />
-                        </button>
+                        <div className="relative" ref={exportDropdownId === video.id ? exportDropdownRef : null}>
+                          <button
+                            onClick={() => setExportDropdownId(exportDropdownId === video.id ? null : video.id)}
+                            className="p-2 rounded text-blue-400 hover:bg-blue-500/10 transition-colors duration-150 flex items-center gap-0.5"
+                            title="Download / Export"
+                          >
+                            <Download size={14} />
+                            <ChevronDown size={10} />
+                          </button>
+
+                          <AnimatePresence>
+                            {exportDropdownId === video.id && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                                transition={{ duration: 0.15, ease }}
+                                className="absolute right-0 top-full mt-1 z-30 w-56 rounded-xl bg-surface-200 border border-[var(--border-subtle)] shadow-xl overflow-hidden"
+                              >
+                                <div className="px-3 py-2 border-b border-[var(--border-subtle)]">
+                                  <span className="text-[10px] uppercase tracking-wider font-semibold text-surface-500">Export Format</span>
+                                </div>
+
+                                {/* Landscape (original) */}
+                                <button
+                                  onClick={() => handleFormatDownload(video.id, video.title, 'landscape')}
+                                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.04] transition-colors text-left"
+                                >
+                                  <Monitor size={14} className="text-brand-400 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-white">YouTube (16:9)</p>
+                                    <p className="text-[10px] text-surface-500">Original landscape</p>
+                                  </div>
+                                  <Download size={12} className="text-surface-500 ml-auto shrink-0" />
+                                </button>
+
+                                {/* Portrait (Shorts/Reels/TikTok) */}
+                                <button
+                                  onClick={() => handleFormatDownload(video.id, video.title, 'portrait')}
+                                  disabled={!!reformatLoading[`${video.id}_portrait`]}
+                                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.04] transition-colors text-left disabled:opacity-50"
+                                >
+                                  <Smartphone size={14} className="text-purple-400 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-white">Shorts / Reels / TikTok</p>
+                                    <p className="text-[10px] text-surface-500">
+                                      {video.portrait_path ? '9:16 · Ready' : '9:16 · Will generate (~30s)'}
+                                    </p>
+                                  </div>
+                                  {reformatLoading[`${video.id}_portrait`] ? (
+                                    <RefreshCw size={12} className="text-purple-400 animate-spin ml-auto shrink-0" />
+                                  ) : video.portrait_path ? (
+                                    <Download size={12} className="text-surface-500 ml-auto shrink-0" />
+                                  ) : (
+                                    <Wand2 size={12} className="text-surface-500 ml-auto shrink-0" />
+                                  )}
+                                </button>
+
+                                {/* Square (Instagram) */}
+                                <button
+                                  onClick={() => handleFormatDownload(video.id, video.title, 'square')}
+                                  disabled={!!reformatLoading[`${video.id}_square`]}
+                                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.04] transition-colors text-left disabled:opacity-50"
+                                >
+                                  <Square size={14} className="text-pink-400 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-white">Instagram Feed</p>
+                                    <p className="text-[10px] text-surface-500">
+                                      {video.square_path ? '1:1 · Ready' : '1:1 · Will generate (~30s)'}
+                                    </p>
+                                  </div>
+                                  {reformatLoading[`${video.id}_square`] ? (
+                                    <RefreshCw size={12} className="text-pink-400 animate-spin ml-auto shrink-0" />
+                                  ) : video.square_path ? (
+                                    <Download size={12} className="text-surface-500 ml-auto shrink-0" />
+                                  ) : (
+                                    <Wand2 size={12} className="text-surface-500 ml-auto shrink-0" />
+                                  )}
+                                </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       )}
 
                       {/* Resume editing — pending videos with saved scripts */}

@@ -177,6 +177,27 @@ def _escape_drawtext(text: str) -> str:
     return text
 
 
+# ── FFmpeg filter detection ──────────────────────────────────────────
+_ffmpeg_filter_cache: dict[str, bool] = {}
+
+
+def _has_ffmpeg_filter(name: str) -> bool:
+    """Check if an FFmpeg filter is available (cached)."""
+    if name in _ffmpeg_filter_cache:
+        return _ffmpeg_filter_cache[name]
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-filters"],
+            capture_output=True, text=True, timeout=10,
+        )
+        available = f" {name} " in result.stdout or f" {name}\n" in result.stdout
+        _ffmpeg_filter_cache[name] = available
+        return available
+    except Exception:
+        _ffmpeg_filter_cache[name] = False
+        return False
+
+
 # ── Step 1: Prepare stock footage background ────────────────────────
 
 def _prepare_background(
@@ -901,6 +922,440 @@ def _build_video_inner(
     last_srt_path = srt_path
 
     return output_path
+
+
+# ══════════════════════════════════════════════════════════════════════
+# MULTI-FORMAT EXPORT — convert a finished landscape video to
+# portrait (9:16 for Shorts/Reels/TikTok) or square (1:1 for IG Feed).
+#
+# Strategy: single FFmpeg pass — crop + scale + re-burn captions.
+# No duplicate API calls, no re-download.  ~30-60s per reformat.
+# ══════════════════════════════════════════════════════════════════════
+
+# Format presets: (width, height, label)
+FORMAT_PRESETS: dict[str, dict] = {
+    "landscape": {
+        "width": 1280,
+        "height": 720,
+        "label": "YouTube (16:9)",
+        "aspect": "16:9",
+    },
+    "portrait": {
+        "width": 1080,
+        "height": 1920,
+        "label": "Shorts / Reels / TikTok (9:16)",
+        "aspect": "9:16",
+    },
+    "square": {
+        "width": 1080,
+        "height": 1080,
+        "label": "Instagram Feed (1:1)",
+        "aspect": "1:1",
+    },
+}
+
+
+def reformat_video(
+    source_video_path: str,
+    target_format: str,
+    *,
+    output_path: str | None = None,
+    script: str | None = None,
+    title: str | None = None,
+    subtitle_style: str | None = None,
+    burn_captions: bool = True,
+) -> str:
+    """Reformat a finished landscape video to a different aspect ratio.
+
+    This is a **post-build** operation — it takes an existing video and
+    creates a new variant optimised for the target platform.
+
+    For portrait (9:16):
+      - Center-crops the landscape frame to extract the middle vertical slice
+      - Re-renders title card and outro at portrait dimensions
+      - Optionally re-burns captions sized for the portrait frame
+
+    For square (1:1):
+      - Center-crops to square from the landscape frame
+      - Re-renders title/outro cards at square dimensions
+
+    Parameters
+    ----------
+    source_video_path : str
+        Path to the original landscape MP4.
+    target_format : str
+        One of: "portrait", "square" (or "landscape" — returns the source).
+    output_path : str | None
+        Where to save. Auto-generated if None.
+    script : str | None
+        Full script text — needed to re-burn captions at correct size.
+    title : str | None
+        Video title — used for the reformatted title card.
+    subtitle_style : str | None
+        Caption style preset name (e.g. "bold_pop").
+    burn_captions : bool
+        Whether to burn captions into the reformatted video.
+
+    Returns
+    -------
+    str
+        Path to the reformatted video file.
+    """
+    if target_format not in FORMAT_PRESETS:
+        raise ValueError(f"Unknown format '{target_format}'. Choose from: {list(FORMAT_PRESETS.keys())}")
+
+    if target_format == "landscape":
+        logger.info("Format is already landscape — returning source")
+        return source_video_path
+
+    if not os.path.isfile(source_video_path):
+        raise RenderError(f"Source video not found: {source_video_path}")
+
+    preset = FORMAT_PRESETS[target_format]
+    tw, th = preset["width"], preset["height"]
+
+    if output_path is None:
+        base, ext = os.path.splitext(source_video_path)
+        output_path = f"{base}_{target_format}{ext}"
+
+    logger.info("Reformatting → %s (%dx%d) …", target_format, tw, th)
+
+    tmp_dir = tempfile.mkdtemp(prefix=f"tubevo_reformat_{target_format}_")
+
+    try:
+        return _reformat_inner(
+            source_video_path=source_video_path,
+            target_format=target_format,
+            tw=tw, th=th,
+            output_path=output_path,
+            script=script,
+            title=title,
+            subtitle_style=subtitle_style,
+            burn_captions=burn_captions,
+            tmp_dir=tmp_dir,
+        )
+    finally:
+        try:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+
+def _reformat_inner(
+    *,
+    source_video_path: str,
+    target_format: str,
+    tw: int,
+    th: int,
+    output_path: str,
+    script: str | None,
+    title: str | None,
+    subtitle_style: str | None,
+    burn_captions: bool,
+    tmp_dir: str,
+) -> str:
+    """Inner reformat — extract main section, crop video, re-burn captions.
+
+    Gracefully degrades if FFmpeg filters (drawtext, ass) are unavailable
+    (e.g. macOS Homebrew build without --enable-libfreetype / --enable-libass).
+    On Railway/Docker the full filter set is always available.
+    """
+
+    has_drawtext = _has_ffmpeg_filter("drawtext")
+    has_ass = _has_ffmpeg_filter("ass")
+
+    # ── 1. Probe source video ────────────────────────────────────────
+    source_dur = _get_video_duration(source_video_path)
+    logger.info("Source video: %.1fs  (drawtext=%s, ass=%s)", source_dur, has_drawtext, has_ass)
+
+    # The landscape video has title card + main + outro structure.
+    # We rebuild title/outro at the new dimensions and crop the main section.
+    main_start = TITLE_CARD_DURATION
+    main_end = source_dur - OUTRO_CARD_DURATION
+    main_dur = max(1.0, main_end - main_start)
+
+    # ── 2. Calculate crop geometry ───────────────────────────────────
+    src_w, src_h = VIDEO_WIDTH, VIDEO_HEIGHT  # 1280 x 720
+    target_aspect = tw / th
+
+    if target_aspect < (src_w / src_h):
+        # Target is taller (portrait/square) — crop width
+        crop_h = src_h
+        crop_w = int(src_h * target_aspect)
+    else:
+        # Target is wider — crop height
+        crop_w = src_w
+        crop_h = int(src_w / target_aspect)
+
+    # Force even dimensions (required by libx264)
+    crop_w = crop_w - (crop_w % 2)
+    crop_h = crop_h - (crop_h % 2)
+
+    crop_x = (src_w - crop_w) // 2
+    crop_y = (src_h - crop_h) // 2
+
+    # ── 3. Build main section (crop + scale + overlays) ──────────────
+    composited_main_path = os.path.join(tmp_dir, "main_composited.mp4")
+
+    # Build the video filter chain — only include available filters
+    darken = 1.0 - DARK_OVERLAY_OPACITY
+    vf_parts: list[str] = [
+        f"colorchannelmixer=rr={darken}:gg={darken}:bb={darken}",
+        f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}",
+        f"scale={tw}:{th}",
+        f"fps={FPS}",
+        "format=yuv420p",
+    ]
+
+    # Re-burn captions if available
+    if burn_captions and script and has_ass:
+        try:
+            from subtitle_generator import generate_subtitles_for_format
+            _srt_out = os.path.join(tmp_dir, "captions.srt")
+            _ass_out = os.path.join(tmp_dir, "captions.ass")
+            _style_name = subtitle_style or "bold_pop"
+            _, _ass_path = generate_subtitles_for_format(
+                script,
+                audio_duration=main_dur,
+                video_width=tw,
+                video_height=th,
+                style_name=_style_name,
+                srt_output=_srt_out,
+                ass_output=_ass_out,
+            )
+            if _ass_path:
+                # Escape path for FFmpeg filter: replace \ with / and : with \:
+                ass_escaped = _ass_path.replace("\\", "/").replace(":", "\\:")
+                vf_parts.append(f"ass='{ass_escaped}'")
+                logger.info("Will re-burn captions for %s at %dx%d", target_format, tw, th)
+        except Exception as sub_err:
+            logger.warning("Could not generate captions for %s: %s", target_format, sub_err)
+    elif burn_captions and script and not has_ass:
+        logger.info("ASS filter not available — skipping caption burn (OK for local dev)")
+
+    # Branding watermark (only if drawtext available)
+    if has_drawtext:
+        font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
+        if target_format == "portrait":
+            brand_x = "(w-text_w)/2"
+            brand_y = "60"
+            brand_size = 20
+        else:
+            brand_x = "40"
+            brand_y = "28"
+            brand_size = BRAND_FONT_SIZE
+
+        vf_parts.append(
+            f"drawtext=fontfile='{font_escaped}':text='TUBEVO':"
+            f"fontsize={brand_size}:fontcolor=0x00D4AA:x={brand_x}:y={brand_y}"
+        )
+
+    # Progress bar at bottom (drawbox is widely available)
+    bar_h = 4
+    vf_parts.append(
+        f"drawbox=x=0:y=ih-{bar_h}:w='floor(iw*(t/{main_dur:.2f}))':h={bar_h}:"
+        f"color=0x00D4AA:t=fill"
+    )
+
+    vf_chain = ",".join(vf_parts)
+
+    _run_ffmpeg([
+        "-ss", f"{main_start:.2f}",
+        "-i", source_video_path,
+        "-t", f"{main_dur:.2f}",
+        "-vf", vf_chain,
+        "-c:v", "libx264", "-preset", ENCODING_PRESET,
+        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "7000k",
+        "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
+        "-pix_fmt", "yuv420p",
+        composited_main_path,
+    ], f"composite {target_format} main section")
+
+    # ── 4. Title card at new dimensions ──────────────────────────────
+    title_text = title or "TUBEVO"
+    title_card_path = _create_title_card_for_format(title_text, tw, th, tmp_dir)
+
+    # ── 5. Outro card at new dimensions ──────────────────────────────
+    outro_card_path = _create_outro_card_for_format(tw, th, tmp_dir)
+
+    # ── 6. Final assembly ────────────────────────────────────────────
+    logger.info("Assembling reformatted video (%.0fs) …", main_dur + TITLE_CARD_DURATION + OUTRO_CARD_DURATION)
+    _assemble_final_for_format(
+        title_card_path, composited_main_path, outro_card_path,
+        output_path, tw, th, tmp_dir,
+    )
+
+    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+    logger.info("Reformatted video saved → %s (%.1f MB, %dx%d)", output_path, size_mb, tw, th)
+
+    # Size enforcement
+    output_path = _enforce_size_limit(output_path)
+    return output_path
+
+
+def _create_title_card_for_format(
+    title: str, width: int, height: int, tmp_dir: str,
+    duration: float = TITLE_CARD_DURATION,
+) -> str:
+    """Render a title card at the given dimensions.
+
+    Falls back to a plain dark card if drawtext is unavailable.
+    """
+    output_path = os.path.join(tmp_dir, "title_card_fmt.mp4")
+
+    if not _has_ffmpeg_filter("drawtext"):
+        # Fallback: plain dark card without text
+        _run_ffmpeg([
+            "-f", "lavfi",
+            "-i", f"color=c=0x0A0A0A:s={width}x{height}:d={duration}:r={FPS}",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            "-t", str(duration),
+            output_path,
+        ], f"render plain title card ({width}x{height})")
+        return output_path
+
+    title_text_file = os.path.join(tmp_dir, "title_text_fmt.txt")
+    # Narrower wrap for portrait
+    wrap_w = 20 if width < height else 35
+    wrapped_title = textwrap.fill(title, width=wrap_w)
+    with open(title_text_file, "w", encoding="utf-8") as f:
+        f.write(wrapped_title)
+
+    font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
+    title_file_escaped = title_text_file.replace("\\", "/").replace(":", "\\:")
+
+    # Scale font sizes relative to dimensions
+    base_title_size = 40 if width >= height else 36
+    base_brand_size = 24 if width >= height else 20
+    brand_y = "(h/2)-120" if width < height else "(h/2)-90"
+    title_y = "(h/2)+10" if width >= height else "(h/2)-20"
+
+    _run_ffmpeg([
+        "-f", "lavfi",
+        "-i", f"color=c=0x0A0A0A:s={width}x{height}:d={duration}:r={FPS}",
+        "-vf", (
+            f"format=yuv420p,"
+            f"drawtext=fontfile='{font_escaped}':text='TUBEVO':fontsize={base_brand_size}:"
+            f"fontcolor=0x00D4AA:x=(w-text_w)/2:y={brand_y},"
+            f"drawtext=fontfile='{font_escaped}':textfile='{title_file_escaped}':"
+            f"fontsize={base_title_size}:fontcolor=white:x=(w-text_w)/2:y={title_y}:line_spacing=8"
+        ),
+        "-t", str(duration),
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+        output_path,
+    ], f"render title card ({width}x{height})")
+
+    return output_path
+
+
+def _create_outro_card_for_format(
+    width: int, height: int, tmp_dir: str,
+    duration: float = OUTRO_CARD_DURATION,
+) -> str:
+    """Render the outro card at the given dimensions.
+
+    Falls back to a plain dark card if drawtext is unavailable.
+    """
+    output_path = os.path.join(tmp_dir, "outro_card_fmt.mp4")
+
+    if not _has_ffmpeg_filter("drawtext"):
+        _run_ffmpeg([
+            "-f", "lavfi",
+            "-i", f"color=c=0x0A0A0A:s={width}x{height}:d={duration}:r={FPS}",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            "-t", str(duration),
+            output_path,
+        ], f"render plain outro card ({width}x{height})")
+        return output_path
+
+    font_escaped = FONT.replace("\\", "/").replace(":", "\\:")
+
+    sub_size = 48 if width >= height else 40
+    cta_size = 28 if width >= height else 22
+    brand_size = 20 if width >= height else 16
+
+    _run_ffmpeg([
+        "-f", "lavfi",
+        "-i", f"color=c=0x0A0A0A:s={width}x{height}:d={duration}:r={FPS}",
+        "-vf", (
+            f"format=yuv420p,"
+            f"drawtext=fontfile='{font_escaped}':text='SUBSCRIBE FOR MORE':fontsize={sub_size}:"
+            f"fontcolor=0x00D4AA:x=(w-text_w)/2:y=(h/2)-60,"
+            f"drawtext=fontfile='{font_escaped}':text='Like · Comment · Share':fontsize={cta_size}:"
+            f"fontcolor=white:x=(w-text_w)/2:y=(h/2)+20,"
+            f"drawtext=fontfile='{font_escaped}':text='TUBEVO':fontsize={brand_size}:"
+            f"fontcolor=0x888888:x=(w-text_w)/2:y=(h/2)+80"
+        ),
+        "-t", str(duration),
+        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+        output_path,
+    ], f"render outro card ({width}x{height})")
+
+    return output_path
+
+
+def _assemble_final_for_format(
+    title_card_path: str,
+    main_section_path: str,
+    outro_card_path: str,
+    output_path: str,
+    width: int,
+    height: int,
+    tmp_dir: str,
+) -> str:
+    """Concatenate title → main → outro, ensuring all segments match dimensions."""
+    title_with_audio = os.path.join(tmp_dir, "title_with_audio_fmt.mp4")
+    outro_with_audio = os.path.join(tmp_dir, "outro_with_audio_fmt.mp4")
+
+    title_dur = _get_video_duration(title_card_path)
+    _run_ffmpeg([
+        "-i", title_card_path,
+        "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo:d={title_dur}",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+        "-shortest",
+        title_with_audio,
+    ], "add silent audio to title card (reformat)")
+
+    outro_dur = _get_video_duration(outro_card_path)
+    _run_ffmpeg([
+        "-i", outro_card_path,
+        "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo:d={outro_dur}",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", AUDIO_BITRATE,
+        "-shortest",
+        outro_with_audio,
+    ], "add silent audio to outro card (reformat)")
+
+    concat_list = os.path.join(tmp_dir, "concat_reformat.txt")
+    with open(concat_list, "w") as f:
+        f.write(f"file '{title_with_audio}'\n")
+        f.write(f"file '{main_section_path}'\n")
+        f.write(f"file '{outro_with_audio}'\n")
+
+    _run_ffmpeg([
+        "-f", "concat", "-safe", "0", "-i", concat_list,
+        "-c:v", "libx264", "-preset", ENCODING_PRESET,
+        "-crf", ENCODING_CRF, "-maxrate", VIDEO_BITRATE, "-bufsize", "7000k",
+        "-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ac", "2", "-ar", "44100",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        output_path,
+    ], f"assemble final ({width}x{height})")
+
+    return output_path
+
+
+def get_available_formats() -> list[dict]:
+    """Return available export format presets for the frontend."""
+    return [
+        {
+            "key": key,
+            "label": preset["label"],
+            "width": preset["width"],
+            "height": preset["height"],
+            "aspect": preset["aspect"],
+        }
+        for key, preset in FORMAT_PRESETS.items()
+    ]
 
 
 # ── CLI test ─────────────────────────────────────────────────────────

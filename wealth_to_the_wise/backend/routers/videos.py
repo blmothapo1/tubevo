@@ -163,6 +163,9 @@ class VideoHistoryItem(BaseModel):
     progress_step: str | None = None
     progress_pct: int = 0
     has_script: bool = False
+    # Multi-format export
+    portrait_path: str | None = None
+    square_path: str | None = None
     created_at: str
     updated_at: str
 
@@ -2062,6 +2065,8 @@ async def video_history(
             progress_step=_progress_store.get(r.id, {}).get("step") or r.progress_step,
             progress_pct=_progress_store.get(r.id, {}).get("pct", r.progress_pct or 0),
             has_script=bool(r.script_text),
+            portrait_path=getattr(r, "portrait_path", None),
+            square_path=getattr(r, "square_path", None),
             created_at=r.created_at.isoformat() if r.created_at else "",
             updated_at=r.updated_at.isoformat() if r.updated_at else "",
         )
@@ -2264,6 +2269,261 @@ async def download_video(
         media_type="video/mp4",
         filename=f"{safe_title}.mp4",
     )
+
+
+# ══════════════════════════════════════════════════════════════════════
+# MULTI-FORMAT EXPORT — reformat landscape → portrait / square
+# ══════════════════════════════════════════════════════════════════════
+
+
+@router.get("/formats")
+async def list_formats():
+    """Return available export format presets."""
+    try:
+        from video_builder import get_available_formats
+        return {"formats": get_available_formats()}
+    except Exception:
+        # Fallback if video_builder import fails
+        return {"formats": [
+            {"key": "landscape", "label": "YouTube (16:9)", "width": 1280, "height": 720, "aspect": "16:9"},
+            {"key": "portrait", "label": "Shorts / Reels / TikTok (9:16)", "width": 1080, "height": 1920, "aspect": "9:16"},
+            {"key": "square", "label": "Instagram Feed (1:1)", "width": 1080, "height": 1080, "aspect": "1:1"},
+        ]}
+
+
+class ReformatRequest(BaseModel):
+    target_format: str = Field(..., description="portrait or square")
+
+    @field_validator("target_format")
+    @classmethod
+    def validate_format(cls, v: str) -> str:
+        if v not in ("portrait", "square"):
+            raise ValueError("target_format must be 'portrait' or 'square'")
+        return v
+
+
+# In-flight reformat tracking to prevent duplicate runs
+_reformat_inflight: dict[str, str] = {}  # record_id → format being generated
+_reformat_lock = asyncio.Lock()
+
+
+@router.post("/{video_id}/reformat")
+async def reformat_video_endpoint(
+    video_id: str,
+    body: ReformatRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Reformat a completed landscape video to portrait (9:16) or square (1:1).
+
+    This is a post-build operation — crops and scales the existing video.
+    Takes ~30-60 seconds.  The result is stored on the VideoRecord and
+    available for download via the format-specific download endpoint.
+    """
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    if record.status not in ("completed", "posted"):
+        raise HTTPException(status_code=400, detail="Video must be completed before reformatting.")
+
+    if not record.file_path or not os.path.isfile(record.file_path):
+        raise HTTPException(status_code=404, detail="Original video file not found on server.")
+
+    target_format = body.target_format
+
+    # Check if already reformatted
+    existing_path = getattr(record, f"{target_format}_path", None)
+    if existing_path and os.path.isfile(existing_path):
+        size_mb = os.path.getsize(existing_path) / (1024 * 1024)
+        return {
+            "status": "ready",
+            "format": target_format,
+            "file_path": existing_path,
+            "size_mb": round(size_mb, 1),
+            "message": f"{target_format.title()} version already exists.",
+        }
+
+    # Check in-flight
+    async with _reformat_lock:
+        if video_id in _reformat_inflight:
+            return {
+                "status": "generating",
+                "format": _reformat_inflight[video_id],
+                "message": "Reformat already in progress.",
+            }
+        _reformat_inflight[video_id] = target_format
+
+    try:
+        # Run reformat in a thread to avoid blocking the event loop
+        import video_builder as vb_mod
+
+        # Build output path next to the original
+        base, ext = os.path.splitext(record.file_path)
+        output_path = f"{base}_{target_format}{ext}"
+
+        reformatted_path = await asyncio.to_thread(
+            vb_mod.reformat_video,
+            source_video_path=record.file_path,
+            target_format=target_format,
+            output_path=output_path,
+            script=record.script_text,
+            title=record.title,
+            subtitle_style="bold_pop",
+            burn_captions=True,
+        )
+
+        # Persist the path on the record
+        if target_format == "portrait":
+            record.portrait_path = reformatted_path
+        elif target_format == "square":
+            record.square_path = reformatted_path
+        await db.commit()
+
+        size_mb = os.path.getsize(reformatted_path) / (1024 * 1024)
+        logger.info(
+            "Reformatted video %s → %s (%s, %.1f MB) for user %s",
+            video_id, target_format, reformatted_path, size_mb, current_user.email,
+        )
+
+        return {
+            "status": "ready",
+            "format": target_format,
+            "file_path": reformatted_path,
+            "size_mb": round(size_mb, 1),
+            "message": f"{target_format.title()} version ready for download.",
+        }
+
+    except Exception as e:
+        logger.exception("Reformat failed for video %s → %s", video_id, target_format)
+        raise HTTPException(status_code=500, detail=f"Reformat failed: {str(e)[:200]}")
+    finally:
+        async with _reformat_lock:
+            _reformat_inflight.pop(video_id, None)
+
+
+@router.get("/{video_id}/download/{target_format}")
+async def download_formatted_video(
+    video_id: str,
+    target_format: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download a reformatted video (portrait or square)."""
+    if target_format not in ("portrait", "square", "landscape"):
+        raise HTTPException(status_code=400, detail="Format must be 'landscape', 'portrait', or 'square'.")
+
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    # Landscape = original file
+    if target_format == "landscape":
+        if not record.file_path or not os.path.isfile(record.file_path):
+            raise HTTPException(status_code=404, detail="Video file not found on server.")
+        safe_title = (record.title or "video").replace(" ", "_")[:60]
+        return FileResponse(
+            path=record.file_path,
+            media_type="video/mp4",
+            filename=f"{safe_title}_landscape.mp4",
+        )
+
+    # Portrait / square
+    file_path = getattr(record, f"{target_format}_path", None)
+    if not file_path or not os.path.isfile(file_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"{target_format.title()} version not found. Generate it first via POST /reformat.",
+        )
+
+    safe_title = (record.title or "video").replace(" ", "_")[:60]
+    # Format label mapping for filename
+    fmt_labels = {"portrait": "shorts_9x16", "square": "square_1x1"}
+    fmt_label = fmt_labels.get(target_format, target_format)
+
+    return FileResponse(
+        path=file_path,
+        media_type="video/mp4",
+        filename=f"{safe_title}_{fmt_label}.mp4",
+    )
+
+
+@router.get("/{video_id}/formats")
+async def get_video_formats(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return which format variants exist for a video."""
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    variants = []
+
+    # Landscape (original)
+    if record.file_path and os.path.isfile(record.file_path):
+        size_mb = os.path.getsize(record.file_path) / (1024 * 1024)
+        variants.append({
+            "format": "landscape",
+            "label": "YouTube (16:9)",
+            "status": "ready",
+            "size_mb": round(size_mb, 1),
+        })
+
+    # Portrait
+    if record.portrait_path and os.path.isfile(record.portrait_path):
+        size_mb = os.path.getsize(record.portrait_path) / (1024 * 1024)
+        variants.append({
+            "format": "portrait",
+            "label": "Shorts / Reels / TikTok (9:16)",
+            "status": "ready",
+            "size_mb": round(size_mb, 1),
+        })
+    else:
+        variants.append({
+            "format": "portrait",
+            "label": "Shorts / Reels / TikTok (9:16)",
+            "status": "not_generated",
+            "size_mb": None,
+        })
+
+    # Square
+    if record.square_path and os.path.isfile(record.square_path):
+        size_mb = os.path.getsize(record.square_path) / (1024 * 1024)
+        variants.append({
+            "format": "square",
+            "label": "Instagram Feed (1:1)",
+            "status": "ready",
+            "size_mb": round(size_mb, 1),
+        })
+    else:
+        variants.append({
+            "format": "square",
+            "label": "Instagram Feed (1:1)",
+            "status": "not_generated",
+            "size_mb": None,
+        })
+
+    return {"video_id": video_id, "variants": variants}
 
 
 # ── GET /api/videos/{video_id}/pipeline-log ──────────────────────────

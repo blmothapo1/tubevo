@@ -440,6 +440,152 @@ def generate_subtitles(
     return srt_path, ass_path
 
 
+# ── Multi-format subtitle generation ────────────────────────────────
+
+def generate_ass_for_format(
+    timed_segments: list[TimedSegment],
+    output_path: str,
+    *,
+    video_width: int,
+    video_height: int,
+    style: SubtitleStyle | None = None,
+) -> str:
+    """Generate an ASS subtitle file scaled for a specific video format.
+
+    Adjusts PlayResX/Y, font size, margins, and wrap width based on the
+    target dimensions.  For portrait (9:16) videos, captions are larger
+    and margins are adjusted for the taller frame.
+    """
+    if style is None:
+        style = SUBTITLE_STYLES[DEFAULT_STYLE]
+
+    bold_flag = -1 if style.bold else 0
+    italic_flag = -1 if style.italic else 0
+
+    # Scale font size and margins relative to dimensions.
+    # Reference: 1280x720 landscape.  For portrait (1080x1920),
+    # we want larger text since the frame is narrower.
+    is_portrait = video_height > video_width
+    if is_portrait:
+        # Portrait: bigger text, narrower wrap, centered lower
+        font_scale = 1.3
+        margin_v = int(video_height * 0.12)  # ~230px from bottom on 1920h
+        margin_lr = int(video_width * 0.06)   # ~65px on 1080w
+        wrap_width = 28  # fewer chars per line for narrow frame
+    elif video_width == video_height:
+        # Square: slightly bigger text
+        font_scale = 1.1
+        margin_v = int(video_height * 0.10)
+        margin_lr = int(video_width * 0.05)
+        wrap_width = 36
+    else:
+        # Landscape: use original settings
+        font_scale = 1.0
+        margin_v = style.margin_v
+        margin_lr = style.margin_l
+        wrap_width = style.wrap_width
+
+    scaled_font_size = int(style.font_size * font_scale)
+    scaled_outline = style.outline_width * font_scale
+
+    ass_content = f"""[Script Info]
+Title: Tubevo Captions
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: {video_width}
+PlayResY: {video_height}
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,{style.font_family},{scaled_font_size},{style.primary_color},&H000000FF,{style.outline_color},{style.back_color},{bold_flag},{italic_flag},0,0,100,100,0,0,{style.border_style},{scaled_outline},{style.shadow_depth},{style.alignment},{margin_lr},{margin_lr},{margin_v},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+    for seg in timed_segments:
+        wrapped = wrap_segment(seg.text, wrap_width)
+        ass_text = wrapped.replace("\n", "\\N")
+        effect = f"{{\\fad({style.fade_in_ms},{style.fade_out_ms})}}"
+
+        ass_content += (
+            f"Dialogue: 0,{_seconds_to_ass_time(seg.start)},{_seconds_to_ass_time(seg.end)},"
+            f"Default,,0,0,0,,{effect}{ass_text}\n"
+        )
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(ass_content)
+
+    logger.info(
+        "ASS (format-aware) generated: %d segments, %dx%d, font=%d → %s",
+        len(timed_segments), video_width, video_height, scaled_font_size, output_path,
+    )
+    return output_path
+
+
+def generate_subtitles_for_format(
+    script: str,
+    audio_duration: float,
+    *,
+    video_width: int,
+    video_height: int,
+    style_name: str = DEFAULT_STYLE,
+    srt_output: str | None = None,
+    ass_output: str | None = None,
+) -> tuple[str, str | None]:
+    """Generate subtitles scaled for a specific video format (portrait/square).
+
+    Parameters
+    ----------
+    script : str
+        Full narration script text.
+    audio_duration : float
+        Duration of the voiceover audio in seconds.
+    video_width : int
+        Target video width in pixels.
+    video_height : int
+        Target video height in pixels.
+    style_name : str
+        Subtitle style preset name.
+    srt_output : str | None
+        Path for SRT file.
+    ass_output : str | None
+        Path for ASS file.
+
+    Returns
+    -------
+    tuple[str, str | None]
+        (srt_path, ass_path)
+    """
+    style = SUBTITLE_STYLES.get(style_name, SUBTITLE_STYLES[DEFAULT_STYLE])
+
+    srt_output = srt_output or str(OUTPUT_DIR / "captions_fmt.srt")
+    ass_output = ass_output or str(OUTPUT_DIR / "captions_fmt.ass")
+
+    # Adjust wrap width for narrower frames
+    is_portrait = video_height > video_width
+    wrap_width = 28 if is_portrait else (36 if video_width == video_height else style.wrap_width)
+
+    logger.info(
+        "Generating format-aware subtitles: %.1fs audio, %dx%d, style=%s",
+        audio_duration, video_width, video_height, style.name,
+    )
+
+    segments = split_script_to_segments(script, max_chars=wrap_width)
+    timed = compute_timestamps(segments, audio_duration)
+
+    srt_path = generate_srt(timed, srt_output, max_width=wrap_width)
+    ass_path = generate_ass_for_format(
+        timed, ass_output,
+        video_width=video_width,
+        video_height=video_height,
+        style=style,
+    )
+
+    return srt_path, ass_path
+
+
 def get_available_styles() -> list[dict]:
     """Return available subtitle style presets for the frontend."""
     return [
