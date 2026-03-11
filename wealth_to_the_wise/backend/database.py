@@ -270,6 +270,18 @@ async def _apply_column_migrations() -> None:
                         f"ALTER TABLE video_records ADD COLUMN {col} TEXT"
                     ))
                     logger.info("Applied migration: video_records.%s", col)
+
+            # 0012: bulk generation columns on video_records
+            if not await _col_exists_sqlite("video_records", "batch_id"):
+                await conn.execute(text(
+                    "ALTER TABLE video_records ADD COLUMN batch_id VARCHAR(36)"
+                ))
+                logger.info("Applied migration: video_records.batch_id")
+            if not await _col_exists_sqlite("video_records", "batch_position"):
+                await conn.execute(text(
+                    "ALTER TABLE video_records ADD COLUMN batch_position INTEGER"
+                ))
+                logger.info("Applied migration: video_records.batch_position")
         else:
             # PostgreSQL path — use information_schema
             async def _col_exists_pg(table: str, column: str) -> bool:
@@ -344,6 +356,24 @@ async def _apply_column_migrations() -> None:
                         f"ALTER TABLE video_records ADD COLUMN {col} TEXT"
                     ))
                     logger.info("Applied migration: video_records.%s", col)
+
+            # 0012: bulk generation columns on video_records
+            if not await _col_exists_pg("video_records", "batch_id"):
+                await conn.execute(text(
+                    "ALTER TABLE video_records ADD COLUMN batch_id VARCHAR(36)"
+                ))
+                logger.info("Applied migration: video_records.batch_id")
+                # Index for batch queries
+                await conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_video_records_batch_id "
+                    "ON video_records (batch_id)"
+                ))
+                logger.info("Applied migration: index ix_video_records_batch_id")
+            if not await _col_exists_pg("video_records", "batch_position"):
+                await conn.execute(text(
+                    "ALTER TABLE video_records ADD COLUMN batch_position INTEGER"
+                ))
+                logger.info("Applied migration: video_records.batch_position")
 
     logger.info("Column migrations complete.")
 

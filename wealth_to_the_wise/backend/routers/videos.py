@@ -166,6 +166,9 @@ class VideoHistoryItem(BaseModel):
     # Multi-format export
     portrait_path: str | None = None
     square_path: str | None = None
+    # Bulk generation
+    batch_id: str | None = None
+    batch_position: int | None = None
     created_at: str
     updated_at: str
 
@@ -276,6 +279,77 @@ class RenderVideoRequest(BaseModel):
 
 class VoiceStylesResponse(BaseModel):
     styles: list[dict]
+
+
+# ── Bulk Generation Schemas (Phase 3) ────────────────────────────────
+
+# Per-plan max topics per batch
+BULK_MAX_TOPICS: dict[str, int] = {
+    "free": 0,       # Free plan can't bulk generate
+    "starter": 5,
+    "pro": 10,
+    "agency": 20,
+}
+
+
+class BulkGenerateRequest(BaseModel):
+    topics: list[str] = Field(..., min_length=2, max_length=20)
+
+    @field_validator("topics")
+    @classmethod
+    def validate_topics(cls, v: list[str]) -> list[str]:
+        """Sanitize each topic and reject duplicates."""
+        import re
+        import unicodedata
+
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for raw in v:
+            t = "".join(
+                ch for ch in raw
+                if unicodedata.category(ch)[0] != "C" or ch in ("\n", "\t")
+            )
+            t = re.sub(r"\s+", " ", t).strip()
+            if len(t) < 3:
+                raise ValueError(f"Topic too short after cleanup: '{raw[:50]}'")
+            if len(t) > 300:
+                raise ValueError(f"Topic too long (max 300 chars): '{t[:50]}…'")
+            lower = t.lower()
+            if lower in seen:
+                raise ValueError(f"Duplicate topic: '{t[:50]}'")
+            seen.add(lower)
+            cleaned.append(t)
+        return cleaned
+
+
+class BulkGenerateResponse(BaseModel):
+    batch_id: str
+    total: int
+    queued: int
+    skipped: int
+    message: str
+    video_ids: list[str]
+
+
+class BulkStatusItem(BaseModel):
+    id: str
+    topic: str
+    status: str
+    position: int
+    progress_step: str | None = None
+    progress_pct: int = 0
+    error_message: str | None = None
+    title: str | None = None
+
+
+class BulkStatusResponse(BaseModel):
+    batch_id: str
+    total: int
+    completed: int
+    failed: int
+    generating: int
+    queued: int
+    items: list[BulkStatusItem]
 
 
 # ── GET /api/videos/voice-styles — List available voice styles ────────
@@ -1349,6 +1423,371 @@ async def _enforce_plan_limit(user: User, db: AsyncSession) -> None:
         )
 
 
+# ── Bulk Generation Endpoints (Phase 3) ─────────────────────────────
+
+@router.post("/bulk-generate", response_model=BulkGenerateResponse)
+@limiter.limit("3/hour")
+async def bulk_generate_videos(
+    request: Request,
+    body: BulkGenerateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Queue multiple topics for sequential video generation.
+
+    Creates VideoRecords for all valid topics upfront with status='queued',
+    groups them by a batch_id, then processes them one at a time through
+    the normal pipeline — respecting the existing semaphore and inflight guard.
+
+    Free plan users cannot use bulk generation.
+    Plan limits are enforced upfront — if the user can't afford all N videos,
+    none are queued (atomic check).
+    """
+    plan = current_user.plan or "free"
+    max_topics = BULK_MAX_TOPICS.get(plan, 0)
+
+    if max_topics == 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bulk generation is available on Starter, Pro, and Agency plans. Upgrade in Settings → Plan.",
+        )
+
+    if len(body.topics) > max_topics:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Your {plan.title()} plan allows up to {max_topics} topics per batch. You submitted {len(body.topics)}.",
+        )
+
+    # ── Check plan quota can accommodate ALL topics ──────────────────
+    limit = PLAN_MONTHLY_LIMITS.get(plan, PLAN_MONTHLY_LIMITS["free"])
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    count_stmt = (
+        select(func.count())
+        .select_from(VideoRecord)
+        .where(
+            VideoRecord.user_id == current_user.id,
+            VideoRecord.created_at >= month_start,
+            VideoRecord.status.notin_(["failed"]),
+        )
+    )
+    current_count = (await db.execute(count_stmt)).scalar() or 0
+    remaining_quota = max(0, limit - current_count)
+
+    if len(body.topics) > remaining_quota:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"You have {remaining_quota} video(s) left this month on your {plan.title()} plan, "
+                f"but submitted {len(body.topics)} topics. Reduce the number of topics or upgrade your plan."
+            ),
+        )
+
+    # ── Fetch user API keys ──────────────────────────────────────────
+    keys_result = await db.execute(
+        select(UserApiKeys).where(UserApiKeys.user_id == current_user.id)
+    )
+    user_keys = keys_result.scalar_one_or_none()
+
+    try:
+        openai_key = decrypt_or_raise(user_keys.openai_api_key, field="openai_api_key") if user_keys and user_keys.openai_api_key else ""
+        elevenlabs_key = decrypt_or_raise(user_keys.elevenlabs_api_key, field="elevenlabs_api_key") if user_keys and user_keys.elevenlabs_api_key else ""
+        pexels_key = decrypt_or_raise(user_keys.pexels_api_key, field="pexels_api_key") if user_keys and user_keys.pexels_api_key else ""
+        pixabay_key = decrypt_or_raise(user_keys.pixabay_api_key, field="pixabay_api_key") if user_keys and getattr(user_keys, "pixabay_api_key", None) else ""
+    except DecryptionFailedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Your saved API keys could not be decrypted ({exc.field_label}). Please re-enter them in Settings → API Keys.",
+        )
+
+    if not openai_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please add your OpenAI API key in Settings → API Keys before generating videos.")
+    if not elevenlabs_key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please add your ElevenLabs API key in Settings → API Keys before generating videos.")
+
+    user_api_keys = {
+        "openai_api_key": openai_key,
+        "elevenlabs_api_key": elevenlabs_key,
+        "elevenlabs_voice_id": user_keys.elevenlabs_voice_id or "" if user_keys else "",
+        "pexels_api_key": pexels_key,
+        "pixabay_api_key": pixabay_key,
+        "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
+        "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
+        "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
+    }
+
+    # ── Fetch YouTube OAuth tokens ───────────────────────────────────
+    result = await db.execute(
+        select(OAuthToken).where(
+            OAuthToken.user_id == current_user.id,
+            OAuthToken.provider == "google",
+        )
+    )
+    oauth_token = result.scalar_one_or_none()
+
+    yt_access_token: str | None = None
+    yt_refresh_token: str | None = None
+    if oauth_token:
+        try:
+            yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token")
+            yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token")
+        except DecryptionFailedError:
+            logger.warning("YouTube OAuth token for user %s could not be decrypted — bulk videos will not be uploaded.", current_user.email)
+
+    # ── Create batch ─────────────────────────────────────────────────
+    import uuid as _uuid
+    batch_id = str(_uuid.uuid4())
+    video_ids: list[str] = []
+
+    for idx, topic_text in enumerate(body.topics):
+        record = VideoRecord(
+            user_id=current_user.id,
+            topic=topic_text,
+            title=topic_text,
+            status="queued",
+            batch_id=batch_id,
+            batch_position=idx,
+        )
+        db.add(record)
+        await db.flush()
+        video_ids.append(record.id)
+
+    await db.commit()
+    logger.info(
+        "Bulk batch %s created for user %s: %d videos queued",
+        batch_id, current_user.email, len(video_ids),
+    )
+
+    # ── Admin event ──────────────────────────────────────────────────
+    async with async_session_factory() as ev_db:
+        await emit_event(ev_db, "bulk_started", user_id=current_user.id, meta={"batch_id": batch_id, "count": len(video_ids)})
+        await ev_db.commit()
+
+    # ── Kick off sequential background processor ─────────────────────
+    asyncio.create_task(
+        _run_bulk_pipeline(
+            batch_id=batch_id,
+            video_ids=video_ids,
+            topics=body.topics,
+            user_id=current_user.id,
+            user_api_keys=user_api_keys,
+            yt_access_token=yt_access_token,
+            yt_refresh_token=yt_refresh_token,
+        )
+    )
+
+    return BulkGenerateResponse(
+        batch_id=batch_id,
+        total=len(body.topics),
+        queued=len(video_ids),
+        skipped=0,
+        message=f"Batch queued! {len(video_ids)} video(s) will be created sequentially.",
+        video_ids=video_ids,
+    )
+
+
+async def _run_bulk_pipeline(
+    *,
+    batch_id: str,
+    video_ids: list[str],
+    topics: list[str],
+    user_id: str,
+    user_api_keys: dict,
+    yt_access_token: str | None,
+    yt_refresh_token: str | None,
+) -> None:
+    """Process a batch of videos sequentially through the pipeline.
+
+    For each video:
+    1. Mark it as 'generating'
+    2. Run it through the normal pipeline (with semaphore + inflight guard)
+    3. Regardless of success/failure, move to the next one
+
+    A single failure does NOT cancel the rest of the batch.
+    """
+    logger.info("Bulk pipeline started for batch %s (%d videos)", batch_id, len(video_ids))
+
+    for idx, (record_id, topic_text) in enumerate(zip(video_ids, topics)):
+        logger.info(
+            "Bulk batch %s — processing video %d/%d: %s (record %s)",
+            batch_id, idx + 1, len(video_ids), topic_text[:60], record_id,
+        )
+
+        # Update status to generating
+        try:
+            async with async_session_factory() as db:
+                stmt = (
+                    update(VideoRecord)
+                    .where(VideoRecord.id == record_id)
+                    .values(status="generating", updated_at=datetime.now(timezone.utc))
+                )
+                await db.execute(stmt)
+                await db.commit()
+        except Exception as e:
+            logger.error("Bulk batch %s — failed to update record %s to generating: %s", batch_id, record_id, e)
+            continue
+
+        # Run through the same pipeline runner used by single generate
+        try:
+            await _run_pipeline_background(
+                record_id=record_id,
+                topic=topic_text,
+                user_id=user_id,
+                user_api_keys=user_api_keys,
+                yt_access_token=yt_access_token,
+                yt_refresh_token=yt_refresh_token,
+            )
+        except Exception as e:
+            logger.error(
+                "Bulk batch %s — video %d/%d failed: %s",
+                batch_id, idx + 1, len(video_ids), e,
+            )
+            # Mark as failed if the pipeline didn't handle it
+            try:
+                async with async_session_factory() as db:
+                    stmt = (
+                        update(VideoRecord)
+                        .where(
+                            VideoRecord.id == record_id,
+                            VideoRecord.status == "generating",
+                        )
+                        .values(
+                            status="failed",
+                            error_message=f"Bulk pipeline error: {str(e)[:500]}",
+                            updated_at=datetime.now(timezone.utc),
+                        )
+                    )
+                    await db.execute(stmt)
+                    await db.commit()
+            except Exception:
+                pass
+
+        # Brief pause between videos to let resources settle
+        await asyncio.sleep(5)
+
+    logger.info("Bulk pipeline finished for batch %s — all %d videos processed", batch_id, len(video_ids))
+
+    # ── Admin event ──────────────────────────────────────────────────
+    try:
+        async with async_session_factory() as db:
+            await emit_event(db, "bulk_completed", user_id=user_id, meta={"batch_id": batch_id, "count": len(video_ids)})
+            await db.commit()
+    except Exception:
+        pass
+
+
+@router.get("/bulk-status/{batch_id}", response_model=BulkStatusResponse)
+async def get_bulk_status(
+    batch_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the status of all videos in a bulk batch."""
+    stmt = (
+        select(VideoRecord)
+        .where(
+            VideoRecord.batch_id == batch_id,
+            VideoRecord.user_id == current_user.id,
+        )
+        .order_by(VideoRecord.batch_position)
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="Batch not found.")
+
+    items: list[BulkStatusItem] = []
+    completed = failed = generating = queued = 0
+
+    for row in rows:
+        # Enrich with in-memory progress if currently generating
+        prog = _progress_store.get(row.id, {})
+        step = prog.get("step") or row.progress_step
+        pct = prog.get("pct") or row.progress_pct
+
+        items.append(BulkStatusItem(
+            id=row.id,
+            topic=row.topic,
+            status=row.status,
+            position=row.batch_position or 0,
+            progress_step=step,
+            progress_pct=pct,
+            error_message=row.error_message,
+            title=row.title if row.title != row.topic else None,
+        ))
+
+        if row.status in ("completed", "posted"):
+            completed += 1
+        elif row.status == "failed":
+            failed += 1
+        elif row.status == "generating":
+            generating += 1
+        elif row.status == "queued":
+            queued += 1
+
+    return BulkStatusResponse(
+        batch_id=batch_id,
+        total=len(rows),
+        completed=completed,
+        failed=failed,
+        generating=generating,
+        queued=queued,
+        items=items,
+    )
+
+
+@router.get("/batches")
+async def list_batches(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all batch IDs for the current user, most recent first."""
+    from sqlalchemy import distinct
+
+    stmt = (
+        select(
+            VideoRecord.batch_id,
+            func.count().label("total"),
+            func.min(VideoRecord.created_at).label("started_at"),
+        )
+        .where(
+            VideoRecord.user_id == current_user.id,
+            VideoRecord.batch_id.isnot(None),
+        )
+        .group_by(VideoRecord.batch_id)
+        .order_by(func.min(VideoRecord.created_at).desc())
+        .limit(20)
+    )
+    rows = (await db.execute(stmt)).all()
+
+    batches = []
+    for row in rows:
+        # Get status counts for this batch
+        status_stmt = (
+            select(VideoRecord.status, func.count().label("cnt"))
+            .where(
+                VideoRecord.batch_id == row.batch_id,
+                VideoRecord.user_id == current_user.id,
+            )
+            .group_by(VideoRecord.status)
+        )
+        status_rows = (await db.execute(status_stmt)).all()
+        status_counts = {s.status: s.cnt for s in status_rows}
+
+        batches.append({
+            "batch_id": row.batch_id,
+            "total": row.total,
+            "started_at": row.started_at.isoformat() if row.started_at else None,
+            "completed": status_counts.get("completed", 0) + status_counts.get("posted", 0),
+            "failed": status_counts.get("failed", 0),
+            "generating": status_counts.get("generating", 0),
+            "queued": status_counts.get("queued", 0),
+        })
+
+    return batches
+
+
 # ── Stale job cleanup helper ─────────────────────────────────────────
 
 async def _cleanup_stale_jobs(user_id: str, db: AsyncSession) -> None:
@@ -1379,11 +1818,12 @@ async def _cleanup_stale_jobs(user_id: str, db: AsyncSession) -> None:
 
 
 async def user_has_inflight_video(user_id: str, db: AsyncSession) -> bool:
-    """Check if a user already has a video in-flight (generating).
+    """Check if a user already has a video in-flight (generating or queued).
 
     Checks both the in-memory tracker (fast) and the DB (survives restarts).
     Used by scheduler and trend radar workers to skip users who already
     have an active pipeline — prevents resource contention.
+    Also checks for 'queued' status to detect active bulk batches.
     """
     # Fast path: check in-memory tracker
     if user_id in _user_inflight:
@@ -1395,7 +1835,7 @@ async def user_has_inflight_video(user_id: str, db: AsyncSession) -> bool:
         .select_from(VideoRecord)
         .where(
             VideoRecord.user_id == user_id,
-            VideoRecord.status == "generating",
+            VideoRecord.status.in_(["generating", "queued"]),
         )
     )
     active_count = (await db.execute(active_stmt)).scalar() or 0
@@ -2067,6 +2507,8 @@ async def video_history(
             has_script=bool(r.script_text),
             portrait_path=getattr(r, "portrait_path", None),
             square_path=getattr(r, "square_path", None),
+            batch_id=getattr(r, "batch_id", None),
+            batch_position=getattr(r, "batch_position", None),
             created_at=r.created_at.isoformat() if r.created_at else "",
             updated_at=r.updated_at.isoformat() if r.updated_at else "",
         )
@@ -2136,7 +2578,7 @@ async def video_stats(
     posted = (await db.execute(base.where(VideoRecord.status == "posted"))).scalar() or 0
     failed = (await db.execute(base.where(VideoRecord.status == "failed"))).scalar() or 0
     pending = (await db.execute(
-        base.where(VideoRecord.status.in_(["pending", "generating"]))
+        base.where(VideoRecord.status.in_(["pending", "generating", "queued"]))
     )).scalar() or 0
 
     # Monthly usage for plan limit display
@@ -2739,9 +3181,21 @@ async def render_queue(
     )
     user_count = (await db.execute(user_stmt)).scalar() or 0
 
+    # User's queued (bulk batch) count
+    queued_stmt = (
+        select(func.count())
+        .select_from(VideoRecord)
+        .where(
+            VideoRecord.user_id == current_user.id,
+            VideoRecord.status == "queued",
+        )
+    )
+    queued_count = (await db.execute(queued_stmt)).scalar() or 0
+
     return {
         "global_generating": global_count,
         "user_generating": user_count,
+        "user_queued": queued_count,
     }
 
 

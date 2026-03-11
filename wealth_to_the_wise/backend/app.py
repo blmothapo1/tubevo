@@ -90,6 +90,23 @@ async def _sweep_stale_jobs_on_startup() -> None:
             result = await db.execute(stmt)
             video_affected = getattr(result, "rowcount", 0)
 
+            # ── Sweep queued bulk-batch videos left orphaned by crash ─
+            queued_stmt = (
+                update(VideoRecord)
+                .where(VideoRecord.status == "queued")
+                .values(
+                    status="failed",
+                    error_message=(
+                        "Bulk batch was interrupted by a server restart. "
+                        "Please re-submit the batch."
+                    ),
+                    error_category="timeout",
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            queued_result = await db.execute(queued_stmt)
+            queued_affected = getattr(queued_result, "rowcount", 0)
+
             # ── Sweep stale TrendAlerts stuck in "generating" ────────
             alert_stmt = (
                 update(TrendAlert)
@@ -104,10 +121,10 @@ async def _sweep_stale_jobs_on_startup() -> None:
 
             await db.commit()
 
-            if video_affected or alert_affected:
+            if video_affected or alert_affected or queued_affected:
                 logger.warning(
-                    "🧹 Startup sweep: marked %d stale videos + %d stale trend alerts as failed",
-                    video_affected, alert_affected,
+                    "🧹 Startup sweep: marked %d stale videos + %d queued bulk videos + %d stale trend alerts as failed",
+                    video_affected, queued_affected, alert_affected,
                 )
             else:
                 logger.info("🧹 Startup sweep: no stale jobs found")

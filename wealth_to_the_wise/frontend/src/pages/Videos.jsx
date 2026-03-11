@@ -7,6 +7,7 @@ import { SkeletonVideoList } from '../components/Skeleton';
 import ConfettiCelebration from '../components/ConfettiCelebration';
 import EmptyState from '../components/EmptyState';
 import ScriptRefiner from '../components/ScriptRefiner';
+import BulkGenerator from '../components/BulkGenerator';
 import {
   CheckCircle,
   XCircle,
@@ -42,6 +43,7 @@ import {
 const ease = [0.25, 0.1, 0.25, 1];
 
 const statusConfig = {
+  queued:     { label: 'Queued',       badge: 'badge-pending',     icon: Clock },
   pending:    { label: 'Pending',      badge: 'badge-pending',     icon: Clock },
   generating: { label: 'Creating…',   badge: 'badge-generating',  icon: Film },
   completed:  { label: 'Completed',    badge: 'badge-completed',   icon: CheckCircle },
@@ -154,6 +156,9 @@ export default function Videos() {
   // ── Plan quota state ──
   const [quota, setQuota] = useState(null); // { monthly_used, monthly_limit, plan }
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // ── Bulk mode state ──
+  const [bulkMode, setBulkMode] = useState(false);
 
   // ── Fetch quota on mount and after video creation ──
   const fetchQuota = useCallback(async () => {
@@ -740,6 +745,16 @@ export default function Videos() {
       {/* ── Phase: Topic Input + Video List (default) ── */}
       {creationPhase === 'topic' && !scriptLoading && (
       <>
+
+      {/* ── Bulk Generator (full-width replacement) ── */}
+      {bulkMode ? (
+        <BulkGenerator
+          onBack={() => setBulkMode(false)}
+          onDone={() => { fetchVideos(); fetchQuota(); }}
+          quota={quota}
+        />
+      ) : (
+      <>
       {/* Generate Form */}
       <motion.form
         onSubmit={handleGenerate}
@@ -748,14 +763,26 @@ export default function Videos() {
         transition={{ duration: 0.3, delay: 0.1, ease }}
         className="card p-7"
       >
-        <div className="flex items-center gap-4 mb-5">
-          <div className="w-10 h-10 rounded-[10px] bg-brand-500 flex items-center justify-center">
-            <Wand2 size={16} className="text-white" />
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-[10px] bg-brand-500 flex items-center justify-center">
+              <Wand2 size={16} className="text-white" />
+            </div>
+            <div>
+              <h3 className="text-[15px] font-semibold text-white">Create a New Video</h3>
+              <p className="text-[12px] text-surface-600">Enter a topic and Tubevo handles the rest</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-[15px] font-semibold text-white">Create a New Video</h3>
-            <p className="text-[12px] text-surface-600">Enter a topic and Tubevo handles the rest</p>
-          </div>
+          {quota && quota.plan !== 'free' && (
+            <button
+              type="button"
+              onClick={() => setBulkMode(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-200/60 hover:bg-surface-300/60 text-[11px] text-surface-600 hover:text-brand-400 transition-all"
+            >
+              <Layers size={12} />
+              Bulk Create
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -886,6 +913,8 @@ export default function Videos() {
           )}
         </AnimatePresence>
       </motion.form>
+      </>
+      )}
 
       {/* Clear Failed Banner */}
       <AnimatePresence>

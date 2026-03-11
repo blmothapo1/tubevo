@@ -146,6 +146,11 @@ class VideoRecord(Base):
     portrait_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     square_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # ── Bulk generation (Phase 3) ────────────────────────────────────
+    # Groups videos created via bulk-generate into a batch.
+    batch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    batch_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # ── Analytics — when the video was published to YouTube ──────────
     published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
