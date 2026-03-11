@@ -126,7 +126,7 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "multi_format": True,
         "bulk_generate": False,
         "visual_tier": "pro",
-        "ai_illustrations": True,       # ✨ AI-generated scene video
+        "ai_illustrations": False,      # stock footage (AI scene gen disabled — stock is higher quality)
         "ai_image_quality": "standard",  # $0.04/image × 14 ≈ $0.56/video
         "ai_video_model": "gen4_turbo",  # 5 credits/sec = $0.25 per 5s clip
         "ai_video_duration": 5,          # 5-second AI video clips
@@ -146,7 +146,7 @@ PLAN_QUALITY_PROFILES: dict[str, dict] = {
         "multi_format": True,
         "bulk_generate": True,
         "visual_tier": "agency",
-        "ai_illustrations": True,       # ✨ AI-generated scene video
+        "ai_illustrations": False,      # stock footage (AI scene gen disabled — stock is higher quality)
         "ai_image_quality": "hd",        # $0.08/image × 18 ≈ $1.44/video (HD)
         "ai_video_model": "gen4_turbo",  # 5 credits/sec = $0.25 per 5s clip
         "ai_video_duration": 5,          # 5-second AI video clips

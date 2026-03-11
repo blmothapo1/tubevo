@@ -1,11 +1,12 @@
 """
 stock_footage.py — Download royalty-free stock video clips from Pexels & Pixabay.
 
-Uses **two** free stock-video providers in a cascading-fallback pattern:
+Uses **two** free stock-video providers in a **parallel-merge** pattern:
 
-  * **Pexels** (primary)  — searched first for every query.
-  * **Pixabay** (fallback) — searched only when Pexels returns fewer clips
-    than needed for a given scene (< requested count).
+  * **Pexels** (primary)  — always searched for every query.
+  * **Pixabay** (secondary) — always searched in parallel when key is
+    available, results merged and shuffled for maximum randomisation.
+    Falls back to Pexels-only if no Pixabay key.
 
 Both APIs are free with no watermarks.  Users supply their own keys
 via the BYOK settings page.  If only one key is present, that provider
@@ -18,6 +19,15 @@ Supports two modes:
      Downloads per-scene clips using targeted queries from the scene planner.
      Each ScenePlan gets its own set of clips, ensuring visual variety and
      semantic match to the narration.
+
+Anti-repetition features:
+  * **Wide candidate pool** — 15 results per page × random page 1-5
+  * **Dual-provider merge** — Pexels + Pixabay combined and shuffled
+  * **Cross-video dedup cache** — JSON file tracks media IDs used in
+    the last N videos per user, preventing the same stock clip from
+    appearing in consecutive videos.
+  * **Query augmentation** — scenes get extra synonym-expanded queries
+    for broader coverage of the stock libraries.
 
 Setup:
     1. Get a free API key at https://www.pexels.com/api/
@@ -33,6 +43,7 @@ import logging
 import os
 import random
 import requests
+import time as _time_module
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -59,6 +70,19 @@ _MAX_RETRIES = 4
 _BASE_DELAY = 2.0        # seconds
 _MAX_DELAY = 30.0
 _RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+# ── Search tuning — controls candidate pool size ────────────────────
+# per_page=15 gives 15 candidates per query (was 5 — too narrow).
+# Random pages 1-5 ensure different results across generations.
+SEARCH_PER_PAGE = 15
+SEARCH_MAX_PAGE = 5
+
+# ── Cross-video dedup cache ─────────────────────────────────────────
+# Tracks media IDs used in the last N videos per user so the same
+# stock clip doesn't appear in consecutive videos.
+DEDUP_CACHE_DIR = Path("output") / "media_cache"
+DEDUP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+DEDUP_CACHE_MAX_VIDEOS = 10   # remember clips from last 10 videos
 
 # ── Fallback search queries (always usable for wealth/finance content) ─
 FALLBACK_QUERIES = [
@@ -88,6 +112,49 @@ FALLBACK_QUERIES = [
     "beach sunset relaxation",
 ]
 
+# ── Query augmentation — synonym expansion for broader search ────────
+_QUERY_SYNONYMS: dict[str, list[str]] = {
+    "money": ["currency", "cash flow", "dollars", "banknotes"],
+    "wealth": ["prosperity", "abundance", "fortune", "riches"],
+    "invest": ["portfolio", "stocks bonds", "market trading", "financial growth"],
+    "business": ["corporate", "enterprise", "startup", "office work"],
+    "success": ["achievement", "winning", "celebration", "triumph"],
+    "luxury": ["premium", "elegant", "high end", "upscale"],
+    "city": ["urban", "downtown", "metropolis", "skyline"],
+    "saving": ["frugal", "budget", "piggy bank", "money jar"],
+    "technology": ["digital", "innovation", "computer code", "tech devices"],
+    "house": ["real estate", "property", "home interior", "architecture"],
+}
+
+
+def _augment_queries(queries: list[str], max_extra: int = 3) -> list[str]:
+    """Expand a query list with synonym-based alternatives.
+
+    For each query, if any word matches a synonym group, inject
+    up to *max_extra* alternative queries derived from synonyms.
+    This broadens the search space without duplicating exact queries.
+    """
+    augmented = list(queries)
+    seen = {q.strip().lower() for q in queries}
+    added = 0
+
+    for q in queries:
+        if added >= max_extra:
+            break
+        words = q.lower().split()
+        for word in words:
+            if word in _QUERY_SYNONYMS and added < max_extra:
+                synonym = random.choice(_QUERY_SYNONYMS[word])
+                # Replace the word with its synonym
+                new_q = q.lower().replace(word, synonym, 1)
+                if new_q.strip().lower() not in seen:
+                    seen.add(new_q.strip().lower())
+                    augmented.append(new_q.strip())
+                    added += 1
+                    break
+
+    return augmented
+
 
 # ── Resolution validation ────────────────────────────────────────────
 
@@ -98,6 +165,67 @@ def _validate_resolution(video: dict, min_width: int = 1280, min_height: int = 7
         f.get("width", 0) >= min_width and f.get("height", 0) >= min_height
         for f in files
     )
+
+
+# ══════════════════════════════════════════════════════════════════════
+# CROSS-VIDEO DEDUP CACHE — prevents the same stock clip from appearing
+# in consecutive videos for the same user.  Stored as a lightweight
+# JSON file per user (no DB dependency from this sync module).
+# ══════════════════════════════════════════════════════════════════════
+
+def _dedup_cache_path(user_id: str) -> Path:
+    """Return the cache file path for a given user."""
+    safe_id = user_id.replace("/", "_").replace("\\", "_")[:50]
+    return DEDUP_CACHE_DIR / f"used_media_{safe_id}.json"
+
+
+def load_cross_video_ids(user_id: str | None) -> set[int]:
+    """Load media IDs used in recent videos for this user.
+
+    Returns an empty set if no cache exists or user_id is None.
+    """
+    if not user_id:
+        return set()
+    cache_file = _dedup_cache_path(user_id)
+    if not cache_file.exists():
+        return set()
+    try:
+        data = json.loads(cache_file.read_text(encoding="utf-8"))
+        # data is a list of {"video_ts": ..., "ids": [...]} entries
+        all_ids: set[int] = set()
+        for entry in data[-DEDUP_CACHE_MAX_VIDEOS:]:
+            all_ids.update(entry.get("ids", []))
+        return all_ids
+    except Exception as e:
+        logger.warning("Could not load dedup cache for user %s: %s", user_id, e)
+        return set()
+
+
+def save_cross_video_ids(user_id: str | None, used_ids: set[int]) -> None:
+    """Append the media IDs used in this video to the user's cache.
+
+    Keeps only the last DEDUP_CACHE_MAX_VIDEOS entries to bound size.
+    """
+    if not user_id or not used_ids:
+        return
+    cache_file = _dedup_cache_path(user_id)
+    try:
+        existing: list[dict] = []
+        if cache_file.exists():
+            existing = json.loads(cache_file.read_text(encoding="utf-8"))
+        existing.append({
+            "video_ts": _time_module.time(),
+            "ids": sorted(used_ids),
+        })
+        # Keep only last N entries
+        existing = existing[-DEDUP_CACHE_MAX_VIDEOS:]
+        cache_file.write_text(json.dumps(existing, indent=1), encoding="utf-8")
+        logger.info(
+            "Saved %d media IDs to cross-video dedup cache (user=%s, entries=%d)",
+            len(used_ids), user_id[:8] if user_id else "?", len(existing),
+        )
+    except Exception as e:
+        logger.warning("Could not save dedup cache for user %s: %s", user_id, e)
 
 
 def _generate_search_queries(topic: str, num_queries: int = 16) -> list[str]:
@@ -158,7 +286,7 @@ def _generate_search_queries(topic: str, num_queries: int = 16) -> list[str]:
 
 def _search_pexels_videos(
     query: str,
-    per_page: int = 5,
+    per_page: int = SEARCH_PER_PAGE,
     *,
     page: int = 1,
     api_key: str | None = None,
@@ -234,7 +362,7 @@ def _search_pexels_videos(
 
 def _search_pixabay_videos(
     query: str,
-    per_page: int = 5,
+    per_page: int = SEARCH_PER_PAGE,
     *,
     page: int = 1,
     api_key: str | None = None,
@@ -402,10 +530,13 @@ def _download_clips_for_queries(
     Returns (list_of_clip_paths, updated_seen_video_ids).
     Shared helper used by both legacy and scene-aware download functions.
 
-    **Cascading fallback**: For each query, Pexels is searched first.
-    If Pexels returns zero usable clips for that query *and* a Pixabay
-    key is available, Pixabay is searched as a fallback.  This maximises
-    footage coverage without doubling API calls.
+    **Parallel-merge strategy**: For each query, BOTH Pexels and Pixabay
+    are searched (when keys are available).  Results are merged, shuffled,
+    and the best candidates are picked.  This dramatically widens the
+    candidate pool (up to 30 clips per query instead of 5).
+
+    **Wide page randomisation**: Random page 1-5 (was 1-3) means we
+    reach deeper into the stock libraries for less commonly-seen footage.
     """
     if seen_video_ids is None:
         seen_video_ids = set()
@@ -418,43 +549,53 @@ def _download_clips_for_queries(
         if len(downloaded) >= num_clips:
             break
 
-        # Random page offset (1-3) for variety across generations
-        page = random.randint(1, 3) if use_random_page else 1
+        # Random page offset (1-SEARCH_MAX_PAGE) for variety across generations
+        page = random.randint(1, SEARCH_MAX_PAGE) if use_random_page else 1
 
-        # ── Primary: Pexels ──────────────────────────────────────────
+        # ── Search BOTH providers in parallel for maximum pool ────────
+        all_videos: list[dict] = []
+
         pexels_key = api_key or PEXELS_API_KEY
-        videos: list[dict] = []
         if pexels_key:
             try:
-                videos = _search_pexels_videos(query, per_page=5, page=page, api_key=pexels_key)
+                pexels_results = _search_pexels_videos(
+                    query, per_page=SEARCH_PER_PAGE, page=page, api_key=pexels_key,
+                )
+                all_videos.extend(pexels_results)
             except Exception as e:
                 logger.warning("Pexels search failed for '%s' (page %d): %s", query, page, e)
                 # Retry on page 1 if random page failed
                 if page > 1:
                     try:
-                        videos = _search_pexels_videos(query, per_page=5, page=1, api_key=pexels_key)
+                        pexels_results = _search_pexels_videos(
+                            query, per_page=SEARCH_PER_PAGE, page=1, api_key=pexels_key,
+                        )
+                        all_videos.extend(pexels_results)
                     except Exception:
                         pass
 
-        # ── Fallback: Pixabay (only if Pexels gave us nothing usable) ─
+        # ── Pixabay: always search (not just fallback) ───────────────
         _effective_pixabay_key = pixabay_api_key or PIXABAY_API_KEY
-        pexels_usable = _count_usable(videos, seen_video_ids, min_clip_duration)
-        if pexels_usable == 0 and _effective_pixabay_key:
-            logger.info(
-                "Pexels returned 0 usable clips for '%s' — falling back to Pixabay", query,
-            )
+        if _effective_pixabay_key:
             try:
-                pixabay_videos = _search_pixabay_videos(
-                    query, per_page=5, page=1, api_key=_effective_pixabay_key,
+                # Use a different random page for Pixabay for even more variety
+                pixabay_page = random.randint(1, SEARCH_MAX_PAGE) if use_random_page else 1
+                pixabay_results = _search_pixabay_videos(
+                    query, per_page=SEARCH_PER_PAGE, page=pixabay_page,
+                    api_key=_effective_pixabay_key,
                 )
-                videos.extend(pixabay_videos)
+                all_videos.extend(pixabay_results)
             except Exception as e:
-                logger.warning("Pixabay fallback also failed for '%s': %s", query, e)
+                logger.warning("Pixabay search failed for '%s': %s", query, e)
 
-        # Shuffle results so we don't always pick the first hit
-        random.shuffle(videos)
+        if not all_videos:
+            logger.warning("No results from any provider for query '%s'", query)
+            continue
 
-        for video in videos:
+        # ── Mega-shuffle: randomise the combined pool ────────────────
+        random.shuffle(all_videos)
+
+        for video in all_videos:
             if len(downloaded) >= num_clips:
                 break
 
@@ -478,9 +619,10 @@ def _download_clips_for_queries(
             clip_path = str(_effective_clips_dir / f"clip_{clip_idx}.mp4")
 
             try:
+                provider = video.get("_provider", "pexels")
                 logger.info(
-                    "Downloading clip %d: '%s' (page %d, %ds, vid %d)",
-                    clip_idx, query, page, duration, vid_id,
+                    "Downloading clip %d: '%s' (page %d, %ds, vid %d, %s)",
+                    clip_idx, query, page, duration, vid_id, provider,
                 )
                 _download_video(download_url, clip_path)
                 downloaded.append(clip_path)
@@ -499,6 +641,7 @@ def download_clips_for_scenes(
     clips_dir: Path | None = None,
     api_key: str | None = None,
     pixabay_api_key: str | None = None,
+    user_id: str | None = None,
 ) -> list[dict]:
     """Download stock clips matched to each scene in the plan.
 
@@ -508,12 +651,19 @@ def download_clips_for_scenes(
     Downloads run in parallel (up to 4 scenes concurrently) for a
     ~50-70 % speedup on multi-scene videos.
 
+    Anti-repetition features:
+      • Cross-video dedup — loads media IDs from previous videos
+        and excludes them from candidate selection.
+      • Query augmentation — synonym-expanded queries widen the pool.
+      • Dual-provider merge — Pexels + Pixabay searched simultaneously.
+      • Wide page randomisation — pages 1-5 for deeper library reach.
+
     This ensures:
       • Each scene gets clips semantically related to its content
       • No duplicate video IDs across the entire video (Pexels + Pixabay)
+      • No duplicate video IDs across recent videos (cross-video cache)
       • Resolution consistency (all clips validated at ≥1280×720)
       • Randomised page offsets for generation-to-generation variety
-      • Cascading fallback: Pexels → Pixabay when primary yields nothing
     """
     import threading
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -527,12 +677,20 @@ def download_clips_for_scenes(
 
     # Thread-safe shared state for deduplication
     _id_lock = threading.Lock()
-    global_seen_ids: set[int] = set()
+
+    # ── Load cross-video dedup cache ─────────────────────────────────
+    cross_video_ids = load_cross_video_ids(user_id)
+    if cross_video_ids:
+        logger.info(
+            "Cross-video dedup: loaded %d media IDs from previous videos (user=%s)",
+            len(cross_video_ids), (user_id or "?")[:8],
+        )
+    global_seen_ids: set[int] = set(cross_video_ids)
 
     total_needed = sum(getattr(sp, "clip_count", 1) for sp in scene_plans)
     logger.info(
-        "Scene-aware download: %d scenes, %d total clips needed (parallel)",
-        len(scene_plans), total_needed,
+        "Scene-aware download: %d scenes, %d total clips needed (parallel, per_page=%d, max_page=%d)",
+        len(scene_plans), total_needed, SEARCH_PER_PAGE, SEARCH_MAX_PAGE,
     )
 
     # Pre-compute per-scene clip index offsets so file names don't collide
@@ -553,12 +711,18 @@ def download_clips_for_scenes(
             logger.warning("Scene '%s' has no queries — using label as query", label)
             queries = [label.replace("-", " ")]
 
+        # ── Query augmentation: expand with synonyms for variety ─────
+        queries = _augment_queries(queries, max_extra=2)
+
         # Extend queries if we need more clips than queries
         extended_queries = list(queries)
         while len(extended_queries) < needed:
             extra = list(queries)
             random.shuffle(extra)
             extended_queries.extend(extra)
+
+        # Shuffle queries so we don't always start with the same one
+        random.shuffle(extended_queries)
 
         clips_downloaded, new_ids = _download_clips_for_queries(
             extended_queries,
@@ -576,8 +740,8 @@ def download_clips_for_scenes(
             global_seen_ids.update(new_ids)
 
         logger.info(
-            "Scene '%s': requested %d clips, downloaded %d",
-            label, needed, len(clips_downloaded),
+            "Scene '%s': requested %d clips, downloaded %d (queries=%d)",
+            label, needed, len(clips_downloaded), len(extended_queries),
         )
         return {
             "label": label,
@@ -622,9 +786,16 @@ def download_clips_for_scenes(
             user_hint="Stock footage download failed. Please check your API keys in Settings and try again.",
         )
 
+    # ── Save cross-video dedup cache ─────────────────────────────────
+    # Only save IDs from THIS video (not the historical ones)
+    this_video_ids = global_seen_ids - cross_video_ids
+    save_cross_video_ids(user_id, this_video_ids)
+
     logger.info(
-        "Scene-aware download complete: %d/%d clips across %d scenes → %s/",
+        "Scene-aware download complete: %d/%d clips across %d scenes → %s/ "
+        "(new media IDs cached: %d)",
         total_downloaded, total_needed, len(scene_clips), _effective_clips_dir,
+        len(this_video_ids),
     )
     return scene_clips
 

@@ -221,12 +221,14 @@ def _generate_queries_with_ai(
                 content=(
                     "You generate Pexels stock video search queries for a YouTube video.\n\n"
                     "RULES:\n"
-                    "- For each scene section, generate exactly 2-3 short (2-4 word) search queries\n"
+                    "- For each scene section, generate exactly 4-5 short (2-4 word) search queries\n"
                     "- Queries must be SPECIFIC to that scene's content — not generic\n"
                     "- NO duplicate queries across ANY sections\n"
+                    "- MAXIMIZE VARIETY: each query should target a different visual concept\n"
                     "- Mix of: concrete subjects (e.g. 'person saving money'), "
                     "abstract/mood shots (e.g. 'sunrise golden hour'), "
                     "and lifestyle B-roll (e.g. 'cooking healthy meal')\n"
+                    "- Include at least 1 cinematic/aerial/drone-style query per section\n"
                     "- Queries should find VIDEOS, not images — prefer action-oriented terms\n"
                     "- Do NOT use the exact topic title as a query\n"
                     f"- {seed_note}\n\n"
@@ -254,7 +256,7 @@ def _generate_queries_with_ai(
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=_messages,
-                    max_tokens=500,
+                    max_tokens=800,
                     temperature=1.0,  # high temperature for variety
                 )
                 break  # success
@@ -292,7 +294,7 @@ def _generate_queries_with_ai(
                 if q_lower not in seen_queries and len(q_lower) > 2:
                     seen_queries.add(q_lower)
                     unique_queries.append(q.strip())
-            section["queries"] = unique_queries[:3]  # max 3 per scene
+            section["queries"] = unique_queries[:5]  # max 5 per scene
         
         logger.info("AI-generated scene queries: %s",
                      {s["label"]: s.get("queries", []) for s in sections})

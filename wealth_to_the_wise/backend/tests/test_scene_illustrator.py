@@ -1021,12 +1021,14 @@ class TestQualityProfileIntegration:
         assert PLAN_QUALITY_PROFILES["starter"]["ai_illustrations"] is False
 
     def test_pro_has_ai_illustrations(self):
+        """Pro uses stock footage (AI scene gen disabled for better quality)."""
         from backend.utils import PLAN_QUALITY_PROFILES
-        assert PLAN_QUALITY_PROFILES["pro"]["ai_illustrations"] is True
+        assert PLAN_QUALITY_PROFILES["pro"]["ai_illustrations"] is False
 
     def test_agency_has_ai_illustrations(self):
+        """Agency uses stock footage (AI scene gen disabled for better quality)."""
         from backend.utils import PLAN_QUALITY_PROFILES
-        assert PLAN_QUALITY_PROFILES["agency"]["ai_illustrations"] is True
+        assert PLAN_QUALITY_PROFILES["agency"]["ai_illustrations"] is False
 
     def test_agency_hd_quality(self):
         from backend.utils import PLAN_QUALITY_PROFILES

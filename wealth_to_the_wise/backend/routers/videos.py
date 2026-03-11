@@ -723,6 +723,8 @@ async def render_video(
         "_refined_metadata": body.metadata,
         # Plan-based quality profile
         "_plan": current_user.plan or "free",
+        # User ID for cross-video stock footage dedup
+        "_user_id": current_user.id,
     }
 
     # ── Fetch YouTube OAuth tokens ───────────────────────────────────
@@ -852,6 +854,8 @@ async def generate_video(
         "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
         # Plan-based quality profile
         "_plan": current_user.plan or "free",
+        # User ID for cross-video stock footage dedup
+        "_user_id": current_user.id,
     }
 
     # ── Enforce plan-based monthly video limits ──────────────────────
@@ -1521,6 +1525,8 @@ async def bulk_generate_videos(
         "subtitle_style": getattr(user_keys, "subtitle_style", "bold_pop") if user_keys else "bold_pop",
         "burn_captions": getattr(user_keys, "burn_captions", True) if user_keys else True,
         "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
+        # User ID for cross-video stock footage dedup
+        "_user_id": current_user.id,
     }
 
     # ── Fetch YouTube OAuth tokens ───────────────────────────────────
@@ -2207,7 +2213,14 @@ def _run_pipeline_locked(
                 _report("Downloading stock footage…", 48)
                 logger.info("Pipeline step 4b/6: Downloading scene-aware stock footage")
                 from stock_footage import download_clips_for_scenes
-                scene_clip_data = download_clips_for_scenes(scene_plans, clips_dir=run_clips_dir, api_key=_pexels_key, pixabay_api_key=_pixabay_key)
+                _stock_user_id = user_api_keys.get("_user_id")
+                scene_clip_data = download_clips_for_scenes(
+                    scene_plans,
+                    clips_dir=run_clips_dir,
+                    api_key=_pexels_key,
+                    pixabay_api_key=_pixabay_key,
+                    user_id=_stock_user_id,
+                )
                 total_clips = sum(len(sd.get("clips", [])) for sd in scene_clip_data)
                 logger.info("Pipeline step 4b/6: Downloaded %d clips across %d scenes", total_clips, len(scene_clip_data))
                 _report("Stock footage ready", 60)
@@ -3159,6 +3172,8 @@ async def regenerate_video(
         "speech_speed": getattr(user_keys, "speech_speed", None) if user_keys else None,
         # Plan-based quality profile
         "_plan": current_user.plan or "free",
+        # User ID for cross-video stock footage dedup
+        "_user_id": current_user.id,
     }
 
     # ── Enforce plan-based monthly video limits ──────────────────────
