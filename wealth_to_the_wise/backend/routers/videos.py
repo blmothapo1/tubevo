@@ -1194,6 +1194,7 @@ async def _run_pipeline_inner(
                     row.title = result.get("title", topic)
                     row.file_path = result.get("file_path")
                     row.srt_path = result.get("srt_path")
+                    row.thumbnail_path = result.get("thumbnail_path")
                     row.youtube_video_id = result["youtube_video_id"]
                     row.youtube_url = f"https://www.youtube.com/watch?v={result['youtube_video_id']}"
                     row.published_at = datetime.now(timezone.utc)  # Analytics: mark publish time
@@ -1202,6 +1203,7 @@ async def _run_pipeline_inner(
                     row.title = result.get("title", topic)
                     row.file_path = result.get("file_path")
                     row.srt_path = result.get("srt_path")
+                    row.thumbnail_path = result.get("thumbnail_path")
                 else:
                     row.status = "completed"
                     row.title = result.get("title", topic)
@@ -2273,26 +2275,16 @@ def _run_pipeline_locked(
         logger.info("Pipeline step 5/6: Generated %d variants, primary=%s", len(thumbnail_variants), _recommended_thumb)
         _report("Thumbnails ready", 85)
 
-        # ── Step 6: Upload to YouTube (if user connected) ────────────
+        # ── Step 6: Skip auto-upload — user reviews in Preview first ──
+        # The pipeline now ALWAYS stops at "completed" so the user can
+        # preview the video, thumbnail, and metadata before publishing.
+        # Publishing is triggered via POST /api/videos/{id}/publish.
+        result["thumbnail_path"] = thumbnail_path
         if yt_access_token:
-            _report("Uploading to YouTube…", 88)
-            logger.info("Pipeline step 6/6: Uploading to YouTube")
-            youtube_video_id, refreshed_yt_token = _upload_with_user_tokens(
-                video_path=video_path,
-                metadata=metadata,
-                thumbnail_path=thumbnail_path,
-                access_token=yt_access_token,
-                refresh_token=yt_refresh_token,
-            )
-            if youtube_video_id:
-                result["youtube_video_id"] = youtube_video_id
-                _report("Uploaded to YouTube!", 100)
-            # Carry the refreshed token so the async DB-update block can persist it
-            if refreshed_yt_token:
-                result["_refreshed_yt_access_token"] = refreshed_yt_token
+            logger.info("Pipeline step 6/6: Video ready for preview (YouTube connected — user can publish)")
         else:
-            logger.info("Pipeline step 6/6: Skipping upload — no YouTube connection")
-            _report("Complete", 100)
+            logger.info("Pipeline step 6/6: Video ready for preview (no YouTube connection)")
+        _report("Ready for preview", 100)
 
     except Exception:
         # Phase 8: mask keys in the traceback logged here
@@ -3224,6 +3216,357 @@ async def regenerate_video(
         message="Regeneration started! This takes 2-5 minutes.",
         video_id=new_record_id,
     )
+
+
+# ══════════════════════════════════════════════════════════════════════
+# VIDEO PREVIEW & PUBLISH — Review before posting to YouTube
+# ══════════════════════════════════════════════════════════════════════
+
+
+@router.get("/{video_id}/preview")
+async def preview_video(
+    request: Request,
+    video_id: str,
+    token: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Stream the built MP4 for in-browser preview playback.
+
+    Accepts auth via:
+    - Standard Bearer token (header)
+    - ?token= query parameter (for <video> elements that can't send headers)
+    """
+    # Resolve user: try header first, fall back to query param
+    user = None
+    # Try standard Bearer auth
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            user = await get_current_user(token=auth_header.split(" ", 1)[1], db=db)
+        except Exception:
+            pass
+    # Fall back to query param token
+    if not user and token:
+        try:
+            user = await get_current_user(token=token, db=db)
+        except Exception:
+            pass
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+    if not record.file_path or not os.path.isfile(record.file_path):
+        raise HTTPException(status_code=404, detail="Video file not found on server.")
+
+    return FileResponse(
+        path=record.file_path,
+        media_type="video/mp4",
+        headers={"Accept-Ranges": "bytes"},
+    )
+
+
+@router.get("/{video_id}/preview-thumbnail")
+async def preview_thumbnail(
+    request: Request,
+    video_id: str,
+    token: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Serve the thumbnail image for preview.
+
+    Accepts auth via Bearer header or ?token= query param.
+    """
+    user = None
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            user = await get_current_user(token=auth_header.split(" ", 1)[1], db=db)
+        except Exception:
+            pass
+    if not user and token:
+        try:
+            user = await get_current_user(token=token, db=db)
+        except Exception:
+            pass
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+    if not record.thumbnail_path or not os.path.isfile(record.thumbnail_path):
+        raise HTTPException(status_code=404, detail="Thumbnail not found.")
+
+    ext = os.path.splitext(record.thumbnail_path)[1].lower()
+    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(ext.lstrip("."), "image/jpeg")
+    return FileResponse(path=record.thumbnail_path, media_type=mime)
+
+
+@router.get("/{video_id}/preview-data")
+async def preview_data(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all data needed for the preview modal: title, description, tags, thumbnail URL, etc."""
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+
+    # Parse stored metadata
+    import json as _json
+    metadata = {}
+    if record.metadata_json:
+        try:
+            metadata = _json.loads(record.metadata_json)
+        except Exception:
+            pass
+
+    # Check YouTube connection
+    oauth_result = await db.execute(
+        select(OAuthToken).where(
+            OAuthToken.user_id == current_user.id,
+            OAuthToken.provider == "google",
+        )
+    )
+    has_youtube = oauth_result.scalar_one_or_none() is not None
+
+    return {
+        "id": record.id,
+        "title": record.title or "Untitled",
+        "topic": record.topic,
+        "description": metadata.get("description", ""),
+        "tags": metadata.get("tags", []),
+        "status": record.status,
+        "has_video": bool(record.file_path and os.path.isfile(record.file_path)),
+        "has_thumbnail": bool(record.thumbnail_path and os.path.isfile(record.thumbnail_path)),
+        "has_youtube": has_youtube,
+        "youtube_video_id": record.youtube_video_id,
+        "youtube_url": record.youtube_url,
+        "created_at": record.created_at.isoformat() if record.created_at else "",
+    }
+
+
+class PublishRequest(BaseModel):
+    """Optional overrides when publishing to YouTube."""
+    title: str | None = Field(None, max_length=100)
+    description: str | None = Field(None, max_length=5000)
+    tags: list[str] | None = Field(None, max_length=30)
+
+
+@router.post("/{video_id}/publish")
+@limiter.limit("5/hour")
+async def publish_video(
+    request: Request,
+    video_id: str,
+    body: PublishRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Publish a completed video to YouTube.
+
+    The user has previewed the video and chosen to publish. This endpoint
+    uploads the video + thumbnail to YouTube and updates the record status
+    from 'completed' to 'posted'.
+    """
+    result = await db.execute(
+        select(VideoRecord).where(
+            VideoRecord.id == video_id,
+            VideoRecord.user_id == current_user.id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="Video not found.")
+    if record.status == "posted":
+        raise HTTPException(status_code=409, detail="This video has already been published to YouTube.")
+    if record.status not in ("completed",):
+        raise HTTPException(status_code=400, detail=f"Cannot publish a video with status '{record.status}'. Video must be completed first.")
+    if not record.file_path or not os.path.isfile(record.file_path):
+        raise HTTPException(status_code=404, detail="Video file not found on server.")
+
+    # ── Fetch YouTube OAuth tokens ───────────────────────────────────
+    oauth_result = await db.execute(
+        select(OAuthToken).where(
+            OAuthToken.user_id == current_user.id,
+            OAuthToken.provider == "google",
+        )
+    )
+    oauth_token = oauth_result.scalar_one_or_none()
+    if not oauth_token:
+        raise HTTPException(status_code=400, detail="No YouTube channel connected. Connect one in Settings.")
+
+    try:
+        yt_access_token = decrypt_or_raise(oauth_token.access_token, field="yt_access_token")
+        yt_refresh_token = decrypt_or_raise(oauth_token.refresh_token, field="yt_refresh_token")
+    except DecryptionFailedError:
+        raise HTTPException(status_code=400, detail="YouTube token expired. Please reconnect your YouTube channel in Settings.")
+
+    # ── Build metadata (allow overrides from the preview modal) ──────
+    import json as _json
+    stored_metadata = {}
+    if record.metadata_json:
+        try:
+            stored_metadata = _json.loads(record.metadata_json)
+        except Exception:
+            pass
+
+    metadata = {
+        "title": (body.title if body and body.title else None) or record.title or record.topic,
+        "description": (body.description if body and body.description else None) or stored_metadata.get("description", ""),
+        "tags": (body.tags if body and body.tags else None) or stored_metadata.get("tags", []),
+    }
+
+    # If user changed the title, update the record
+    if body and body.title and body.title != record.title:
+        record.title = body.title
+
+    # Persist updated metadata
+    if body and (body.title or body.description or body.tags):
+        merged = {**stored_metadata, **{k: v for k, v in metadata.items() if v is not None}}
+        try:
+            record.metadata_json = _json.dumps(merged)
+        except Exception:
+            pass
+
+    # ── Upload in the background so the HTTP request doesn't time out ──
+    record.status = "generating"  # Temporary — shows "Publishing…" in the UI
+    record.progress_step = "Publishing to YouTube…"
+    record.progress_pct = 90
+    await db.commit()
+
+    _progress_store[video_id] = {"step": "Publishing to YouTube…", "pct": 90, "started_at": time.time()}
+
+    asyncio.create_task(
+        _publish_to_youtube_background(
+            record_id=video_id,
+            user_id=current_user.id,
+            video_path=record.file_path,
+            thumbnail_path=record.thumbnail_path,
+            metadata=metadata,
+            yt_access_token=yt_access_token,
+            yt_refresh_token=yt_refresh_token,
+        )
+    )
+
+    return {
+        "status": "publishing",
+        "message": "Publishing to YouTube — this takes about 30 seconds.",
+        "video_id": video_id,
+    }
+
+
+async def _publish_to_youtube_background(
+    *,
+    record_id: str,
+    user_id: str,
+    video_path: str,
+    thumbnail_path: str | None,
+    metadata: dict,
+    yt_access_token: str,
+    yt_refresh_token: str | None,
+) -> None:
+    """Background task: upload a completed video to YouTube, then update DB."""
+    logger.info("Publishing video %s to YouTube in background", record_id)
+    try:
+        youtube_video_id, refreshed_yt_token = await asyncio.to_thread(
+            _upload_with_user_tokens,
+            video_path=video_path,
+            metadata=metadata,
+            thumbnail_path=thumbnail_path,
+            access_token=yt_access_token,
+            refresh_token=yt_refresh_token,
+        )
+    except Exception as e:
+        logger.error("YouTube publish failed for record %s: %s", record_id, e)
+        youtube_video_id = None
+        refreshed_yt_token = None
+
+        async with async_session_factory() as db:
+            stmt = select(VideoRecord).where(VideoRecord.id == record_id)
+            row = (await db.execute(stmt)).scalar_one_or_none()
+            if row:
+                row.status = "completed"  # Revert to completed — user can retry
+                row.error_message = f"YouTube publish failed: {str(e)[:500]}"
+                row.progress_step = "Publish failed"
+                row.progress_pct = 85
+                row.updated_at = datetime.now(timezone.utc)
+                await db.commit()
+
+            from backend.errors import capture_error
+            await capture_error(db, "upload", message=str(e)[:2000], user_id=user_id, video_id=record_id)
+            await db.commit()
+
+        _progress_store.pop(record_id, None)
+        return
+
+    # ── Success: update the record ───────────────────────────────────
+    async with async_session_factory() as db:
+        stmt = select(VideoRecord).where(VideoRecord.id == record_id)
+        row = (await db.execute(stmt)).scalar_one_or_none()
+        if not row:
+            logger.error("VideoRecord %s not found after publish!", record_id)
+            return
+
+        if youtube_video_id:
+            row.status = "posted"
+            row.youtube_video_id = youtube_video_id
+            row.youtube_url = f"https://www.youtube.com/watch?v={youtube_video_id}"
+            row.published_at = datetime.now(timezone.utc)
+            row.progress_step = "Published to YouTube!"
+            row.progress_pct = 100
+            row.error_message = None  # Clear any prior error
+        else:
+            row.status = "completed"
+            row.error_message = "YouTube upload returned no video ID."
+            row.progress_step = "Publish failed"
+
+        row.updated_at = datetime.now(timezone.utc)
+        await db.commit()
+        logger.info("Published video %s → youtube_id=%s", record_id, youtube_video_id)
+
+        # ── Emit events ──────────────────────────────────────────────
+        if youtube_video_id:
+            await emit_event(db, "upload_success", user_id=user_id, video_id=record_id, meta={"youtube_id": youtube_video_id})
+            await db.commit()
+
+        # ── Persist refreshed YouTube token ──────────────────────────
+        if refreshed_yt_token:
+            try:
+                from backend.encryption import encrypt as _encrypt
+                yt_stmt = select(OAuthToken).where(
+                    OAuthToken.user_id == user_id,
+                    OAuthToken.provider == "google",
+                )
+                yt_row = (await db.execute(yt_stmt)).scalar_one_or_none()
+                if yt_row:
+                    yt_row.access_token = _encrypt(refreshed_yt_token)
+                    yt_row.updated_at = datetime.now(timezone.utc)
+                    await db.commit()
+            except Exception as yt_err:
+                logger.warning("Failed to persist refreshed YouTube token: %s", yt_err)
+
+    _progress_store.pop(record_id, None)
 
 
 # ── GET /api/videos/queue ───────────────────────────────────────────

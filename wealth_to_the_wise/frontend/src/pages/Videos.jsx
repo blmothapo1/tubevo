@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import api from '../lib/api';
+import api, { getAccessToken } from '../lib/api';
 import { FadeIn, StaggerContainer, StaggerItem } from '../components/Motion';
 import { SkeletonVideoList } from '../components/Skeleton';
 import ConfettiCelebration from '../components/ConfettiCelebration';
@@ -39,6 +39,9 @@ import {
   Smartphone,
   Square,
   Monitor,
+  Eye,
+  Play,
+  Tag,
 } from 'lucide-react';
 
 const ease = [0.25, 0.1, 0.25, 1];
@@ -47,7 +50,7 @@ const statusConfig = {
   queued:     { label: 'Queued',       badge: 'badge-pending',     icon: Clock },
   pending:    { label: 'Pending',      badge: 'badge-pending',     icon: Clock },
   generating: { label: 'Creating…',   badge: 'badge-generating',  icon: Film },
-  completed:  { label: 'Completed',    badge: 'badge-completed',   icon: CheckCircle },
+  completed:  { label: 'Ready',        badge: 'badge-completed',   icon: Eye },
   posted:     { label: 'Posted',       badge: 'badge-posted',      icon: Upload },
   failed:     { label: 'Failed',       badge: 'badge-failed',      icon: AlertTriangle },
 };
@@ -63,7 +66,7 @@ const PIPELINE_STEPS = [
   { label: 'Downloading footage', pctStart: 45, pctEnd: 60 },
   { label: 'Building video', pctStart: 60, pctEnd: 78 },
   { label: 'Designing thumbnail', pctStart: 78, pctEnd: 85 },
-  { label: 'Uploading to YouTube', pctStart: 85, pctEnd: 100 },
+  { label: 'Finalizing…', pctStart: 85, pctEnd: 100 },
 ];
 
 function estimateTimeRemaining(pct, startedAt) {
@@ -118,6 +121,246 @@ function RenderProgressBar({ pct, step, startedAt }) {
   );
 }
 
+
+// ══════════════════════════════════════════════════════════════════════
+// VideoPreviewModal — review video before publishing to YouTube
+// ══════════════════════════════════════════════════════════════════════
+function VideoPreviewModal({ videoId, onClose, onPublished }) {
+  const toast = useToast();
+  const [previewData, setPreviewData] = useState(null);
+  const [loadingData, setLoadingData] = useState(true);
+  const [publishing, setPublishing] = useState(false);
+  const [published, setPublished] = useState(false);
+  const videoRef = useRef(null);
+
+  // Fetch preview data on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchData() {
+      try {
+        const { data } = await api.get(`/api/videos/${videoId}/preview-data`);
+        if (!cancelled) setPreviewData(data);
+      } catch {
+        if (!cancelled) toast.error('Failed to load preview data.');
+      } finally {
+        if (!cancelled) setLoadingData(false);
+      }
+    }
+    fetchData();
+    return () => { cancelled = true; };
+  }, [videoId]);
+
+  // Poll for publish completion when publishing
+  useEffect(() => {
+    if (!publishing) return;
+    let cancelled = false;
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await api.get(`/api/videos/${videoId}/preview-data`);
+        if (cancelled) return;
+        setPreviewData(data);
+        if (data.status === 'posted') {
+          setPublishing(false);
+          setPublished(true);
+          toast.success('Published to YouTube!');
+          clearInterval(interval);
+          if (onPublished) onPublished(videoId, data);
+        } else if (data.status === 'completed') {
+          // Publish failed — reverted to completed
+          setPublishing(false);
+          clearInterval(interval);
+        }
+      } catch { /* keep polling */ }
+    }, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [publishing, videoId]);
+
+  async function handlePublish() {
+    setPublishing(true);
+    try {
+      await api.post(`/api/videos/${videoId}/publish`);
+    } catch (err) {
+      setPublishing(false);
+      const detail = err.response?.data?.detail;
+      toast.error(detail || 'Failed to publish. Please try again.');
+    }
+  }
+
+  // Close on Escape key
+  useEffect(() => {
+    function onKey(e) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const authToken = getAccessToken() || '';
+  const videoSrc = `${api.defaults.baseURL}/api/videos/${videoId}/preview?token=${encodeURIComponent(authToken)}`;
+  const thumbSrc = `${api.defaults.baseURL}/api/videos/${videoId}/preview-thumbnail?token=${encodeURIComponent(authToken)}`;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        transition={{ duration: 0.25, ease }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-2xl rounded-2xl bg-surface-200 border border-[var(--border-subtle)] overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-subtle)]">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
+              <Eye size={16} className="text-brand-400" />
+            </div>
+            <h2 className="text-[15px] font-semibold text-white">Preview Video</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md text-surface-600 hover:text-white hover:bg-white/5 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {loadingData ? (
+          <div className="p-12 flex flex-col items-center gap-3">
+            <RefreshCw size={20} className="text-brand-400 animate-spin" />
+            <p className="text-xs text-surface-600">Loading preview…</p>
+          </div>
+        ) : (
+          <div className="p-6 space-y-5">
+            {/* Video Player */}
+            <div className="rounded-xl overflow-hidden bg-black aspect-video">
+              <video
+                ref={videoRef}
+                src={videoSrc}
+                controls
+                preload="metadata"
+                poster={previewData?.has_thumbnail ? thumbSrc : undefined}
+                className="w-full h-full object-contain"
+                controlsList="nodownload"
+              />
+            </div>
+
+            {/* Video Info */}
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold text-white leading-snug">
+                {previewData?.title || 'Untitled'}
+              </h3>
+
+              {previewData?.description && (
+                <p className="text-xs text-surface-600 leading-relaxed line-clamp-3">
+                  {previewData.description}
+                </p>
+              )}
+
+              {previewData?.tags?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {previewData.tags.slice(0, 12).map((tag, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1 text-[10px] text-surface-500 bg-surface-300/50 px-2 py-0.5 rounded-md"
+                    >
+                      <Tag size={8} />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-3 pt-2 border-t border-[var(--border-subtle)]">
+              {published || previewData?.status === 'posted' ? (
+                <div className="flex-1 flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+                    <CheckCircle size={16} />
+                    Published to YouTube
+                  </div>
+                  {previewData?.youtube_url && (
+                    <a
+                      href={previewData.youtube_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 transition-colors"
+                    >
+                      <ExternalLink size={12} />
+                      Watch on YouTube
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {previewData?.has_youtube ? (
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handlePublish}
+                      disabled={publishing}
+                      className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {publishing ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" />
+                          Publishing…
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={14} />
+                          Publish to YouTube
+                        </>
+                      )}
+                    </motion.button>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-surface-500">
+                      <AlertTriangle size={14} className="text-amber-400" />
+                      Connect a YouTube channel in Settings to publish.
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="ml-auto">
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-lg text-xs text-surface-600 hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {/* Publishing progress indicator */}
+            <AnimatePresence>
+              {publishing && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="rounded-lg bg-brand-500/6 px-4 py-3 flex items-center gap-3"
+                >
+                  <RefreshCw size={14} className="text-brand-400 animate-spin shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-brand-400 font-medium">Uploading to YouTube…</p>
+                    <p className="text-[10px] text-surface-500 mt-0.5">This usually takes about 30 seconds.</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+
 export default function Videos() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -161,6 +404,9 @@ export default function Videos() {
 
   // ── Bulk mode state ──
   const [bulkMode, setBulkMode] = useState(false);
+
+  // ── Preview modal state ──
+  const [previewVideoId, setPreviewVideoId] = useState(null);
 
   // ── Fetch quota on mount and after video creation ──
   const fetchQuota = useCallback(async () => {
@@ -263,9 +509,11 @@ export default function Videos() {
           toast.success(`"${data.title}" posted to YouTube!`);
           triggerFirstVideoConfetti();
         } else {
-          setMessage({ type: 'success', text: `Video "${data.title}" created successfully!` });
-          toast.success(`"${data.title}" created successfully!`);
+          // Video completed — auto-open preview
+          setMessage({ type: 'success', text: `Video "${data.title}" is ready! Review it below.` });
+          toast.success(`"${data.title}" is ready for preview!`);
           triggerFirstVideoConfetti();
+          setPreviewVideoId(activeJobId);
         }
         fetchVideos();
         fetchQuota();
@@ -566,6 +814,21 @@ export default function Videos() {
     <FadeIn className="max-w-5xl mx-auto space-y-6 sm:space-y-7">
       {/* Confetti on first successful video — additive */}
       <ConfettiCelebration show={showConfetti} onDone={() => setShowConfetti(false)} />
+
+      {/* ── Video Preview Modal ── */}
+      <AnimatePresence>
+        {previewVideoId && (
+          <VideoPreviewModal
+            key={previewVideoId}
+            videoId={previewVideoId}
+            onClose={() => setPreviewVideoId(null)}
+            onPublished={(vid) => {
+              fetchVideos();
+              triggerFirstVideoConfetti();
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Upgrade Modal ── */}
       <AnimatePresence>
@@ -972,10 +1235,20 @@ export default function Videos() {
               <StaggerItem key={video.id}>
                 <div className="px-5 py-4.5 transition-colors hover:bg-white/[0.02] duration-150">
                   <div className="flex items-center gap-4">
-                    {/* Thumbnail placeholder */}
-                    <div className="hidden sm:flex w-24 h-14 rounded-[10px] bg-surface-200 items-center justify-center shrink-0 overflow-hidden">
+                    {/* Thumbnail placeholder / actual thumbnail */}
+                    <div
+                      className={`hidden sm:flex w-24 h-14 rounded-[10px] bg-surface-200 items-center justify-center shrink-0 overflow-hidden ${video.status === 'completed' ? 'cursor-pointer ring-1 ring-transparent hover:ring-brand-500/30 transition-all' : ''}`}
+                      onClick={video.status === 'completed' && video.file_path ? () => setPreviewVideoId(video.id) : undefined}
+                    >
                       {video.status === 'generating' ? (
                         <RefreshCw size={16} className="text-brand-400/50 animate-spin" />
+                      ) : video.thumbnail_path && (video.status === 'completed' || video.status === 'posted') ? (
+                        <img
+                          src={`${api.defaults.baseURL}/api/videos/${video.id}/preview-thumbnail?token=${encodeURIComponent(getAccessToken() || '')}`}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-surface-500"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>'; }}
+                        />
                       ) : (
                         <Video size={16} className="text-surface-500" />
                       )}
@@ -1010,6 +1283,18 @@ export default function Videos() {
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-0.5 shrink-0">
+                      {/* Preview button — completed videos ready for review */}
+                      {video.status === 'completed' && video.file_path && (
+                        <button
+                          onClick={() => setPreviewVideoId(video.id)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium text-emerald-400 bg-emerald-500/8 hover:bg-emerald-500/15 transition-colors duration-150"
+                          title="Preview & publish"
+                        >
+                          <Eye size={12} />
+                          Preview
+                        </button>
+                      )}
+
                       {/* YouTube link */}
                       {video.youtube_url && (
                         <a
