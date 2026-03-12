@@ -267,6 +267,73 @@ class TransitionConfig:
 
 
 @dataclass
+class ClipPacingConfig:
+    """Controls per-clip duration variety for a more cinematic feel.
+
+    When enabled, clip durations are randomised within [min_sec, max_sec]
+    instead of being proportionally distributed.  The total still sums to
+    the required budget — only the *relative* lengths vary.
+    """
+    enabled: bool = False
+    min_sec: float = 2.5   # shortest single clip
+    max_sec: float = 7.0   # longest single clip
+
+
+def distribute_clip_durations(
+    n_clips: int,
+    total_budget: float,
+    pacing: ClipPacingConfig | None = None,
+    *,
+    rng: random.Random | None = None,
+) -> list[float]:
+    """Return *n_clips* durations that sum to *total_budget*.
+
+    If *pacing* is None or disabled, each clip gets an equal share
+    (uniform distribution — the old behaviour).
+
+    When enabled the algorithm:
+      1. Draws a random weight per clip from [min_sec, max_sec].
+      2. Normalises so the weights sum to *total_budget*.
+      3. Clamps each result to [min_sec, max_sec] and re-normalises
+         (two passes are enough in practice).
+    """
+    if n_clips <= 0:
+        return []
+    if n_clips == 1:
+        return [total_budget]
+
+    if pacing is None or not pacing.enabled:
+        share = total_budget / n_clips
+        return [share] * n_clips
+
+    _rng = rng or random.Random()
+
+    lo = max(0.5, pacing.min_sec)
+    hi = max(lo + 0.5, pacing.max_sec)
+
+    # ── Draw random raw durations in [lo, hi] ──────────────────────
+    raw = [_rng.uniform(lo, hi) for _ in range(n_clips)]
+
+    # ── Normalise → sum = total_budget, then clamp ─────────────────
+    for _pass in range(3):
+        raw_sum = sum(raw)
+        if raw_sum <= 0:
+            return [total_budget / n_clips] * n_clips
+        factor = total_budget / raw_sum
+        raw = [r * factor for r in raw]
+        # Clamp
+        raw = [max(lo, min(hi, r)) for r in raw]
+
+    # Final normalisation (clamp may have shifted the sum)
+    final_sum = sum(raw)
+    if abs(final_sum - total_budget) > 0.01:
+        factor = total_budget / final_sum
+        raw = [r * factor for r in raw]
+
+    return raw
+
+
+@dataclass
 class FilmEffects:
     """Post-processing film effects."""
     # Vignette: darkens edges for cinematic focus
@@ -334,6 +401,7 @@ class VisualProfile:
     transitions: TransitionConfig
     film_effects: FilmEffects
     title_style: TitleCardStyle
+    clip_pacing: ClipPacingConfig = field(default_factory=ClipPacingConfig)
     # Dark overlay opacity (higher = darker background = more readable text)
     dark_overlay_opacity: float = 0.35
     # Animated lower-third topic label
@@ -354,6 +422,7 @@ VISUAL_PROFILES: dict[str, VisualProfile] = {
         transitions=TransitionConfig(enabled=False),
         film_effects=FilmEffects(),
         title_style=TitleCardStyle(),
+        clip_pacing=ClipPacingConfig(enabled=False),
         dark_overlay_opacity=0.35,
     ),
 
@@ -373,6 +442,7 @@ VISUAL_PROFILES: dict[str, VisualProfile] = {
             fade_in_text=True,
             text_fade_duration=0.6,
         ),
+        clip_pacing=ClipPacingConfig(enabled=True, min_sec=3.0, max_sec=6.0),
         dark_overlay_opacity=0.30,
     ),
 
@@ -407,6 +477,7 @@ VISUAL_PROFILES: dict[str, VisualProfile] = {
             accent_line_width=80,
             shimmer=True,
         ),
+        clip_pacing=ClipPacingConfig(enabled=True, min_sec=2.5, max_sec=7.0),
         dark_overlay_opacity=0.28,
         lower_third_enabled=True,
         vary_grade_per_scene=True,
@@ -447,6 +518,7 @@ VISUAL_PROFILES: dict[str, VisualProfile] = {
             show_subtitle=True,
             subtitle_text="WEALTH · MINDSET · FREEDOM",
         ),
+        clip_pacing=ClipPacingConfig(enabled=True, min_sec=2.0, max_sec=8.0),
         dark_overlay_opacity=0.25,
         lower_third_enabled=True,
         vary_grade_per_scene=True,

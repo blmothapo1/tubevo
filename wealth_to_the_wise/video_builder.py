@@ -395,18 +395,41 @@ def _prepare_background(
 
     total_raw_dur = sum(d for _, d in valid_clips)
 
+    # ── Clip-pacing support (randomised per-clip durations) ─────────
+    _pacing = (
+        visual_profile.clip_pacing
+        if visual_profile is not None
+        else None
+    )
+
     # Figure out how long to use from each clip
     segments: list[tuple[str, float]] = []
     remaining = target_duration
 
     if total_raw_dur >= target_duration:
-        for path, dur in valid_clips:
-            if remaining <= 0:
-                break
-            share = max(2.0, (dur / total_raw_dur) * target_duration)
-            share = min(share, remaining, dur)
-            segments.append((path, share))
-            remaining -= share
+        # We have enough raw footage — distribute among available clips
+        usable = [(p, d) for p, d in valid_clips if d > 0.5]
+        if _pacing and _pacing.enabled and len(usable) > 1:
+            from visual_effects import distribute_clip_durations
+            durations = distribute_clip_durations(
+                len(usable), target_duration, _pacing,
+            )
+            for (path, raw_dur), allotted in zip(usable, durations):
+                use = min(allotted, raw_dur, remaining)
+                if use < 0.5:
+                    continue
+                segments.append((path, use))
+                remaining -= use
+                if remaining <= 0:
+                    break
+        else:
+            for path, dur in valid_clips:
+                if remaining <= 0:
+                    break
+                share = max(2.0, (dur / total_raw_dur) * target_duration)
+                share = min(share, remaining, dur)
+                segments.append((path, share))
+                remaining -= share
     else:
         idx = 0
         while remaining > 0.5:
@@ -588,6 +611,13 @@ def _prepare_background_from_scenes(
         total_clip_dur = sum(d for _, d in valid)
         scene_remaining = scene_budget
 
+        # Clip pacing config (randomised durations per clip)
+        _pacing = (
+            visual_profile.clip_pacing
+            if visual_profile is not None
+            else None
+        )
+
         # Motion variety enabled?
         _motion_on = (
             visual_profile is not None
@@ -595,11 +625,24 @@ def _prepare_background_from_scenes(
         )
 
         if total_clip_dur >= scene_budget:
-            for path, dur in valid:
+            # Enough footage — decide per-clip durations
+            if _pacing and _pacing.enabled and len(valid) > 1:
+                from visual_effects import distribute_clip_durations
+                allotted = distribute_clip_durations(
+                    len(valid), scene_budget, _pacing,
+                )
+            else:
+                allotted = [
+                    max(1.5, (dur / total_clip_dur) * scene_budget)
+                    for _, dur in valid
+                ]
+
+            for (path, dur), target_share in zip(valid, allotted):
                 if scene_remaining <= 0:
                     break
-                share = max(1.5, (dur / total_clip_dur) * scene_budget)
-                share = min(share, scene_remaining, dur)
+                share = min(target_share, scene_remaining, dur)
+                if share < 0.5:
+                    continue
                 seg_path = os.path.join(tmp_dir, f"seg_{seg_idx:03d}.mp4")
 
                 vf_parts = [
